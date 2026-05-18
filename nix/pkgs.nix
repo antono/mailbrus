@@ -12,7 +12,7 @@ let
     };
     buildAndTestFocus = "mailbrus-cli";
     nativeBuildInputs = [ pkgs.pkg-config ];
-    buildInputs = [ pkgs.openssl ];
+    buildInputs = tauri-deps;
     doCheck = false;
   };
 
