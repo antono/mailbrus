@@ -1,0 +1,16 @@
+# Rust build artifacts
+target/
+
+# Node / Deno
+node_modules/
+
+# SvelteKit build output
+build/
+.svelte-kit/
+
+# Nix build results
+result
+result-*
+
+# Editor
+.direnv/
