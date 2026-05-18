@@ -16,7 +16,7 @@
 
 - [x] 3.1 Create `mailbrus-core/Cargo.toml` as a `lib` crate with `io-email` git dependency from `https://github.com/pimalaya/io-email`
 - [x] 3.2 Create `mailbrus-core/src/lib.rs` with a placeholder `pub fn version() -> &'static str` and a doc-test
-- [ ] 3.3 Add `cargoLock.outputHashes` entry for `io-email` git dep in `nix/pkgs.nix` (both CLI and desktop derivations)
+- [x] 3.3 Add `cargoLock.outputHashes` entry for `io-email` git dep in `nix/pkgs.nix` (both CLI and desktop derivations)
 
 ## 4. mailbrus-cli Crate
 
@@ -44,6 +44,6 @@
 
 ## 7. Verification
 
-- [ ] 7.1 Run `cargo build --workspace` and confirm all three crates compile
-- [ ] 7.2 Run `cargo test -p mailbrus-core` and confirm placeholder doc-test passes
-- [ ] 7.3 Confirm `nix flake show` evaluates without errors
+- [x] 7.1 Run `cargo build --workspace` and confirm all three crates compile
+- [x] 7.2 Run `cargo test -p mailbrus-core` and confirm placeholder doc-test passes
+- [x] 7.3 Confirm `nix flake show` evaluates without errors
