@@ -7,3 +7,4 @@ license = "LGPL-3.0-or-later"
 
 [dependencies]
 io-email = { git = "https://github.com/pimalaya/io-email" }
+io-maildir = { git = "https://github.com/pimalaya/io-maildir" }
