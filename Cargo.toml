@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "mailbrus-core",
+    "mailbrus-cli",
+    "src-tauri",
+]
+resolver = "2"

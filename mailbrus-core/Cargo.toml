@@ -1,0 +1,9 @@
+[package]
+name = "mailbrus-core"
+version = "0.1.0"
+edition = "2021"
+description = "Shared core library for mailbrus"
+license = "LGPL-3.0-or-later"
+
+[dependencies]
+io-email = { git = "https://github.com/pimalaya/io-email" }

@@ -1,0 +1,13 @@
+[package]
+name = "mailbrus-cli"
+version = "0.1.0"
+edition = "2021"
+description = "mailbrus: keyboard-oriented email client (CLI)"
+license = "LGPL-3.0-or-later"
+
+[[bin]]
+name = "mailbrus"
+path = "src/main.rs"
+
+[dependencies]
+mailbrus-core = { path = "../mailbrus-core" }

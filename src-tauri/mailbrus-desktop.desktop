@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=mailbrus
+Comment=Keyboard-oriented email client
+Exec=mailbrus-desktop
+Icon=mailbrus-desktop
+Type=Application
+Categories=Network;Email;
+Keywords=email;mail;
