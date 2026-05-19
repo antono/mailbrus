@@ -17,6 +17,7 @@
     xdg-utils
     gobject-introspection
     glib-networking
+    notmuch
   ];
   dev-deps = with pkgs; [
     deno

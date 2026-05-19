@@ -1,3 +1,7 @@
+pub mod error;
+pub mod maildir_reader;
+pub use error::MailboxError;
+
 /// Returns the mailbrus version string.
 ///
 /// ```
