@@ -1,4 +1,4 @@
-{ pkgs, tauri-deps }:
+{ pkgs, tauri-deps, io-email, io-maildir, system }:
 let
   mailbrus = pkgs.rustPlatform.buildRustPackage {
     pname = "mailbrus";
@@ -8,6 +8,7 @@ let
       lockFile = ../Cargo.lock;
       outputHashes = {
         "io-email-0.0.1" = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
+        "io-maildir-0.0.1" = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
       };
     };
     buildAndTestFocus = "mailbrus-cli";
@@ -41,6 +42,7 @@ let
       lockFile = ../Cargo.lock;
       outputHashes = {
         "io-email-0.0.1" = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
+        "io-maildir-0.0.1" = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
       };
     };
     buildAndTestFocus = "mailbrus-desktop";

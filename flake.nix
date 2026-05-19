@@ -4,6 +4,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    io-email.url = "github:pimalaya/io-email";
+    io-maildir.url = "github:pimalaya/io-maildir";
   };
 
   outputs =
@@ -11,6 +13,8 @@
       self,
       nixpkgs,
       flake-utils,
+      io-email,
+      io-maildir,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -20,7 +24,7 @@
         deps = import ./nix/deps.nix { inherit pkgs; };
         inherit (deps) tauri-deps dev-deps;
 
-        mailbrus-pkgs = import ./nix/pkgs.nix { inherit pkgs tauri-deps; };
+        mailbrus-pkgs = import ./nix/pkgs.nix { inherit pkgs tauri-deps io-email io-maildir system; };
         inherit (mailbrus-pkgs) mailbrus mailbrus-frontend mailbrus-desktop;
       in
       {
