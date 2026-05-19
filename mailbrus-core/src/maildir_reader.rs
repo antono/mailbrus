@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::error::MailboxError;
 
@@ -112,6 +112,39 @@ impl MaildirReader {
 
         let path = msg.filename().to_path_buf();
         std::fs::read(&path).map_err(|e| MailboxError::BodyReadFailed { path, reason: e })
+    }
+
+    /// Opens the notmuch database using the default user config (~/.notmuch-config).
+    pub fn open() -> Result<Self, MailboxError> {
+        let db = notmuch::Database::open_with_config(
+            None::<&Path>,
+            notmuch::DatabaseMode::ReadOnly,
+            None::<&Path>,
+            None,
+        )
+        .map_err(|e| MailboxError::QueryFailed(e.to_string()))?;
+        Ok(Self { db })
+    }
+
+    pub fn list_maildirs(&self) -> Result<Vec<PathBuf>, MailboxError> {
+        Ok(vec![self.db.path().to_path_buf()])
+    }
+
+    pub fn list_folders(&self, maildir: &Path) -> Result<Vec<String>, MailboxError> {
+        let entries = std::fs::read_dir(maildir).map_err(|e| {
+            MailboxError::QueryFailed(format!("cannot read {}: {e}", maildir.display()))
+        })?;
+        let mut folders: Vec<String> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let name = e.file_name();
+                let s = name.to_string_lossy();
+                s.starts_with('.') && e.path().is_dir()
+            })
+            .map(|e| e.file_name().to_string_lossy()[1..].to_string())
+            .collect();
+        folders.sort();
+        Ok(folders)
     }
 }
 
@@ -257,6 +290,53 @@ Hello!\r\n";
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("nonexistent@example.com"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn list_maildirs_returns_db_path() {
+        let dir = unique_tmpdir();
+        setup_test_db(&dir);
+
+        let reader = MaildirReader::new(&dir).unwrap();
+        let maildirs = reader.list_maildirs().unwrap();
+
+        assert_eq!(maildirs.len(), 1);
+        assert_eq!(maildirs[0], dir);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn list_folders_returns_maildir_subfolders() {
+        let dir = unique_tmpdir();
+        setup_test_db(&dir);
+        // create Maildir++ subfolders
+        for name in &[".INBOX", ".Sent", ".Drafts"] {
+            fs::create_dir_all(dir.join(name).join("cur")).unwrap();
+            fs::create_dir_all(dir.join(name).join("new")).unwrap();
+            fs::create_dir_all(dir.join(name).join("tmp")).unwrap();
+        }
+
+        let reader = MaildirReader::new(&dir).unwrap();
+        let folders = reader.list_folders(&dir).unwrap();
+
+        assert_eq!(folders, vec!["Drafts", "INBOX", "Sent"]);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn list_folders_excludes_non_dot_dirs() {
+        let dir = unique_tmpdir();
+        setup_test_db(&dir);
+
+        let reader = MaildirReader::new(&dir).unwrap();
+        let folders = reader.list_folders(&dir).unwrap();
+
+        // cur, new, tmp exist but must not appear
+        assert!(!folders.iter().any(|f| f == "cur" || f == "new" || f == "tmp"));
 
         fs::remove_dir_all(&dir).ok();
     }
