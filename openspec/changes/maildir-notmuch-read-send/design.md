@@ -1,147 +1,190 @@
 ## Context
 
-mailbrus-core gains its first three real modules: a Maildir reader,
-an optional notmuch index, and an SMTP sender. All three build on
-pimalaya's io-* coroutine model: I/O-free state machines that describe
-what filesystem or network operations to perform; the caller (the
-blocking client) drives the loop.
+mailbrus-core gains its first real module: a Maildir reader backed by
+notmuch. The module has one job: expose a read-only view of the user's
+already-indexed mail.
 
-The 50k-message constraint makes the architecture decision clear:
-io-maildir's `message_list` coroutine reads full file contents for
-every message on every listing call. That is too slow as the primary
-list path. notmuch is the index; io-maildir is the I/O layer for
-individual message access.
+notmuch and mail sync are fully external to mailbrus. The user has
+their own mbsync/offlineimap setup keeping Maildir up to date, and
+their own notmuch configuration keeping the index fresh. mailbrus-core
+opens the database read-only and never calls `notmuch new`.
 
 ## Decisions
 
-### 1. notmuch as the primary listing path (feature-gated)
+### 1. notmuch is mandatory, not optional
 
-**Decision:** When the `notmuch` feature is compiled in, all folder
-listings go through the notmuch database. io-maildir is used only for
-reading message bodies by path returned from notmuch.
+**Decision:** notmuch is a hard dependency. No feature flag, no fallback
+path that reads files directly.
 
-**Rationale:** notmuch maintains a pre-built Xapian index with parsed
-headers. Listing 50k messages returns in milliseconds; io-maildir
-alone would require reading 50k files. The tradeoff is a C library
-dependency (`libnotmuch`) that not all users will have.
+**Rationale:** At 50k+ messages, reading full file contents on every
+listing call is unacceptable. notmuch is the only performant path.
+Making it optional would create two code paths to maintain with no
+clear benefit — users who can't install notmuch are not the target
+audience for mailbrus.
 
-**Non-destructive use:** queries are read-only. Tag writes (`+seen`,
-`-new`) are the only mutations. `notmuch new` is never called.
+### 2. notmuch is the single source of truth
 
-**Alternative considered:** header-only lazy reads with a local SQLite
-cache. Rejected: significant implementation work with worse search
-than notmuch; reinventing what notmuch already does well.
+**Decision:** All listing, searching, and metadata comes from notmuch.
+Body reads use paths returned by notmuch, not a separate Maildir root.
 
-### 2. io-maildir for all message I/O (both paths)
+**Rationale:** notmuch stores the canonical path for each indexed
+message. Passing in a separate Maildir root is redundant. If a path is
+stale (message was deleted), that is the user's sync concern.
 
-**Decision:** `message_get` and all write coroutines (move, delete,
-store, flags) go through io-maildir in both the notmuch and non-notmuch
-paths.
+### 3. Direct notmuch query language, no DSL
 
-**Rationale:** notmuch does not provide message body access — only
-metadata and file paths. io-maildir is the right layer for actual file
-operations regardless of whether notmuch is the index.
+**Decision:** `list_messages` takes a raw notmuch query string.
+No query builder, no filter struct.
 
-### 3. Feature flag `notmuch` — compile-time, not runtime
+**Rationale:** notmuch's query language (`folder:INBOX tag:unread
+from:alice`) is well-documented and expressive. An abstraction over it
+adds complexity with no gain at this stage. CLI and Tauri layers
+compose query strings as needed.
 
-**Decision:** `notmuch` is a Cargo feature flag. There is no runtime
-detection or fallback.
+### 4. Error proxy for well-known errors
 
-**Rationale:** Cleaner than runtime feature detection. Users who want
-notmuch build with `-F notmuch`. The Nix derivation will expose a
-`mailbrus-notmuch` variant with the feature enabled.
+**Decision:** A `MailboxError` type wraps notmuch and I/O errors,
+mapping well-known cases to named variants.
 
-**Trade-off:** Two binary variants rather than one adaptive binary.
-Acceptable at this stage; a runtime feature toggle can be added later.
+**Rationale:** Raw notmuch C-library errors are opaque to users. Named
+variants (DatabaseNotFound, DatabaseLocked, MessageNotFound, etc.)
+allow CLI and Tauri layers to present actionable messages.
 
-### 4. Direct io-smtp, not io-email umbrella
+### 5. Account config and credential management are out of scope
 
-**Decision:** Depend on `io-smtp` directly, not via `io-email`'s smtp
-feature.
+**Decision:** `MaildirReader::new` takes a `db_path: PathBuf`. No
+account struct, no config file parsing, no credential storage.
 
-**Rationale:** io-email's account abstraction is valuable when managing
-multiple backends (IMAP + Maildir + JMAP). This change only needs SMTP
-send. Direct dependency is simpler and avoids pulling in io-imap
-transitively. io-email can replace this later if IMAP sync is added.
+**Rationale:** Account management is a separate concern implemented in
+the CLI/Tauri layer.
 
-### 5. Credentials at call site, no account config
+### 6. SmtpSender is a separate change
 
-**Decision:** `SmtpSender::send` accepts credentials as parameters.
-No account config struct in this change.
+**Decision:** io-smtp and SmtpSender are removed from this change.
 
-**Rationale:** Account management is a separate concern. Hardcoding
-a config shape now would constrain the future account model. The CLI
-and Tauri frontends will handle credential sourcing (env vars, keyring,
-config file) in a separate change.
+**Rationale:** Read and send are independent capabilities. Keeping this
+change read-only makes it focused and deliverable.
 
 ## Module Layout
 
 ```
 mailbrus-core/src/
-├── lib.rs                  (re-exports modules, version())
-├── maildir_reader.rs       (MaildirReader: list, get, sort)
-├── notmuch_index.rs        (#[cfg(feature="notmuch")] NotmuchIndex)
-└── smtp_sender.rs          (SmtpSender: send)
+├── lib.rs               (re-exports modules, version())
+├── maildir_reader.rs    (MaildirReader, Message, Headers, MaildirFlags, SortBy, PaginationOpts)
+└── error.rs             (MailboxError)
 ```
 
 ## Data Flow
 
 ```
-WITHOUT notmuch feature
-────────────────────────────────────────────────────────
+LIST MESSAGES
+─────────────────────────────────────────────────────────────
 
-  MaildirReader::list(root)
+  MaildirReader::list_messages("folder:INBOX", SortBy::Newest, { limit: 50, offset: 0 })
     │
-    └──▶ io-maildir MaildirClient::list_messages()
-           │
-           ├── WantsDirRead  →  std::fs::read_dir
-           └── WantsFileRead →  std::fs::read (full file)
-                                    │
-                                    └──▶ mail-parser → Message { headers }
-  sort by header in-memory
-  return Vec<Message>
+    └──▶ notmuch::Database::open(db_path, ReadOnly)
+           └──▶ db.create_query("folder:INBOX")
+                  ├── query.count_messages() → total
+                  └── query.search_messages()
+                         .skip(offset)
+                         .take(limit)
+                         .map(msg → Message {
+                             id:      msg.id(),
+                             headers: Headers { from, subject, date, ... },
+                             flags:   tags_to_flags(msg.tags()),
+                         })
+  return (Vec<Message>, total)
 
 
-WITH notmuch feature
-────────────────────────────────────────────────────────
+GET MESSAGE BODY
+─────────────────────────────────────────────────────────────
 
-  NotmuchIndex::list(query)
+  MaildirReader::get_message_body("abc123")
     │
-    └──▶ notmuch::Database::open (read-only)
-           └──▶ query.search_messages()
-                  └──▶ returns (id, path, headers) instantly
+    └──▶ db.find_message("abc123")
+           └──▶ msg.filename() → PathBuf
+                  └──▶ std::fs::read(path) → Vec<u8>
+  return RFC 5322 bytes
+```
 
-  MaildirReader::get(path) — on demand, when body needed
-    │
-    └──▶ io-maildir MaildirClient::get_message(path)
-           └──▶ single file read
+## API
 
+```rust
+pub struct MaildirReader {
+    db: notmuch::Database,
+}
 
-SEND (both paths)
-────────────────────────────────────────────────────────
+pub struct Message {
+    pub id: String,
+    pub headers: Headers,
+    pub flags: MaildirFlags,
+}
 
-  SmtpSender::send(host, creds, message_bytes)
-    │
-    └──▶ io-smtp blocking client
-           ├── connect + EHLO
-           ├── STARTTLS
-           ├── AUTH PLAIN
-           └──▶ DATA → message bytes → QUIT
+pub struct Headers {
+    pub from: Option<String>,
+    pub to: Vec<String>,
+    pub subject: Option<String>,
+    pub date: Option<i64>,          // Unix timestamp from notmuch
+    pub message_id: Option<String>,
+    pub in_reply_to: Option<String>,
+}
+
+pub struct MaildirFlags {
+    pub seen: bool,
+    pub replied: bool,
+    pub flagged: bool,
+    pub deleted: bool,
+    pub draft: bool,
+}
+
+pub struct PaginationOpts {
+    pub limit: usize,
+    pub offset: usize,
+}
+
+pub enum SortBy {
+    Newest,      // notmuch Sort::NewestFirst
+    Oldest,      // notmuch Sort::OldestFirst
+    Subject,     // notmuch Sort::MessageId (caller sorts alpha if needed)
+    From,
+    MessageId,
+}
+
+impl MaildirReader {
+    pub fn new(db_path: impl AsRef<Path>) -> Result<Self, MailboxError>;
+
+    pub fn list_messages(
+        &self,
+        query: &str,
+        sort: SortBy,
+        pagination: PaginationOpts,
+    ) -> Result<(Vec<Message>, usize), MailboxError>;
+
+    pub fn get_message_body(
+        &self,
+        message_id: &str,
+    ) -> Result<Vec<u8>, MailboxError>;
+}
+```
+
+## MailboxError
+
+```rust
+pub enum MailboxError {
+    DatabaseNotFound { path: PathBuf },
+    DatabaseLocked,
+    DatabaseCorrupted(String),
+    MessageNotFound { id: String },
+    BodyReadFailed { path: PathBuf, reason: io::Error },
+    QueryFailed(String),
+}
 ```
 
 ## Risks / Trade-offs
 
 | Risk | Mitigation |
 |------|-----------|
+| notmuch index out of sync with disk | Out of scope; user's sync tooling responsibility |
 | notmuch crate (0.8.0) last updated 2022 | Pin to known-good version; libnotmuch C API is stable |
-| io-smtp git dep needs `cargoLock.outputHashes` in Nix | Add hash after `cargo fetch`; same pattern as io-maildir |
-| `message_list` reads full files (non-notmuch path) | Acceptable for <10k messages; document the notmuch recommendation |
-| SMTP auth models vary (PLAIN, OAuth2, XOAUTH2) | Implement PLAIN only in this change; OAuth2 is a separate capability |
-
-## Open Questions
-
-- Should `MaildirReader::list` accept a root path or a configured
-  account struct? Leaning toward plain `PathBuf` now; account config
-  comes later.
-- notmuch tag writes: mirror Maildir flags (seen ↔ `+seen` tag) or
-  treat them independently? Defer to a separate tags capability.
+| Offset-based pagination skips/duplicates on concurrent mutation | Acceptable for desktop single-user use case |
+| libnotmuch is a required C library dep | Required system dep; provided by Nix derivation |
