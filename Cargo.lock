@@ -2468,6 +2468,7 @@ name = "mailbrus-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "mail-parser",
  "mailbrus-core",
  "serde",
  "serde_json",

@@ -1,9 +1,10 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use mail_parser::{MessageParser, MimeHeaders, PartType};
 use mailbrus_core::{
-    maildir_reader::{MaildirReader, PaginationOpts, SortBy},
+    maildir_reader::{MaildirReader, SortBy, PaginationOpts},
     MailboxError,
 };
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 #[derive(Parser)]
 #[command(name = "mailbrus", version)]
@@ -61,6 +62,13 @@ enum MessageCommands {
         output: OutputFormat,
         #[command(flatten)]
         pagination: PaginationArgs,
+    },
+    /// Read a single message by notmuch message ID. Use --output to control format (default: text).
+    Read {
+        /// Notmuch message ID (e.g. from `message list --output json`)
+        id: String,
+        #[arg(short, long, default_value = "text")]
+        output: OutputFormat,
     },
 }
 
@@ -122,6 +130,105 @@ fn print_value(value: &Value, fmt: &OutputFormat) {
     }
 }
 
+fn parse_message(id: &str, raw: &[u8]) -> Value {
+    let msg = match MessageParser::new().parse(raw) {
+        Some(m) => m,
+        None => return json!({"id": id, "headers": {}, "parts": []}),
+    };
+
+    // Collect all headers from part 0, grouped by name as arrays of raw strings
+    let raw_bytes = msg.raw_message.as_ref();
+    let mut headers: Map<String, Value> = Map::new();
+    if let Some(root) = msg.parts.first() {
+        for h in &root.headers {
+            let name = h.name().to_string();
+            let value = std::str::from_utf8(
+                &raw_bytes[h.offset_start as usize..h.offset_end as usize],
+            )
+            .unwrap_or("")
+            .trim()
+            .to_string();
+            headers
+                .entry(name)
+                .or_insert_with(|| Value::Array(vec![]))
+                .as_array_mut()
+                .unwrap()
+                .push(Value::String(value));
+        }
+    }
+
+    // Build parts: text, html, attachments
+    let mut parts: Vec<Value> = Vec::new();
+    for &pid in &msg.text_body {
+        if let Some(part) = msg.parts.get(pid as usize) {
+            if let PartType::Text(text) = &part.body {
+                parts.push(json!({"type": "text/plain", "content": text.as_ref()}));
+            }
+        }
+    }
+    for &pid in &msg.html_body {
+        if let Some(part) = msg.parts.get(pid as usize) {
+            if let PartType::Html(html) = &part.body {
+                parts.push(json!({"type": "text/html", "content": html.as_ref()}));
+            }
+        }
+    }
+    for &pid in &msg.attachments {
+        if let Some(part) = msg.parts.get(pid as usize) {
+            let content_type = part
+                .content_type()
+                .map(|ct| {
+                    format!(
+                        "{}/{}",
+                        ct.c_type,
+                        ct.c_subtype.as_deref().unwrap_or("octet-stream")
+                    )
+                })
+                .unwrap_or_else(|| "application/octet-stream".to_string());
+            let filename = part
+                .content_disposition()
+                .and_then(|cd| cd.attribute("filename"))
+                .or_else(|| part.content_type().and_then(|ct| ct.attribute("name")))
+                .unwrap_or("unnamed");
+            parts.push(json!({"type": "attachment", "filename": filename, "content_type": content_type}));
+        }
+    }
+
+    json!({"id": id, "headers": headers, "parts": parts})
+}
+
+fn print_message(id: &str, raw: &[u8], fmt: &OutputFormat) {
+    let value = parse_message(id, raw);
+    match fmt {
+        OutputFormat::Text => {
+            let parts = value["parts"].as_array().map(|v| v.as_slice()).unwrap_or(&[]);
+            // First text/plain, fall back to text/html
+            let body = parts
+                .iter()
+                .find(|p| p["type"] == "text/plain")
+                .or_else(|| parts.iter().find(|p| p["type"] == "text/html"))
+                .and_then(|p| p["content"].as_str())
+                .unwrap_or("");
+            print!("{body}");
+            let attachments: Vec<&str> = parts
+                .iter()
+                .filter(|p| p["type"] == "attachment")
+                .filter_map(|p| p["filename"].as_str())
+                .collect();
+            if !attachments.is_empty() {
+                println!("\n-- Attachments --");
+                for name in attachments {
+                    println!("{name}");
+                }
+            }
+        }
+        OutputFormat::Json => println!("{}", serde_json::to_string_pretty(&value).unwrap()),
+        OutputFormat::Toon => {
+            println!("{}", toon_format::encode_default(&value).unwrap_or_else(|e| e.to_string()))
+        }
+    }
+}
+
 fn messages_to_json(messages: &[mailbrus_core::maildir_reader::Message]) -> Value {
     let arr: Vec<Value> = messages
         .iter()
@@ -165,6 +272,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
             let (messages, _) = reader.list_messages(&query, SortBy::Newest, pagination.to_opts())?;
             print_value(&messages_to_json(&messages), &output);
+        }
+        Commands::Message { cmd: MessageCommands::Read { id, output } } => {
+            let raw = reader.get_message_body(&id).map_err(|e| match e {
+                MailboxError::MessageNotFound { .. } => {
+                    format!("message not found: {id}").into()
+                }
+                other => Box::new(other) as Box<dyn std::error::Error>,
+            })?;
+            print_message(&id, &raw, &output);
         }
     }
 

@@ -8,6 +8,7 @@ pub struct Message {
     pub flags: MaildirFlags,
 }
 
+#[derive(Clone, Default)]
 pub struct Headers {
     pub from: Option<String>,
     pub to: Vec<String>,
