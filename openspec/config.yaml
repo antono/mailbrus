@@ -14,4 +14,4 @@ rules:
     - Keep proposals under 500 words
     - Always include a "Non-goals" section
   design:
-    - Use mermaid skills for diagrams
+    - Use mermaid skill to draw diagrams (when needed)
