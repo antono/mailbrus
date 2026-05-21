@@ -1,7 +1,5 @@
-## Purpose
+## MODIFIED Requirements
 
-Define the SvelteKit frontend scaffold that provides the web interface for the mailbrus desktop application.
-## Requirements
 ### Requirement: SvelteKit project scaffold at workspace root
 The project root SHALL contain `svelte.config.js`, `vite.config.js`, `deno.json`, and `src/` with the full Mailbrus SvelteKit application. `src/routes/+page.svelte` SHALL be the full app shell (account → folder → list → reader / compose state machine), not a placeholder. `src/lib/` SHALL contain all component and utility modules. `src/app.css` SHALL import the Mailbrus design-system stylesheets.
 
@@ -18,25 +16,3 @@ The project root SHALL contain `svelte.config.js`, `vite.config.js`, `deno.json`
 #### Scenario: Built frontend served by mailbrus-server
 - **WHEN** `mailbrus-server --frontend-dist ./build` is running and browser requests `GET /`
 - **THEN** `build/index.html` is served and all asset references (`/assets/*.js`, `/assets/*.css`) resolve correctly
-
-### Requirement: SvelteKit uses static adapter
-`svelte.config.js` SHALL configure `@sveltejs/adapter-static` so the build output is a self-contained static site consumable by Tauri's `frontendDist`.
-
-#### Scenario: Build output is static HTML
-- **WHEN** `deno task build` completes
-- **THEN** `build/index.html` exists and contains no server-side rendering markers
-
-### Requirement: deno.json declares tasks matching cerbo convention
-`deno.json` SHALL declare at minimum `dev`, `build`, and `preview` tasks.
-
-#### Scenario: Tasks are present
-- **WHEN** user runs `deno task` with no arguments
-- **THEN** `dev`, `build`, and `preview` are listed
-
-### Requirement: deno.lock is committed for hermetic Nix builds
-`deno.lock` SHALL be committed to the repository so the Nix frontend derivation can reproduce the build without network access.
-
-#### Scenario: Nix frontend build uses lockfile
-- **WHEN** `nix build .#mailbrus-frontend` is run without network access
-- **THEN** build completes using deps resolved from `deno.lock`
-
