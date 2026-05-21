@@ -10,7 +10,16 @@
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import HintBar from '$lib/components/HintBar.svelte';
 	import TweaksPanel, { type Tweaks } from '$lib/components/TweaksPanel.svelte';
-	import { accounts, folders, messages, bodies, type Account, type Folder, type Message } from '$lib/data.js';
+	import {
+		fetchMaildirs,
+		fetchFolders,
+		fetchMessages,
+		searchMessages,
+		fetchMessage,
+		type Account,
+		type Folder,
+		type Message
+	} from '$lib/api.js';
 
 	const FONT_STACKS: Record<string, string> = {
 		sans: 'var(--font-sans)',
@@ -45,14 +54,36 @@
 	let leader = $state<string | null>(null);
 	let leaderTimer: ReturnType<typeof setTimeout> | null = null;
 
-	let currentMessages = $derived(
-		account && folder ? (messages[`${account.id}/${folder.id}`] || []) : []
-	);
+	// ── API data ──────────────────────────────────────────────────────────────
+	let accounts = $state<Account[]>([]);
+	let folderList = $state<Folder[]>([]);
+	let currentMessages = $state<Message[]>([]);
+	let messageBody = $state('');
+	let loading = $state(false);
+	let error = $state<string | null>(null);
+
+	// Load accounts on mount
+	$effect(() => {
+		loading = true;
+		error = null;
+		fetchMaildirs()
+			.then((data) => { accounts = data; loading = false; })
+			.catch((e: Error) => { error = e.message; loading = false; });
+	});
+
+	// Fetch message body when a message is opened
+	$effect(() => {
+		if (!openMessage) { messageBody = ''; return; }
+		const id = openMessage.id;
+		fetchMessage(id)
+			.then((data) => { messageBody = data.body; })
+			.catch(() => { messageBody = ''; });
+	});
 
 	// ── Helpers ───────────────────────────────────────────────────────────────
 	function goToFolder(fId: string) {
 		if (!account) return;
-		const f = folders[account.id]?.find((x) => x.id === fId);
+		const f = folderList.find((x) => x.id === fId);
 		if (f) {
 			folder = f;
 			selectedIdx = 0;
@@ -60,7 +91,16 @@
 			searchQuery = '';
 			openMessage = null;
 			phase = 'list';
+			loadMessages(account.id, f.id);
 		}
+	}
+
+	function loadMessages(accountId: string, folderId: string) {
+		loading = true;
+		error = null;
+		fetchMessages(accountId, folderId)
+			.then((data) => { currentMessages = data.messages; loading = false; })
+			.catch((e: Error) => { error = e.message; loading = false; });
 	}
 
 	function startLeader(key: string) {
@@ -175,11 +215,49 @@
 		return () => window.removeEventListener('keydown', onKey);
 	});
 
-	function onAccountPick(a: Account) { account = a; folder = null; phase = 'folder'; }
-	function onFolderPick(f: Folder) { folder = f; selectedIdx = 0; searchOpen = false; searchQuery = ''; phase = 'list'; }
+	function onAccountPick(a: Account) {
+		account = a;
+		folder = null;
+		folderList = [];
+		currentMessages = [];
+		phase = 'folder';
+		loading = true;
+		error = null;
+		fetchFolders(a.id)
+			.then((data) => { folderList = data; loading = false; })
+			.catch((e: Error) => { error = e.message; loading = false; });
+	}
+
+	function onFolderPick(f: Folder) {
+		folder = f;
+		selectedIdx = 0;
+		searchOpen = false;
+		searchQuery = '';
+		phase = 'list';
+		if (account) loadMessages(account.id, f.id);
+	}
+
+	function handleSearchSubmit() {
+		if (!searchQuery.trim()) return;
+		loading = true;
+		error = null;
+		searchMessages(searchQuery)
+			.then((data) => { currentMessages = data.messages; loading = false; })
+			.catch((e: Error) => { error = e.message; loading = false; });
+	}
+
+	function handleSearchClose() {
+		searchOpen = false;
+		searchQuery = '';
+		if (account && folder) loadMessages(account.id, folder.id);
+	}
 </script>
 
 <div class="mb-app" data-screen-label="Mailbrus">
+	{#if error}
+		<div class="mb-error" role="alert">{error}</div>
+	{/if}
+
 	{#if account && folder}
 		<MailList
 			{account}
@@ -191,8 +269,8 @@
 			{searchOpen}
 			{searchQuery}
 			onSearchChange={(q) => (searchQuery = q)}
-			onSearchSubmit={() => {}}
-			onSearchClose={() => { searchOpen = false; searchQuery = ''; }}
+			onSearchSubmit={handleSearchSubmit}
+			onSearchClose={handleSearchClose}
 			onOpen={(m) => (openMessage = m)}
 			onHome={() => (aboutOpen = true)}
 			onAccount={() => (phase = 'account')}
@@ -219,7 +297,7 @@
 			message={openMessage}
 			{account}
 			{folder}
-			body={bodies.default}
+			body={messageBody}
 			onClose={() => (openMessage = null)}
 			onHome={() => (aboutOpen = true)}
 			onAccount={() => { openMessage = null; phase = 'account'; }}
@@ -259,7 +337,7 @@
 	{#if phase === 'folder' && account}
 		<FolderPicker
 			{account}
-			folders={folders[account.id]}
+			folders={folderList}
 			onSelect={onFolderPick}
 			onCancel={() => { if (folder) phase = 'list'; else phase = 'account'; }}
 		/>
@@ -278,6 +356,10 @@
 		<div class="mb-leader">
 			<span class="key">g</span> — i inbox · a archive · s sent · d drafts · f folder · A account · g top
 		</div>
+	{/if}
+
+	{#if loading}
+		<div class="mb-loading" aria-live="polite">loading…</div>
 	{/if}
 
 	<TweaksPanel onTweakChange={(t) => (tweaks = t)} />

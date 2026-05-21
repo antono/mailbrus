@@ -1,5 +1,4 @@
 import type { Account, Folder, Message } from './data.js';
-import { accounts, folders, messages } from './data.js';
 
 // ── Time formatting ──────────────────────────────────────────────────────────
 
@@ -167,7 +166,10 @@ export interface Contact {
 	addr: string;
 }
 
-export function buildContacts(): Contact[] {
+export function buildContacts(
+	accounts: Account[] = [],
+	messages: Message[] = []
+): Contact[] {
 	const seen = new Map<string, Contact>();
 	const add = (name: string, addr: string) => {
 		if (!addr || !/@/.test(addr)) return;
@@ -182,8 +184,6 @@ export function buildContacts(): Contact[] {
 		}
 	};
 	for (const a of accounts) add(a.address, a.address);
-	for (const key of Object.keys(messages)) {
-		for (const m of messages[key]) add(m.from, m.addr);
-	}
+	for (const m of messages) add(m.from, m.addr);
 	return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

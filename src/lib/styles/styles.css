@@ -1343,3 +1343,28 @@ body {
   animation: mb-fade 80ms var(--ease-out);
 }
 .mb-leader .key { color: var(--brand); }
+
+.mb-loading {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  z-index: 100;
+  pointer-events: none;
+}
+
+.mb-error {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  z-index: 100;
+  max-width: 32rem;
+  text-align: center;
+}

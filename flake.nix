@@ -25,12 +25,12 @@
         inherit (deps) tauri-deps dev-deps;
 
         mailbrus-pkgs = import ./nix/pkgs.nix { inherit pkgs tauri-deps io-email io-maildir system; };
-        inherit (mailbrus-pkgs) mailbrus mailbrus-frontend mailbrus-desktop;
+        inherit (mailbrus-pkgs) mailbrus mailbrus-frontend mailbrus-desktop mailbrus-server;
       in
       {
         packages = {
           default = mailbrus;
-          inherit mailbrus mailbrus-frontend mailbrus-desktop;
+          inherit mailbrus mailbrus-frontend mailbrus-desktop mailbrus-server;
         };
 
         devShells.default = import ./nix/devshell.nix {

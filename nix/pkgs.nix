@@ -74,7 +74,23 @@ let
       done
     '';
   };
+  mailbrus-server = pkgs.rustPlatform.buildRustPackage {
+    pname = "mailbrus-server";
+    version = "0.1.0";
+    src = ../.;
+    cargoLock = {
+      lockFile = ../Cargo.lock;
+      outputHashes = {
+        "io-email-0.0.1" = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
+        "io-maildir-0.0.1" = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
+      };
+    };
+    buildAndTestFocus = "mailbrus-server";
+    nativeBuildInputs = [ pkgs.pkg-config ];
+    buildInputs = tauri-deps;
+    doCheck = false;
+  };
 in
 {
-  inherit mailbrus mailbrus-frontend mailbrus-desktop;
+  inherit mailbrus mailbrus-frontend mailbrus-desktop mailbrus-server;
 }

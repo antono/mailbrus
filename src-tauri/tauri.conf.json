@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "org.mailbrus.desktop",
   "build": {
-    "beforeDevCommand": "deno task dev",
-    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "deno task build && cargo build -p mailbrus-server && ./target/debug/mailbrus-server --bind 127.0.0.1:1371 --frontend-dist ./build",
+    "devUrl": "http://127.0.0.1:1371",
     "beforeBuildCommand": "deno task build",
     "frontendDist": "../build"
   },
@@ -14,11 +14,12 @@
       {
         "title": "mailbrus",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "url": "http://127.0.0.1:1371"
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval';",
+      "csp": "default-src 'self' http://127.0.0.1:1371 ipc: http://ipc.localhost; img-src 'self' http://127.0.0.1:1371 asset: http://asset.localhost blob: data:; style-src 'self' http://127.0.0.1:1371 'unsafe-inline'; script-src 'self' http://127.0.0.1:1371 'unsafe-inline' 'unsafe-eval';",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]
@@ -33,6 +34,7 @@
       "icons/64x64.png",
       "icons/128x128.png",
       "icons/logo.svg"
-    ]
+    ],
+    "externalBin": ["binaries/mailbrus-server"]
   }
 }

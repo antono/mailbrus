@@ -2,6 +2,7 @@
 members = [
     "mailbrus-core",
     "mailbrus-cli",
+    "mailbrus-server",
     "src-tauri",
 ]
 resolver = "2"
