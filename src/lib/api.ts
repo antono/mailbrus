@@ -29,18 +29,18 @@ export async function fetchMessages(
 	folderId: string,
 	page = 1,
 	perPage = 25
-): Promise<{ messages: Message[]; total: number }> {
+): Promise<{ messages: Message[]; page: number; per_page: number; count: number }> {
 	const url = `/api/maildirs/${encodeURIComponent(maildirId)}/folders/${encodeURIComponent(folderId)}/messages?page=${page}&per_page=${perPage}`;
-	return apiFetch(url) as Promise<{ messages: Message[]; total: number }>;
+	return apiFetch(url) as Promise<{ messages: Message[]; page: number; per_page: number; count: number }>;
 }
 
 export async function searchMessages(
 	query: string,
 	page = 1,
 	perPage = 25
-): Promise<{ messages: Message[]; total: number }> {
+): Promise<{ messages: Message[]; page: number; per_page: number; count: number }> {
 	const url = `/api/messages/search?q=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}`;
-	return apiFetch(url) as Promise<{ messages: Message[]; total: number }>;
+	return apiFetch(url) as Promise<{ messages: Message[]; page: number; per_page: number; count: number }>;
 }
 
 export async function fetchMessage(id: string): Promise<MessageBody> {

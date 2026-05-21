@@ -25,7 +25,11 @@
 		onOpen,
 		onHome,
 		onAccount,
-		onFolder
+		onFolder,
+		page = 1,
+		perPage = 25,
+		count = 0,
+		onPageChange
 	}: {
 		account: Account;
 		folder: Folder;
@@ -43,6 +47,10 @@
 		onHome: () => void;
 		onAccount: () => void;
 		onFolder: () => void;
+		page?: number;
+		perPage?: number;
+		count?: number;
+		onPageChange?: (page: number) => void;
 	} = $props();
 
 	// Convert outbox entries to displayable messages for Outbox/Sent folders
@@ -93,7 +101,16 @@
 		{#snippet right()}
 			<span class="count"><strong>{unread}</strong> unread</span>
 			<span>·</span>
-			<span class="count"><strong>{filtered.length}</strong> / {messages.length}</span>
+			{#if count > perPage && onPageChange}
+				{@const lastPage = Math.ceil(count / perPage)}
+				{@const start = (page - 1) * perPage + 1}
+				{@const end = Math.min(page * perPage, count)}
+				<button class="pg-btn" disabled={page <= 1} onclick={() => onPageChange!(page - 1)} aria-label="Previous page">‹</button>
+				<span class="count">page {page}: {start}–{end} of {count}</span>
+				<button class="pg-btn" disabled={page >= lastPage} onclick={() => onPageChange!(page + 1)} aria-label="Next page">›</button>
+			{:else}
+				<span class="count"><strong>{filtered.length}</strong> / {messages.length}</span>
+			{/if}
 		{/snippet}
 	</Breadcrumbs>
 
@@ -179,6 +196,19 @@
 </div>
 
 <style>
+	.pg-btn {
+		background: none;
+		border: none;
+		padding: 0 3px;
+		font-size: 0.9rem;
+		line-height: 1;
+		cursor: pointer;
+		color: inherit;
+		opacity: 0.8;
+	}
+	.pg-btn:hover:not(:disabled) { opacity: 1; }
+	.pg-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
 	.mb-not-sent-badge {
 		display: inline-block;
 		padding: 1px 5px;

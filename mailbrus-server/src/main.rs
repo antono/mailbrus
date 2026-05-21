@@ -250,7 +250,7 @@ async fn list_messages(
     {
         Ok(Ok((messages, total))) => Json(json!({
             "messages": messages.iter().map(message_to_json).collect::<Vec<_>>(),
-            "total": total,
+            "count": total,
             "page": page,
             "per_page": per_page,
         }))
@@ -285,7 +285,7 @@ async fn search_messages(Query(params): Query<SearchParams>) -> Response {
     {
         Ok(Ok((messages, total))) => Json(json!({
             "messages": messages.iter().map(message_to_json).collect::<Vec<_>>(),
-            "total": total,
+            "count": total,
             "page": page,
             "per_page": per_page,
         }))

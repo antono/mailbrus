@@ -77,6 +77,12 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
+	// ── Pagination state ──────────────────────────────────────────────────────
+	let currentPage = $state(1);
+	let totalCount = $state(0);
+	let currentPerPage = $state(25);
+	let searchPage = $state(1);
+
 	// Load accounts and init PWA on mount
 	$effect(() => {
 		// Settings
@@ -157,22 +163,26 @@
 			searchQuery = '';
 			openMessage = null;
 			phase = 'list';
-			loadMessages(account.id, f.id);
+			currentPage = 1;
+			loadMessages(account.id, f.id, 1);
 		}
 	}
 
-	async function loadMessages(accountId: string, folderId: string) {
+	async function loadMessages(accountId: string, folderId: string, page = 1) {
 		loading = true;
 		error = null;
 		// task 6.2: render from IDB immediately, then update from network
 		const local = await getLocalMessages(folderId).catch(() => []);
-		if (local.length) { currentMessages = local; loading = false; }
-		fetchMessages(accountId, folderId)
+		if (local.length && page === 1) { currentMessages = local; loading = false; }
+		fetchMessages(accountId, folderId, page, currentPerPage)
 			.then((data) => {
 				currentMessages = data.messages;
+				currentPage = data.page;
+				currentPerPage = data.per_page;
+				totalCount = data.count;
 				loading = false;
-				// task 6.1: upsert into IDB after successful fetch
-				cacheMessages(folderId, data.messages).catch(() => {});
+				// task 6.1: upsert into IDB after successful fetch (page 1 only)
+				if (page === 1) cacheMessages(folderId, data.messages).catch(() => {});
 			})
 			.catch((e: Error) => { if (!local.length) error = e.message; loading = false; });
 	}
@@ -339,28 +349,54 @@
 		searchOpen = false;
 		searchQuery = '';
 		phase = 'list';
+		currentPage = 1;
 		// task 5.5: persist last folder; task 9.3: record frecency
 		setLastFolder(f.id).catch(() => {});
 		recordVisit('folders', f.id).catch(() => {});
-		if (account) loadMessages(account.id, f.id);
+		if (account) loadMessages(account.id, f.id, 1);
 	}
 
 	function handleSearchSubmit() {
 		if (!searchQuery.trim()) return;
+		searchPage = 1;
 		// task 5.7 + 9.7: record search history and frecency
 		addSearchHistory(searchQuery).catch(() => {});
 		recordVisit('searches', searchQuery).catch(() => {});
 		loading = true;
 		error = null;
-		searchMessages(searchQuery)
-			.then((data) => { currentMessages = data.messages; loading = false; })
+		searchMessages(searchQuery, searchPage, currentPerPage)
+			.then((data) => {
+				currentMessages = data.messages;
+				searchPage = data.page;
+				totalCount = data.count;
+				loading = false;
+			})
+			.catch((e: Error) => { error = e.message; loading = false; });
+	}
+
+	function handleListPageChange(page: number) {
+		if (!account || !folder) return;
+		currentPage = page;
+		loadMessages(account.id, folder.id, page);
+	}
+
+	function handleSearchPageChange(page: number) {
+		searchPage = page;
+		loading = true;
+		error = null;
+		searchMessages(searchQuery, searchPage, currentPerPage)
+			.then((data) => {
+				currentMessages = data.messages;
+				totalCount = data.count;
+				loading = false;
+			})
 			.catch((e: Error) => { error = e.message; loading = false; });
 	}
 
 	function handleSearchClose() {
 		searchOpen = false;
 		searchQuery = '';
-		if (account && folder) loadMessages(account.id, folder.id);
+		if (account && folder) loadMessages(account.id, folder.id, 1);
 	}
 </script>
 
@@ -387,6 +423,10 @@
 			onHome={() => (aboutOpen = true)}
 			onAccount={() => (phase = 'account')}
 			onFolder={() => (phase = 'folder')}
+			page={searchOpen ? searchPage : currentPage}
+			perPage={currentPerPage}
+			count={totalCount}
+			onPageChange={searchOpen ? handleSearchPageChange : handleListPageChange}
 		/>
 	{/if}
 
