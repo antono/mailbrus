@@ -8,7 +8,7 @@
 
 ## 2. CLI Flags and Server Bootstrap
 
-- [ ] 2.1 Define `Cli` struct with `clap::Parser`: `--bind <ADDR:PORT>` (default `127.0.0.1:8080`), `--frontend-dist <PATH>` (default `./build`), `--auth <user:pass>` (optional)
+- [ ] 2.1 Define `Cli` struct with `clap::Parser`: `--bind <ADDR:PORT>` (default `127.0.0.1:1371`), `--frontend-dist <PATH>` (default `./build`), `--auth <user:pass>` (optional)
 - [ ] 2.2 Parse CLI args in `main`, bind TCP listener on the specified address, print `Listening on http://<addr>` to stdout
 - [ ] 2.3 Exit with non-zero code and descriptive stderr message when port is already in use
 - [ ] 2.4 Print `WARNING: server is publicly accessible without authentication` to stderr when bind address is non-loopback and `--auth` is not set
@@ -53,6 +53,15 @@
 - [ ] 7.6 Add loading indicator in `+page.svelte` shown while any API call is in-flight
 - [ ] 7.7 Add error state in `+page.svelte` showing descriptive error message when an API call fails (network error or non-2xx)
 
-## 8. Nix Flake Update
+## 8. Tauri Sidecar Integration
 
-- [ ] 8.1 Add `mailbrus-server` package to `flake.nix` outputs using `naersk` or `crane` (same pattern as existing crates); verify `nix build .#mailbrus-server` produces a binary
+- [ ] 8.1 Add `mailbrus-server` binary to `src-tauri/tauri.conf.json` under `bundle.externalBin` so Tauri bundles it alongside the desktop app
+- [ ] 8.2 Add `tauri-plugin-shell` dependency to `src-tauri/Cargo.toml` and register it in `src-tauri/src/lib.rs`
+- [ ] 8.3 Add shell sidecar capability to `src-tauri/capabilities/default.json` (allow spawn of `mailbrus-server` sidecar)
+- [ ] 8.4 In `src-tauri/src/lib.rs` `setup` hook: spawn `mailbrus-server` sidecar with `--bind 127.0.0.1:1371 --frontend-dist <bundled build path>`; store the `Child` handle on app state so it is killed on app exit
+- [ ] 8.5 After spawning sidecar, navigate the main webview window to `http://127.0.0.1:1371/` (replacing the default `tauri://localhost` dev URL) so the sidecar serves both the frontend and API
+- [ ] 8.6 Verify `cargo tauri dev` starts the sidecar and the webview loads the SvelteKit UI with live API data
+
+## 9. Nix Flake Update
+
+- [ ] 9.1 Add `mailbrus-server` package to `flake.nix` outputs using `naersk` or `crane` (same pattern as existing crates); verify `nix build .#mailbrus-server` produces a binary

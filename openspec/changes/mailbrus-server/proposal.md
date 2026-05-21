@@ -13,7 +13,7 @@ The Tauri desktop app remains a separate concern; it can optionally connect to a
 - Add a `mailbrus-server` Rust binary crate: standalone `axum` HTTP server
   - Serves compiled SvelteKit `build/` assets at `/` (via `tower-http` static file middleware)
   - Exposes JSON API at `/api/` mirroring all `mailbrus-cli` subcommands
-  - Configurable bind address and port (`--bind 0.0.0.0:8080`)
+  - Configurable bind address and port (`--bind 0.0.0.0:1371`)
   - Optional basic authentication for remote access
 - Replace mock data in `src/lib/data.ts` with live `fetch("/api/...")` calls
 - SvelteKit build output (`build/`) is bundled into the server binary or served from a configured path

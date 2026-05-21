@@ -8,11 +8,11 @@ A `mailbrus-server` binary crate SHALL exist at `mailbrus-server/` in the worksp
 - **THEN** `target/debug/mailbrus-server` binary is produced with no errors
 
 ### Requirement: Server starts and listens on configurable address
-`mailbrus-server` SHALL accept a `--bind <ADDR:PORT>` CLI flag (default `127.0.0.1:8080`) and start an HTTP listener on that address.
+`mailbrus-server` SHALL accept a `--bind <ADDR:PORT>` CLI flag (default `127.0.0.1:1371`) and start an HTTP listener on that address.
 
 #### Scenario: Default bind
 - **WHEN** user runs `mailbrus-server` with no flags
-- **THEN** server listens on `127.0.0.1:8080` and prints `Listening on http://127.0.0.1:8080` to stdout
+- **THEN** server listens on `127.0.0.1:1371` and prints `Listening on http://127.0.0.1:1371` to stdout
 
 #### Scenario: Custom bind address
 - **WHEN** user runs `mailbrus-server --bind 0.0.0.0:9000`
@@ -111,5 +111,5 @@ All calls to `mailbrus-core` (which is synchronous) SHALL be executed inside `to
 When `--bind` resolves to a non-loopback address and `--auth` is not set, the server SHALL print a warning to stderr.
 
 #### Scenario: Public bind without auth
-- **WHEN** user runs `mailbrus-server --bind 0.0.0.0:8080` without `--auth`
+- **WHEN** user runs `mailbrus-server --bind 0.0.0.0:1371` without `--auth`
 - **THEN** server starts but logs `WARNING: server is publicly accessible without authentication`

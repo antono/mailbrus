@@ -7,7 +7,7 @@ The gap: there is no network-accessible bridge between the Rust backend and the 
 - Exposes a JSON REST API mirroring the CLI subcommands
 - Runs without Tauri, enabling self-hosted remote webmail
 
-Deployment target: a home server or VPS where a user runs `mailbrus-server --bind 0.0.0.0:8080` and accesses their mail from any browser on the LAN or internet.
+Deployment target: a home server or VPS where a user runs `mailbrus-server --bind 0.0.0.0:1371` and accesses their mail from any browser on the LAN or internet.
 
 ## Goals / Non-Goals
 
@@ -48,7 +48,7 @@ Two sub-options:
 
 ### 4. Frontend API base URL
 
-The SvelteKit app will be served from the same origin as the API (`http://host:8080/` for frontend, `http://host:8080/api/` for API). Using a relative base path `/api` means no hardcoded host in the frontend build — it works on any bind address without a build-time env var.
+The SvelteKit app will be served from the same origin as the API (`http://host:1371/` for frontend, `http://host:1371/api/` for API). Using a relative base path `/api` means no hardcoded host in the frontend build — it works on any bind address without a build-time env var.
 
 SvelteKit's `paths.base` should remain empty; all API calls use `fetch('/api/...')` relative to origin.
 
@@ -81,11 +81,11 @@ When `--bind` includes a non-loopback address the server applies a permissive CO
 1. Build `mailbrus-server` binary (`cargo build -p mailbrus-server`)
 2. Build SvelteKit frontend (`deno task build`)
 3. Run `mailbrus-server --frontend-dist ./build`
-4. Frontend at `http://127.0.0.1:8080/` now serves live data
+4. Frontend at `http://127.0.0.1:1371/` now serves live data
 
 No migration of existing state required — the server is read-only over the existing notmuch database.
 
 ## Open Questions
 
-- Should `mailbrus-server` be added as a Tauri sidecar (auto-started alongside the desktop app) in a follow-up change, or remain entirely separate?
+- **Tauri sidecar decision: yes.** `mailbrus-server` SHALL be bundled as a Tauri sidecar in `mailbrus-desktop`. On app launch, Tauri starts the sidecar on `127.0.0.1:1371` (or next free port). The Tauri webview navigates to `http://127.0.0.1:1371/` so the sidecar serves both the SvelteKit frontend and the API — all relative `/api/...` fetch calls resolve correctly with no special Tauri IPC needed. UI status indication is deferred to a follow-up change.
 - Should send (`POST /api/messages`) be in scope for the initial implementation, or deferred until smtp-sender integration is complete?
