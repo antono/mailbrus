@@ -279,7 +279,7 @@ Every scrolling region in the app SHALL use the `.mb-scroll` CSS utility class f
 ---
 
 ### Requirement: About dialog
-Clicking the wordmark breadcrumb SHALL open a centered About dialog with: brand logo placeholder (chip with brand dot), mailbrus wordmark at 36px, tagline, GitHub link, license (MIT), version string, and Esc hint.
+Clicking the wordmark breadcrumb SHALL open a centered About dialog with: Mailbrus logo illustration (max 220px wide, `src/lib/assets/mailbrus.svg` — envelopes mountain with bold red M), mailbrus wordmark at 36px, tagline, GitHub link, license (MIT), version string, and Esc hint.
 
 #### Scenario: About dialog shows version
 - **WHEN** About dialog opens

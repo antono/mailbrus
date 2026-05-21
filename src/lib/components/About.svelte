@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Wordmark from './Wordmark.svelte';
+	import logoUrl from '$lib/assets/mailbrus.svg';
 
 	let { onClose }: { onClose: () => void } = $props();
 
@@ -20,11 +21,8 @@
 >
 	<div class="mb-about" role="dialog" aria-modal="true" aria-label="About Mailbrus">
 		<button type="button" class="mb-about-close" onclick={onClose} aria-label="Close">×</button>
-		<div class="mb-about-logo" aria-hidden="true">
-			<span class="mb-about-logo-chip">
-				<span class="mb-about-logo-dot"></span>
-			</span>
-			<span class="mb-about-logo-tbd">logo · tbd</span>
+		<div class="mb-about-logo">
+			<img src={logoUrl} alt="Mailbrus" class="mb-about-logo-img" />
 		</div>
 		<div class="mb-about-wordmark">
 			<Wordmark size={36} />
