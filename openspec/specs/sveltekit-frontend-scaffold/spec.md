@@ -1,15 +1,13 @@
 ## Purpose
 
 Define the SvelteKit frontend scaffold that provides the web interface for the mailbrus desktop application.
-
-## ADDED Requirements
-
+## Requirements
 ### Requirement: SvelteKit project scaffold at workspace root
-The project root SHALL contain `svelte.config.js`, `vite.config.js`, `deno.json`, and `src/` with a minimal SvelteKit app (at least one route at `src/routes/+page.svelte`).
+The project root SHALL contain `svelte.config.js`, `vite.config.js`, `deno.json`, and `src/` with the full Mailbrus SvelteKit application. `src/routes/+page.svelte` SHALL be the full app shell (account → folder → list → reader / compose state machine), not a placeholder. `src/lib/` SHALL contain all component and utility modules. `src/app.css` SHALL import the Mailbrus design-system stylesheets.
 
 #### Scenario: Dev server starts
 - **WHEN** user runs `deno task dev`
-- **THEN** Vite dev server starts and serves the SvelteKit app on a local port
+- **THEN** Vite dev server starts and serves the full Mailbrus UI on a local port
 
 #### Scenario: Frontend builds to static output
 - **WHEN** user runs `deno task build`
@@ -35,3 +33,4 @@ The project root SHALL contain `svelte.config.js`, `vite.config.js`, `deno.json`
 #### Scenario: Nix frontend build uses lockfile
 - **WHEN** `nix build .#mailbrus-frontend` is run without network access
 - **THEN** build completes using deps resolved from `deno.lock`
+
