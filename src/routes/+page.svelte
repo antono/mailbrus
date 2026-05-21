@@ -141,7 +141,7 @@
 			// ⌘K / Ctrl+K
 			if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
 				e.preventDefault();
-				if (account && folder) cmdOpen = !cmdOpen;
+				if (account && folder) { clearLeader(); cmdOpen = !cmdOpen; }
 				return;
 			}
 			// ? keyboard help
@@ -185,7 +185,7 @@
 			if (e.key === 'g') { e.preventDefault(); startLeader('g'); return; }
 			if (e.key === 'G') { e.preventDefault(); selectedIdx = currentMessages.length - 1; return; }
 			if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !leader) {
-				e.preventDefault(); composeOpen = true; return;
+				e.preventDefault(); clearLeader(); composeOpen = true; return;
 			}
 			if (e.key === 'j' || e.key === 'ArrowDown') {
 				e.preventDefault();
@@ -206,6 +206,7 @@
 			if (e.key === 'Escape') {
 				e.preventDefault();
 				if (searchOpen) { searchOpen = false; searchQuery = ''; return; }
+				clearLeader();
 				phase = 'folder';
 				return;
 			}

@@ -56,7 +56,8 @@
 			label: 'Inside palettes',
 			items: [
 				{ keys: [['1'], ['–'], ['9']], desc: 'Jump to row' },
-				{ keys: [['↑'], ['↓']], desc: 'Move selection' },
+				{ keys: [['↑'], ['Ctrl', 'P']], desc: 'Move up' },
+				{ keys: [['↓'], ['Ctrl', 'N']], desc: 'Move down' },
 				{ keys: [['↵']], desc: 'Confirm' },
 				{ keys: [['Esc']], desc: 'Cancel' }
 			]
