@@ -20,6 +20,16 @@
 		type Folder,
 		type Message
 	} from '$lib/api.js';
+	import { loadSettings, addSearchHistory, setLastFolder } from '$lib/settings.js';
+	import { cacheMessages, getLocalMessages } from '$lib/message-cache.js';
+	import { enqueue as outboxEnqueue, getOutbox, initOutboxFlusher, type OutboxEntry } from '$lib/outbox.js';
+	import { enqueueMutation, initMutationsFlusher } from '$lib/mutations.js';
+	import { recordVisit, getRanked } from '$lib/frecency.js';
+	import { setBadge, clearBadge } from '$lib/badge.js';
+
+	interface BeforeInstallPromptEvent extends Event {
+		prompt(): Promise<void>;
+	}
 
 	const FONT_STACKS: Record<string, string> = {
 		sans: 'var(--font-sans)',
@@ -53,22 +63,78 @@
 	let searchQuery = $state('');
 	let leader = $state<string | null>(null);
 	let leaderTimer: ReturnType<typeof setTimeout> | null = null;
+	let installPromptEvent = $state<Event | null>(null);
+	let showInstallButton = $state(false);
+	let conflictNotice = $state(false);
 
 	// ── API data ──────────────────────────────────────────────────────────────
 	let accounts = $state<Account[]>([]);
 	let folderList = $state<Folder[]>([]);
+	let rankedFolderIds = $state<string[]>([]);
+	let outboxEntries = $state<OutboxEntry[]>([]);
 	let currentMessages = $state<Message[]>([]);
 	let messageBody = $state('');
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
-	// Load accounts on mount
+	// Load accounts and init PWA on mount
 	$effect(() => {
+		// Settings
+		loadSettings().then((s) => {
+			if (s.last_folder) { /* restored on folder navigation */ }
+		});
+
+		// Service Worker registration (task 2.2, 12.2)
+		if ('serviceWorker' in navigator) {
+			const debug = typeof localStorage !== 'undefined' && localStorage.getItem('mailbrus:debug') === 'true';
+			navigator.serviceWorker
+				.register(`/sw.js${debug ? '?debug=1' : ''}`, { updateViaCache: 'none' })
+				.catch(() => {});
+		}
+
+		// Install prompt capture (task 1.6)
+		const onBeforeInstall = (e: Event) => {
+			e.preventDefault();
+			installPromptEvent = e;
+			// hide if already standalone (task 1.7)
+			if (!window.matchMedia('(display-mode: standalone)').matches) {
+				showInstallButton = true;
+			}
+		};
+		window.addEventListener('beforeinstallprompt', onBeforeInstall);
+
+		// Outbox + mutations fallback flushers (task 7.4, 8.8)
+		initOutboxFlusher();
+		initMutationsFlusher();
+
+		// Load outbox entries and refresh on updates (task 7.5)
+		const refreshOutbox = () => getOutbox().then((e) => (outboxEntries = e)).catch(() => {});
+		refreshOutbox();
+		window.addEventListener('outbox-updated', refreshOutbox);
+
+		// Conflict notice (task 8.7)
+		const onConflict = () => { conflictNotice = true; setTimeout(() => (conflictNotice = false), 5000); };
+		window.addEventListener('mutations-conflict', onConflict);
+
+		// Badge: watch unread count (task 11.2-11.3)
+		const updateBadge = () => {
+			const unread = accounts.reduce((n, a) => n + (a.unread ?? 0), 0);
+			if (unread > 0) setBadge(unread); else clearBadge();
+		};
+		const badgeTimer = setInterval(updateBadge, 10_000);
+
 		loading = true;
 		error = null;
 		fetchMaildirs()
-			.then((data) => { accounts = data; loading = false; })
+			.then((data) => { accounts = data; loading = false; updateBadge(); })
 			.catch((e: Error) => { error = e.message; loading = false; });
+
+		return () => {
+			window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+			window.removeEventListener('mutations-conflict', onConflict);
+			window.removeEventListener('outbox-updated', refreshOutbox);
+			clearInterval(badgeTimer);
+		};
 	});
 
 	// Fetch message body when a message is opened
@@ -95,12 +161,20 @@
 		}
 	}
 
-	function loadMessages(accountId: string, folderId: string) {
+	async function loadMessages(accountId: string, folderId: string) {
 		loading = true;
 		error = null;
+		// task 6.2: render from IDB immediately, then update from network
+		const local = await getLocalMessages(folderId).catch(() => []);
+		if (local.length) { currentMessages = local; loading = false; }
 		fetchMessages(accountId, folderId)
-			.then((data) => { currentMessages = data.messages; loading = false; })
-			.catch((e: Error) => { error = e.message; loading = false; });
+			.then((data) => {
+				currentMessages = data.messages;
+				loading = false;
+				// task 6.1: upsert into IDB after successful fetch
+				cacheMessages(folderId, data.messages).catch(() => {});
+			})
+			.catch((e: Error) => { if (!local.length) error = e.message; loading = false; });
 	}
 
 	function startLeader(key: string) {
@@ -202,6 +276,30 @@
 				if (currentMessages[selectedIdx]) openMessage = currentMessages[selectedIdx];
 				return;
 			}
+			// task 8.2: mark read (r), mark unread (u), delete (d/#)
+			if ((e.key === 'r' || e.key === 'u') && folder) {
+				e.preventDefault();
+				const msg = currentMessages[selectedIdx];
+				if (msg) {
+					const op = e.key === 'u' ? 'mark_unread' : 'mark_read';
+					enqueueMutation(op, msg.id, folder.id).catch(() => {});
+					// optimistic local update
+					currentMessages = currentMessages.map((m, i) =>
+						i === selectedIdx ? { ...m, unread: op === 'mark_unread' } : m
+					);
+				}
+				return;
+			}
+			if ((e.key === 'd' || e.key === '#') && folder) {
+				e.preventDefault();
+				const msg = currentMessages[selectedIdx];
+				if (msg) {
+					enqueueMutation('delete', msg.id, folder.id).catch(() => {});
+					currentMessages = currentMessages.filter((_, i) => i !== selectedIdx);
+					selectedIdx = Math.min(selectedIdx, currentMessages.length - 1);
+				}
+				return;
+			}
 			if (e.key === '/') { e.preventDefault(); searchOpen = true; return; }
 			if (e.key === 'Escape') {
 				e.preventDefault();
@@ -220,12 +318,18 @@
 		account = a;
 		folder = null;
 		folderList = [];
+		rankedFolderIds = [];
 		currentMessages = [];
 		phase = 'folder';
 		loading = true;
 		error = null;
 		fetchFolders(a.id)
-			.then((data) => { folderList = data; loading = false; })
+			.then((data) => {
+				folderList = data;
+				loading = false;
+				// task 9.4: load frecency order for folder picker
+				getRanked('folders').then((ids) => { rankedFolderIds = ids; }).catch(() => {});
+			})
 			.catch((e: Error) => { error = e.message; loading = false; });
 	}
 
@@ -235,11 +339,17 @@
 		searchOpen = false;
 		searchQuery = '';
 		phase = 'list';
+		// task 5.5: persist last folder; task 9.3: record frecency
+		setLastFolder(f.id).catch(() => {});
+		recordVisit('folders', f.id).catch(() => {});
 		if (account) loadMessages(account.id, f.id);
 	}
 
 	function handleSearchSubmit() {
 		if (!searchQuery.trim()) return;
+		// task 5.7 + 9.7: record search history and frecency
+		addSearchHistory(searchQuery).catch(() => {});
+		recordVisit('searches', searchQuery).catch(() => {});
 		loading = true;
 		error = null;
 		searchMessages(searchQuery)
@@ -264,6 +374,7 @@
 			{account}
 			{folder}
 			messages={currentMessages}
+			{outboxEntries}
 			density={tweaks.density}
 			{selectedIdx}
 			onSelectIdx={(i) => (selectedIdx = i)}
@@ -288,6 +399,9 @@
 			<span class="hint"><span class="kbd">c</span> compose</span>
 			<span class="hint"><span class="kbd">g</span><span class="kbd">i</span> inbox</span>
 			<span class="hint"><span class="kbd">g</span><span class="kbd">a</span> archive</span>
+			<span class="hint"><span class="kbd">r</span> read</span>
+			<span class="hint"><span class="kbd">u</span> unread</span>
+			<span class="hint"><span class="kbd">d</span> delete</span>
 			<span class="hint"><span class="kbd">g</span><span class="kbd">f</span> folder</span>
 			<span class="hint"><span class="kbd">g</span><span class="kbd" style="text-transform: none">A</span> account</span>
 		</HintBar>
@@ -319,7 +433,21 @@
 			{account}
 			{folder}
 			onClose={() => (composeOpen = false)}
-			onSent={() => (composeOpen = false)}
+			onSent={async (draft) => {
+				// task 7.2: try network, fall back to outbox on failure
+				try {
+					const res = await fetch('/api/send', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify(draft)
+					});
+					if (!res.ok) throw new Error(`HTTP ${res.status}`);
+					composeOpen = false;
+				} catch {
+					await outboxEnqueue(draft as Record<string, unknown>);
+					composeOpen = false;
+				}
+			}}
 			onHome={() => (aboutOpen = true)}
 			onAccount={() => { composeOpen = false; phase = 'account'; }}
 			onFolder={() => { composeOpen = false; phase = 'folder'; }}
@@ -339,6 +467,7 @@
 		<FolderPicker
 			{account}
 			folders={folderList}
+			rankedIds={rankedFolderIds}
 			onSelect={onFolderPick}
 			onCancel={() => { if (folder) phase = 'list'; else phase = 'account'; }}
 		/>
@@ -357,6 +486,20 @@
 		<div class="mb-leader">
 			<span class="key">g</span> — i inbox · a archive · s sent · d drafts · f folder · A account · g top
 		</div>
+	{/if}
+
+	{#if showInstallButton}
+		<button
+			class="mb-install-btn"
+			onclick={() => {
+				(installPromptEvent as BeforeInstallPromptEvent)?.prompt?.();
+				showInstallButton = false;
+			}}
+		>Install Mailbrus</button>
+	{/if}
+
+	{#if conflictNotice}
+		<div class="mb-conflict-notice" role="alert">Some changes could not be applied.</div>
 	{/if}
 
 	{#if loading}

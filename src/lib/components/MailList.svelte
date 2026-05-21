@@ -3,11 +3,17 @@
 	import Avatar from './Avatar.svelte';
 	import Paperclip from './Paperclip.svelte';
 	import type { Account, Folder, Message } from '$lib/data.js';
+	import type { OutboxEntry } from '$lib/outbox.js';
+
+	interface OutboxMessage extends Message {
+		outbox_status: OutboxEntry['status'];
+	}
 
 	let {
 		account,
 		folder,
 		messages,
+		outboxEntries = [],
 		density,
 		selectedIdx,
 		onSelectIdx,
@@ -24,6 +30,7 @@
 		account: Account;
 		folder: Folder;
 		messages: Message[];
+		outboxEntries?: OutboxEntry[];
 		density: string;
 		selectedIdx: number;
 		onSelectIdx: (i: number) => void;
@@ -38,6 +45,23 @@
 		onFolder: () => void;
 	} = $props();
 
+	// Convert outbox entries to displayable messages for Outbox/Sent folders
+	let outboxMessages = $derived<OutboxMessage[]>(
+		outboxEntries
+			.filter((e) => e.status === 'queued' || e.status === 'failed' || e.status === 'sending')
+			.map((e) => ({
+				id: e.id,
+				from: account.address,
+				addr: account.address,
+				subject: (e.message.subject as string) || '(no subject)',
+				preview: (e.message.body as string)?.slice(0, 80) || '',
+				time: e.composed_at,
+				unread: false,
+				flags: '',
+				outbox_status: e.status
+			}))
+	);
+
 	let listEl = $state<HTMLDivElement | null>(null);
 	let searchInputEl = $state<HTMLInputElement | null>(null);
 
@@ -50,10 +74,13 @@
 		if (searchOpen) setTimeout(() => searchInputEl?.focus(), 30);
 	});
 
+	// Merge outbox entries at top of list for any folder (they're unsent)
+	let allMessages = $derived<(Message | OutboxMessage)[]>([...outboxMessages, ...messages]);
+
 	let filtered = $derived.by(() => {
 		const q = (searchQuery || '').trim().toLowerCase();
-		if (!q) return messages;
-		return messages.filter((m) =>
+		if (!q) return allMessages;
+		return allMessages.filter((m) =>
 			`${m.from} ${m.addr} ${m.subject} ${m.preview}`.toLowerCase().includes(q)
 		);
 	});
@@ -115,7 +142,14 @@
 							<span class="from">{m.from}</span>
 							<span class="time">
 								{#if m.attachments && m.attachments.length > 0}<Paperclip />{/if}
-								{m.time}
+								{'outbox_status' in m && (m.outbox_status === 'queued' || m.outbox_status === 'failed' || m.outbox_status === 'sending')
+									? ''
+									: m.time}
+								{#if 'outbox_status' in m}
+									<span class="mb-not-sent-badge" data-status={m.outbox_status}>
+										{m.outbox_status === 'failed' ? 'Failed' : m.outbox_status === 'sending' ? 'Sending…' : 'Not sent'}
+									</span>
+								{/if}
 							</span>
 						</div>
 						<div class="body-row">
@@ -143,3 +177,25 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.mb-not-sent-badge {
+		display: inline-block;
+		padding: 1px 5px;
+		border-radius: 4px;
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: .03em;
+		vertical-align: middle;
+		background: color-mix(in srgb, var(--accent, #6366f1) 15%, transparent);
+		color: var(--accent, #6366f1);
+	}
+	.mb-not-sent-badge[data-status="failed"] {
+		background: color-mix(in srgb, #ef4444 15%, transparent);
+		color: #ef4444;
+	}
+	.mb-not-sent-badge[data-status="sending"] {
+		background: color-mix(in srgb, #f59e0b 15%, transparent);
+		color: #b45309;
+	}
+</style>

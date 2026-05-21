@@ -6,16 +6,30 @@
 		account,
 		folders,
 		onSelect,
-		onCancel
+		onCancel,
+		rankedIds = []
 	}: {
 		account: Account;
 		folders: Folder[];
 		onSelect: (f: Folder) => void;
 		onCancel?: () => void;
+		rankedIds?: string[];
 	} = $props();
 
+	let sortedFolders = $derived.by(() => {
+		if (!rankedIds.length) return folders;
+		return [...folders].sort((a, b) => {
+			const ai = rankedIds.indexOf(a.id);
+			const bi = rankedIds.indexOf(b.id);
+			if (ai === -1 && bi === -1) return 0;
+			if (ai === -1) return 1;
+			if (bi === -1) return -1;
+			return ai - bi;
+		});
+	});
+
 	let items = $derived(
-		folders.map((f) => ({
+		sortedFolders.map((f) => ({
 			key: f.id,
 			primary: f.name,
 			secondary: `${account.maildir}/${f.id}`,

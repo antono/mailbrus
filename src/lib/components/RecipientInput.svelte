@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { buildContacts, type Contact } from '$lib/utils.js';
+	import { recordVisit, getRanked } from '$lib/frecency.js';
 
 	let {
 		id,
@@ -20,6 +21,11 @@
 	let sIdx = $state(0);
 
 	const contacts = buildContacts();
+	let rankedContacts = $state<string[]>([]);
+
+	$effect(() => {
+		getRanked('contacts').then((ids) => { rankedContacts = ids; }).catch(() => {});
+	});
 
 	$effect(() => {
 		if (autoFocus) {
@@ -43,7 +49,6 @@
 	let trimmed = $derived(tokens.current.trim().toLowerCase());
 
 	let suggestions = $derived.by(() => {
-		if (!trimmed) return contacts.slice(0, 8);
 		const already = new Set(
 			value
 				.split(/[,;]/)
@@ -54,12 +59,23 @@
 					return (m ? m[1] : s).toLowerCase();
 				})
 		);
-		return contacts
-			.filter((c) => {
-				if (already.has(c.addr.toLowerCase())) return false;
-				return `${c.name} ${c.addr}`.toLowerCase().includes(trimmed);
-			})
-			.slice(0, 8);
+		const filtered = contacts.filter((c) => {
+			if (already.has(c.addr.toLowerCase())) return false;
+			if (!trimmed) return true;
+			return `${c.name} ${c.addr}`.toLowerCase().includes(trimmed);
+		});
+		// task 9.6: sort by frecency rank
+		if (rankedContacts.length) {
+			filtered.sort((a, b) => {
+				const ai = rankedContacts.indexOf(a.addr);
+				const bi = rankedContacts.indexOf(b.addr);
+				if (ai === -1 && bi === -1) return 0;
+				if (ai === -1) return 1;
+				if (bi === -1) return -1;
+				return ai - bi;
+			});
+		}
+		return filtered.slice(0, 8);
 	});
 
 	$effect(() => {
@@ -69,6 +85,8 @@
 	});
 
 	function acceptSuggestion(contact: Contact) {
+		// task 9.5: record frecency visit for this contact
+		recordVisit('contacts', contact.addr).catch(() => {});
 		const formatted =
 			contact.name && contact.name !== contact.addr
 				? `${contact.name} <${contact.addr}>`

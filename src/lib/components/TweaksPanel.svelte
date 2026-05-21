@@ -63,6 +63,55 @@
 		window.addEventListener('mouseup', up);
 	}
 
+	let pushEnabled = $state(false);
+	let pushSupported = $state(false);
+
+	$effect(() => {
+		pushSupported = 'Notification' in window && 'serviceWorker' in navigator;
+		if (pushSupported) {
+			pushEnabled = Notification.permission === 'granted';
+		}
+	});
+
+	async function togglePush() {
+		if (!pushSupported) return;
+		if (pushEnabled) {
+			// task 10.9: disable notifications
+			const reg = await navigator.serviceWorker.ready;
+			const sub = await reg.pushManager.getSubscription();
+			if (sub) {
+				await sub.unsubscribe();
+				await fetch('/api/push/subscribe', {
+					method: 'DELETE',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ account: '' })
+				}).catch(() => {});
+			}
+			pushEnabled = false;
+		} else {
+			// task 10.8: enable notifications
+			const vapidRes = await fetch('/api/push/vapid-key').catch(() => null);
+			const vapid = vapidRes?.ok ? await vapidRes.json() : null;
+			const applicationServerKey = vapid?.publicKey;
+			const reg = await navigator.serviceWorker.ready;
+			try {
+				const sub = await reg.pushManager.subscribe({
+					userVisibleOnly: true,
+					applicationServerKey
+				});
+				const subJson = sub.toJSON();
+				await fetch('/api/push/subscribe', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ account: '', endpoint: sub.endpoint, keys: subJson.keys ?? {} })
+				}).catch(() => {});
+				pushEnabled = true;
+			} catch {
+				pushEnabled = false;
+			}
+		}
+	}
+
 	const ACCENT_LABELS: Record<string, string> = {
 		indigo: 'Indigo', violet: 'Violet', blue: 'Blue',
 		green: 'Green', rose: 'Rose', amber: 'Amber', mono: 'Mono'
@@ -130,6 +179,13 @@
 				<div class="twk-lbl"><span>Show key hints</span></div>
 				<button type="button" class="twk-toggle" data-on={t.hintBar ? '1' : '0'} role="switch" aria-checked={t.hintBar} onclick={() => set('hintBar', !t.hintBar)}><i></i></button>
 			</div>
+			{#if pushSupported}
+				<div class="twk-sect">Notifications</div>
+				<div class="twk-row twk-row-h">
+					<div class="twk-lbl"><span>Enable notifications</span></div>
+					<button type="button" class="twk-toggle" data-on={pushEnabled ? '1' : '0'} role="switch" aria-checked={pushEnabled} onclick={togglePush}><i></i></button>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
