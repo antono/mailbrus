@@ -128,7 +128,21 @@ impl MaildirReader {
     }
 
     pub fn list_maildirs(&self) -> Result<Vec<PathBuf>, MailboxError> {
-        Ok(vec![self.db.path().to_path_buf()])
+        let root = self.db.path();
+        let entries = std::fs::read_dir(root).map_err(|e| {
+            MailboxError::QueryFailed(format!("cannot read {}: {e}", root.display()))
+        })?;
+        let mut accounts: Vec<PathBuf> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let name = e.file_name();
+                let s = name.to_string_lossy();
+                !s.starts_with('.') && e.path().is_dir()
+            })
+            .map(|e| e.path())
+            .collect();
+        accounts.sort();
+        Ok(accounts)
     }
 
     pub fn list_folders(&self, maildir: &Path) -> Result<Vec<String>, MailboxError> {
@@ -140,9 +154,9 @@ impl MaildirReader {
             .filter(|e| {
                 let name = e.file_name();
                 let s = name.to_string_lossy();
-                s.starts_with('.') && e.path().is_dir()
+                !s.starts_with('.') && e.path().is_dir()
             })
-            .map(|e| e.file_name().to_string_lossy()[1..].to_string())
+            .map(|e| e.file_name().to_string_lossy().to_string())
             .collect();
         folders.sort();
         Ok(folders)
@@ -214,9 +228,11 @@ Message-ID: <test001@example.com>\r\n\
 \r\n\
 Hello!\r\n";
 
+    /// Creates a notmuch db at `dir` with one message inside `dir/account@test/Inbox/cur/`.
     fn setup_test_db(dir: &Path) {
-        fs::create_dir_all(dir.join("cur")).unwrap();
-        let msg_path = dir.join("cur/test001:2,S");
+        let inbox = dir.join("account@test").join("Inbox").join("cur");
+        fs::create_dir_all(&inbox).unwrap();
+        let msg_path = inbox.join("test001:2,S");
         fs::write(&msg_path, TEST_EMAIL).unwrap();
         let db = notmuch::Database::create(dir).unwrap();
         db.index_file(&msg_path, None).unwrap();
@@ -296,15 +312,30 @@ Hello!\r\n";
     }
 
     #[test]
-    fn list_maildirs_returns_db_path() {
+    fn list_maildirs_returns_account_dirs() {
         let dir = unique_tmpdir();
-        setup_test_db(&dir);
+        setup_test_db(&dir); // creates dir/account@test/...
 
         let reader = MaildirReader::new(&dir).unwrap();
         let maildirs = reader.list_maildirs().unwrap();
 
         assert_eq!(maildirs.len(), 1);
-        assert_eq!(maildirs[0], dir);
+        assert_eq!(maildirs[0], dir.join("account@test"));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn list_maildirs_excludes_hidden_dirs() {
+        let dir = unique_tmpdir();
+        setup_test_db(&dir); // creates .notmuch at root
+
+        let reader = MaildirReader::new(&dir).unwrap();
+        let maildirs = reader.list_maildirs().unwrap();
+
+        assert!(!maildirs.iter().any(|p| {
+            p.file_name().and_then(|n| n.to_str()).map_or(false, |s| s.starts_with('.'))
+        }));
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -312,32 +343,35 @@ Hello!\r\n";
     #[test]
     fn list_folders_returns_maildir_subfolders() {
         let dir = unique_tmpdir();
-        setup_test_db(&dir);
-        // create Maildir++ subfolders
-        for name in &[".INBOX", ".Sent", ".Drafts"] {
-            fs::create_dir_all(dir.join(name).join("cur")).unwrap();
-            fs::create_dir_all(dir.join(name).join("new")).unwrap();
-            fs::create_dir_all(dir.join(name).join("tmp")).unwrap();
+        setup_test_db(&dir); // creates account@test/Inbox/
+        let account_dir = dir.join("account@test");
+        // add more folders alongside Inbox
+        for name in &["Sent", "Drafts"] {
+            fs::create_dir_all(account_dir.join(name).join("cur")).unwrap();
+            fs::create_dir_all(account_dir.join(name).join("new")).unwrap();
+            fs::create_dir_all(account_dir.join(name).join("tmp")).unwrap();
         }
 
         let reader = MaildirReader::new(&dir).unwrap();
-        let folders = reader.list_folders(&dir).unwrap();
+        let folders = reader.list_folders(&account_dir).unwrap();
 
-        assert_eq!(folders, vec!["Drafts", "INBOX", "Sent"]);
+        assert_eq!(folders, vec!["Drafts", "Inbox", "Sent"]);
 
         fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
-    fn list_folders_excludes_non_dot_dirs() {
+    fn list_folders_excludes_hidden_dirs() {
         let dir = unique_tmpdir();
-        setup_test_db(&dir);
+        setup_test_db(&dir); // creates account@test/Inbox/
+        let account_dir = dir.join("account@test");
+        fs::create_dir_all(account_dir.join(".hidden")).unwrap();
 
         let reader = MaildirReader::new(&dir).unwrap();
-        let folders = reader.list_folders(&dir).unwrap();
+        let folders = reader.list_folders(&account_dir).unwrap();
 
-        // cur, new, tmp exist but must not appear
-        assert!(!folders.iter().any(|f| f == "cur" || f == "new" || f == "tmp"));
+        assert!(folders.contains(&"Inbox".to_string()));
+        assert!(!folders.iter().any(|f| f.starts_with('.')));
 
         fs::remove_dir_all(&dir).ok();
     }

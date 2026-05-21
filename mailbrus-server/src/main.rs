@@ -86,16 +86,6 @@ fn parse_message_body(id: &str, raw: &[u8]) -> Value {
             }
         }
     }
-    if body.is_empty() {
-        for &pid in &msg.html_body {
-            if let Some(part) = msg.parts.get(pid as usize) {
-                if let PartType::Html(html) = &part.body {
-                    body = html.as_ref().to_string();
-                    break;
-                }
-            }
-        }
-    }
 
     let mut attachments: Vec<Value> = Vec::new();
     for &pid in &msg.attachments {
@@ -140,7 +130,7 @@ async fn list_maildirs() -> Response {
                         .unwrap_or("unknown");
                     json!({
                         "id": id,
-                        "address": "",
+                        "address": id,
                         "maildir": p.display().to_string(),
                         "unread": 0,
                         "total": 0,
@@ -173,7 +163,7 @@ async fn list_folders(Path(id): Path<String>) -> Response {
                 .iter()
                 .map(|name| {
                     json!({
-                        "id": name.to_lowercase().replace(' ', "-"),
+                        "id": name,
                         "name": name,
                         "unread": 0,
                         "total": 0,
@@ -210,11 +200,11 @@ impl Pagination {
 }
 
 async fn list_messages(
-    Path((_maildir_id, folder_id)): Path<(String, String)>,
+    Path((maildir_id, folder_id)): Path<(String, String)>,
     Query(pagination): Query<Pagination>,
 ) -> Response {
     let (opts, page, per_page) = pagination.to_opts();
-    let query = format!("folder:{folder_id}");
+    let query = format!("folder:\"{maildir_id}/{folder_id}\"");
     match tokio::task::spawn_blocking(move || {
         MaildirReader::open().and_then(|r| r.list_messages(&query, SortBy::Newest, opts))
     })

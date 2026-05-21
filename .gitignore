@@ -1,6 +1,10 @@
 # Rust build artifacts
 target/
 
+# Tauri sidecar binaries (built locally, not committed)
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
+
 # Node / Deno
 node_modules/
 
