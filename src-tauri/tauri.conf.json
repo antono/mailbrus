@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "org.mailbrus.desktop",
   "build": {
-    "beforeDevCommand": "deno task build && cargo build -p mailbrus-server && ./target/debug/mailbrus-server --bind 127.0.0.1:1371 --frontend-dist ./build",
+    "beforeDevCommand": "deno task build && cargo build -p mailbrus-server && cp -f target/debug/mailbrus-server src-tauri/binaries/mailbrus-server-$(rustc -vV | sed -n 's/host: //p') && ./target/debug/mailbrus-server --bind 127.0.0.1:1371 --frontend-dist ./build",
     "devUrl": "http://127.0.0.1:1371",
-    "beforeBuildCommand": "deno task build",
+    "beforeBuildCommand": "deno task build && cargo build -p mailbrus-server --release && cp -f target/release/mailbrus-server src-tauri/binaries/mailbrus-server-$(rustc -vV | sed -n 's/host: //p')",
     "frontendDist": "../build"
   },
   "app": {
