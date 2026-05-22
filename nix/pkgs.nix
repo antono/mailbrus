@@ -85,7 +85,8 @@ let
         "io-maildir-0.0.1" = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
       };
     };
-    buildAndTestFocus = "mailbrus-server";
+    cargoBuildFlags = [ "--package" "mailbrus-server" ];
+    cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
     doCheck = false;
