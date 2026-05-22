@@ -306,11 +306,13 @@ deno task test:e2e       # headless, parallel
 | Command | What it does |
 | --- | --- |
 | `deno task test:e2e` | full suite, headless, parallel (workers capped) |
-| `deno task test:e2e-open` | `--headed --workers=1` — one visible browser, sequential, to watch |
+| `deno task e2e:headless` | same as `test:e2e` — explicit headless run |
+| `deno task e2e:ui` | Playwright UI mode (Chromium) — interactive pick/watch/re-run with time-travel |
+| `deno task e2e:debug` | open the trace viewer on the newest retained `trace.zip` (debug a failure) |
 | `deno task e2e:generate` | regenerate the `.eml` corpus from `manifest.ts` |
 
 Filter to a subset by appending a pattern, e.g.
-`deno task test:e2e-open pagination`.
+`deno task test:e2e pagination`.
 
 `global-setup.ts` builds `build/` and `target/release/mailbrus-server` on demand
 if they are missing, and fails fast with a clear message if `notmuch` is
