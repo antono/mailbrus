@@ -24,10 +24,10 @@ test('navigates pages and shows correct indicators', async ({ page }) => {
 
 	// Page 1
 	await expect(mailbox.paginationInfo()).toHaveText(`page 1: 1–${PER_PAGE} of ${count}`);
-	expect(await mailbox.subjects()).toEqual(expectedPage1);
+	await expect.poll(() => mailbox.subjects()).toEqual(expectedPage1);
 
 	// Page 2
 	await mailbox.nextPage();
 	await expect(mailbox.paginationInfo()).toHaveText(`page 2: ${PER_PAGE + 1}–${count} of ${count}`);
-	expect(await mailbox.subjects()).toEqual(expectedPage2);
+	await expect.poll(() => mailbox.subjects()).toEqual(expectedPage2);
 });

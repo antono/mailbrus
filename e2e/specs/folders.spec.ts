@@ -27,8 +27,8 @@ test('selecting a folder lists the messages the manifest places there', async ({
 	await mailbox.openFolder('Inbox');
 
 	const inbox = folderOf(alice, 'Inbox');
+	await expect.poll(() => mailbox.subjects()).toHaveLength(inbox.messages.length);
 	const subjects = await mailbox.subjects();
-	expect(subjects).toHaveLength(inbox.messages.length);
 	for (const m of inbox.messages) {
 		expect(subjects).toContain(m.subject);
 	}
