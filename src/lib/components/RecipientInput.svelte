@@ -159,6 +159,7 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					role="option"
+					tabindex="-1"
 					aria-selected={i === sIdx}
 					class="cf-sugg-row{i === sIdx ? ' active' : ''}"
 					onmousedown={(e) => { e.preventDefault(); acceptSuggestion(c); }}

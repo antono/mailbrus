@@ -105,7 +105,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="mb-curtain" role="dialog" aria-modal="true" onclick={onCurtainClick}>
+<div class="mb-curtain" role="dialog" aria-modal="true" tabindex="-1" onclick={onCurtainClick}>
 	<div class="mb-palette">
 		<div class="head">
 			<div class="eyebrow">

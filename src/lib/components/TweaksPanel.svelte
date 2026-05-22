@@ -145,7 +145,7 @@
 			<div class="twk-sect">Theme</div>
 			<div class="twk-row twk-row-h">
 				<div class="twk-lbl"><span>Dark mode</span></div>
-				<button type="button" class="twk-toggle" data-on={t.dark ? '1' : '0'} role="switch" aria-checked={t.dark} onclick={() => set('dark', !t.dark)}><i></i></button>
+				<button type="button" class="twk-toggle" data-on={t.dark ? '1' : '0'} role="switch" aria-label="Dark mode" aria-checked={t.dark} onclick={() => set('dark', !t.dark)}><i></i></button>
 			</div>
 			<div class="twk-row">
 				<div class="twk-lbl"><span>Accent</span></div>
@@ -177,13 +177,13 @@
 			</div>
 			<div class="twk-row twk-row-h">
 				<div class="twk-lbl"><span>Show key hints</span></div>
-				<button type="button" class="twk-toggle" data-on={t.hintBar ? '1' : '0'} role="switch" aria-checked={t.hintBar} onclick={() => set('hintBar', !t.hintBar)}><i></i></button>
+				<button type="button" class="twk-toggle" data-on={t.hintBar ? '1' : '0'} role="switch" aria-label="Show key hints" aria-checked={t.hintBar} onclick={() => set('hintBar', !t.hintBar)}><i></i></button>
 			</div>
 			{#if pushSupported}
 				<div class="twk-sect">Notifications</div>
 				<div class="twk-row twk-row-h">
 					<div class="twk-lbl"><span>Enable notifications</span></div>
-					<button type="button" class="twk-toggle" data-on={pushEnabled ? '1' : '0'} role="switch" aria-checked={pushEnabled} onclick={togglePush}><i></i></button>
+					<button type="button" class="twk-toggle" data-on={pushEnabled ? '1' : '0'} role="switch" aria-label="Enable notifications" aria-checked={pushEnabled} onclick={togglePush}><i></i></button>
 				</div>
 			{/if}
 		</div>
