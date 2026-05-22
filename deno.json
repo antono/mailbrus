@@ -5,6 +5,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "e2e:generate": "deno run -A e2e/fixtures/generate.ts",
-    "test:e2e": "node node_modules/.bin/playwright test --config=e2e/playwright.config.ts"
+    "test:e2e": "node node_modules/.bin/playwright test --config=e2e/playwright.config.ts",
+    "test:e2e-open": "node node_modules/.bin/playwright test --config=e2e/playwright.config.ts --headed --workers=1"
   }
 }

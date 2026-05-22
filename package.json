@@ -7,7 +7,8 @@
     "dev": "deno task dev",
     "build": "deno task build",
     "preview": "deno task preview",
-    "test:e2e": "playwright test --config=e2e/playwright.config.ts"
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "test:e2e-open": "playwright test --config=e2e/playwright.config.ts --headed --workers=1"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",
