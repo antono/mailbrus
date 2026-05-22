@@ -5,8 +5,6 @@
    Brand layer adds "Shadcn Indigo" as the brand accent.
    ============================================================ */
 
-/* ---------- Webfonts (Google Fonts: Geist + Geist Mono) ---------- */
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap");
 
 :root {
   /* ---------- Type stacks ---------- */
