@@ -4,12 +4,14 @@
 
 	let {
 		id,
+		testid,
 		value,
 		onChange,
 		placeholder = '',
 		autoFocus = false
 	}: {
 		id?: string;
+		testid?: string;
 		value: string;
 		onChange: (v: string) => void;
 		placeholder?: string;
@@ -141,6 +143,7 @@
 	<input
 		{id}
 		bind:this={inputEl}
+		data-testid={testid}
 		class="cf-input"
 		type="text"
 		{value}

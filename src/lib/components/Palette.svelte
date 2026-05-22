@@ -105,7 +105,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="mb-curtain" role="dialog" aria-modal="true" onclick={onCurtainClick}>
+<div class="mb-curtain" role="dialog" aria-modal="true" onclick={onCurtainClick} data-testid={curtainTestId}>
 	<div class="mb-palette">
 		<div class="head">
 			<div class="eyebrow">
@@ -115,6 +115,7 @@
 			<div class="title">{title}</div>
 			<input
 				bind:this={inputEl}
+				data-testid="palette.input"
 				class="input"
 				{placeholder}
 				bind:value={q}
@@ -132,6 +133,7 @@
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						data-idx={i}
+						data-testid="palette.row"
 						class="mb-row{i === idx ? ' active' : ''}"
 						onmouseenter={() => (idx = i)}
 						onclick={() => select(i)}

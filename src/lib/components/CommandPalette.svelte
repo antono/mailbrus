@@ -35,4 +35,5 @@
 	{items}
 	onSelect={(it) => onAction(it.key)}
 	{onCancel}
+	curtainTestId="commands.curtain"
 />

@@ -34,4 +34,5 @@
 	{onCancel}
 	showCancelHint={returning}
 	emptyText="No accounts match."
+	curtainTestId="accounts.curtain"
 />

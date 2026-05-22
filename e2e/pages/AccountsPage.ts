@@ -5,7 +5,7 @@ export class AccountsPage {
 	constructor(private readonly page: Page) {}
 
 	private rows(): Locator {
-		return this.page.locator('.mb-curtain .mb-row');
+		return this.page.getByTestId('accounts.curtain').getByTestId('palette.row');
 	}
 
 	/** Load the app and wait for the account picker to be shown. */
@@ -18,7 +18,7 @@ export class AccountsPage {
 	/** Email addresses listed in the picker, in display order. */
 	async listedAddresses(): Promise<string[]> {
 		await expect(this.rows().first()).toBeVisible();
-		return this.page.locator('.mb-curtain .mb-row .primary').allTextContents();
+		return this.page.getByTestId('accounts.curtain').getByTestId('palette.row').locator('.primary').allTextContents();
 	}
 
 	/** Select an account; the folder picker appears afterwards. */

@@ -36,7 +36,7 @@
 	let isDraft = $derived(message.from === 'Draft' || message.from === 'Drafts');
 </script>
 
-<div class="mb-reader">
+<div class="mb-reader" data-testid="reader.container">
 	<Breadcrumbs {account} {folder} {onHome} {onAccount} {onFolder}>
 		{#snippet right()}
 			<span class="count">reading</span>
@@ -78,6 +78,7 @@
 								onclick={(e) => e.preventDefault()}
 								title="Unsubscribe — {unsubHeader}"
 								aria-label="Unsubscribe from this mailing list"
+								data-testid="reader.unsubscribe-btn"
 							>
 								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
 									<path d="M4 6.5l8 6 8-6" />
@@ -94,6 +95,7 @@
 							title="View raw message headers"
 							aria-label="View raw message headers"
 							aria-expanded={showHeaders}
+							data-testid="reader.headers-btn"
 						>
 							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M4 6h16" />

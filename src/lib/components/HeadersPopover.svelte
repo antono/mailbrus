@@ -25,10 +25,10 @@
 	});
 </script>
 
-<div class="mb-headers-pop" bind:this={el} role="dialog" aria-label="Message headers">
+<div class="mb-headers-pop" bind:this={el} role="dialog" aria-label="Message headers" data-testid="headers-popover.container">
 	<div class="mb-headers-pop-head">
 		<span class="eyebrow">message headers</span>
-		<button type="button" class="mb-headers-close" onclick={onClose} aria-label="Close headers">
+		<button type="button" class="mb-headers-close" onclick={onClose} aria-label="Close headers" data-testid="headers-popover.close-btn">
 			×
 		</button>
 	</div>

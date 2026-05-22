@@ -59,7 +59,7 @@
 	});
 </script>
 
-<div class="mb-compose">
+<div class="mb-compose" data-testid="compose.container">
 	<Breadcrumbs {account} {folder} folderLabel="Compose" {onHome} {onAccount} {onFolder}>
 		{#snippet right()}
 			<span class="count">{wordCount} words · {charCount} chars</span>
@@ -80,6 +80,7 @@
 				<label class="cf-label" for="cf-to">To</label>
 				<RecipientInput
 					id="cf-to"
+					testid="compose.to-input"
 					value={to}
 					onChange={(v) => (to = v)}
 					placeholder="someone@example.com, another@example.com"
@@ -87,29 +88,30 @@
 				/>
 				<div class="cf-aux">
 					{#if !showCc}
-						<button type="button" class="cf-aux-btn" onclick={() => (showCc = true)}>+ Cc</button>
+						<button type="button" class="cf-aux-btn" onclick={() => (showCc = true)} data-testid="compose.add-cc-btn">+ Cc</button>
 					{/if}
 					{#if !showBcc}
-						<button type="button" class="cf-aux-btn" onclick={() => (showBcc = true)}>+ Bcc</button>
+						<button type="button" class="cf-aux-btn" onclick={() => (showBcc = true)} data-testid="compose.add-bcc-btn">+ Bcc</button>
 					{/if}
 				</div>
 			</div>
 			{#if showCc}
 				<div class="cf-row">
 					<label class="cf-label" for="cf-cc">Cc</label>
-					<RecipientInput id="cf-cc" value={cc} onChange={(v) => (cc = v)} />
+					<RecipientInput id="cf-cc" testid="compose.cc-input" value={cc} onChange={(v) => (cc = v)} />
 				</div>
 			{/if}
 			{#if showBcc}
 				<div class="cf-row">
 					<label class="cf-label" for="cf-bcc">Bcc</label>
-					<RecipientInput id="cf-bcc" value={bcc} onChange={(v) => (bcc = v)} />
+					<RecipientInput id="cf-bcc" testid="compose.bcc-input" value={bcc} onChange={(v) => (bcc = v)} />
 				</div>
 			{/if}
 			<div class="cf-row">
 				<label class="cf-label" for="cf-subject">Subject</label>
 				<input
 					id="cf-subject"
+					data-testid="compose.subject-input"
 					class="cf-input cf-input-subject"
 					type="text"
 					bind:value={subject}
@@ -121,6 +123,7 @@
 		<div class="mb-compose-divider" aria-hidden="true"></div>
 		<textarea
 			class="mb-compose-body mb-scroll"
+			data-testid="compose.body"
 			bind:value={body}
 			placeholder="Write your message…"
 			spellcheck={true}

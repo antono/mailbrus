@@ -5,7 +5,7 @@ export class MessagePage {
 	constructor(private readonly page: Page) {}
 
 	private root(): Locator {
-		return this.page.locator('.mb-reader');
+		return this.page.getByTestId('reader.container');
 	}
 
 	/** Subject element (may include the relative-time suffix). Use for assertions. */
@@ -49,7 +49,7 @@ export class MessagePage {
 
 	/** The mailing-list unsubscribe affordance (shown only for list mail). */
 	unsubscribeButton(): Locator {
-		return this.root().getByRole('button', { name: 'Unsubscribe from this mailing list' });
+		return this.page.getByTestId('reader.unsubscribe-btn');
 	}
 
 	async close(): Promise<void> {

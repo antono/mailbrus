@@ -96,7 +96,7 @@
 	let unread = $derived(messages.filter((m) => m.unread).length);
 </script>
 
-<div class="mb-list-screen">
+<div class="mb-list-screen" data-testid="mail-list.container">
 	<Breadcrumbs {account} {folder} {onHome} {onAccount} {onFolder}>
 		{#snippet right()}
 			<span class="count"><strong>{unread}</strong> unread</span>
@@ -105,9 +105,9 @@
 				{@const lastPage = Math.ceil(count / perPage)}
 				{@const start = (page - 1) * perPage + 1}
 				{@const end = Math.min(page * perPage, count)}
-				<button class="pg-btn" disabled={page <= 1} onclick={() => onPageChange!(page - 1)} aria-label="Previous page">‹</button>
+				<button class="pg-btn" disabled={page <= 1} onclick={() => onPageChange!(page - 1)} aria-label="Previous page" data-testid="mail-list.prev-btn">‹</button>
 				<span class="count">page {page}: {start}–{end} of {count}</span>
-				<button class="pg-btn" disabled={page >= lastPage} onclick={() => onPageChange!(page + 1)} aria-label="Next page">›</button>
+				<button class="pg-btn" disabled={page >= lastPage} onclick={() => onPageChange!(page + 1)} aria-label="Next page" data-testid="mail-list.next-btn">›</button>
 			{:else}
 				<span class="count"><strong>{filtered.length}</strong> / {messages.length}</span>
 			{/if}
@@ -119,6 +119,7 @@
 			<span class="prompt">/</span>
 			<input
 				bind:this={searchInputEl}
+				data-testid="mail-list.search-input"
 				value={searchQuery}
 				oninput={(e) => onSearchChange((e.target as HTMLInputElement).value)}
 				onkeydown={(e) => {
@@ -144,6 +145,7 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					data-msg-idx={i}
+					data-testid="mail-list.message-row"
 					class="mb-msg{m.unread ? ' unread' : ''}{i === selectedIdx ? ' active' : ''}"
 					onmouseenter={() => onSelectIdx(i)}
 					onclick={() => onOpen(m)}

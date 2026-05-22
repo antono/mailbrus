@@ -127,6 +127,7 @@
 	class="twk-fab"
 	onclick={() => (open = !open)}
 	aria-label="Toggle tweaks panel"
+	data-testid="tweaks.fab"
 >⚙</button>
 
 {#if open}
@@ -135,21 +136,22 @@
 		class="twk-panel"
 		style="right: {dragOffset.x}px; bottom: {dragOffset.y}px"
 		data-noncommentable=""
+		data-testid="tweaks.panel"
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="twk-hd" onmousedown={onDragStart}>
 			<b>Tweaks</b>
-			<button class="twk-x" aria-label="Close tweaks" onmousedown={(e) => e.stopPropagation()} onclick={() => (open = false)}>✕</button>
+			<button class="twk-x" aria-label="Close tweaks" data-testid="tweaks.close-btn" onmousedown={(e) => e.stopPropagation()} onclick={() => (open = false)}>✕</button>
 		</div>
 		<div class="twk-body">
 			<div class="twk-sect">Theme</div>
 			<div class="twk-row twk-row-h">
 				<div class="twk-lbl"><span>Dark mode</span></div>
-				<button type="button" class="twk-toggle" data-on={t.dark ? '1' : '0'} role="switch" aria-checked={t.dark} onclick={() => set('dark', !t.dark)}><i></i></button>
+				<button type="button" class="twk-toggle" data-on={t.dark ? '1' : '0'} role="switch" aria-checked={t.dark} onclick={() => set('dark', !t.dark)} data-testid="tweaks.dark-toggle"><i></i></button>
 			</div>
 			<div class="twk-row">
 				<div class="twk-lbl"><span>Accent</span></div>
-				<select class="twk-field" value={t.accent} onchange={(e) => set('accent', (e.target as HTMLSelectElement).value)}>
+				<select class="twk-field" data-testid="tweaks.accent-select" value={t.accent} onchange={(e) => set('accent', (e.target as HTMLSelectElement).value)}>
 					{#each ACCENTS as a}
 						<option value={a}>{ACCENT_LABELS[a]}</option>
 					{/each}
@@ -161,7 +163,7 @@
 				<div class="twk-seg">
 					<div class="twk-seg-thumb" style="left: calc(2px + {FONTS.indexOf(t.font)} * (100% - 4px) / {FONTS.length}); width: calc((100% - 4px) / {FONTS.length})"></div>
 					{#each FONTS as f}
-						<button type="button" role="radio" aria-checked={t.font === f} onclick={() => set('font', f)}>{f}</button>
+						<button type="button" role="radio" aria-checked={t.font === f} onclick={() => set('font', f)} data-testid="tweaks.font-radio">{f}</button>
 					{/each}
 				</div>
 			</div>
@@ -171,19 +173,19 @@
 				<div class="twk-seg">
 					<div class="twk-seg-thumb" style="left: calc(2px + {DENSITIES.indexOf(t.density)} * (100% - 4px) / {DENSITIES.length}); width: calc((100% - 4px) / {DENSITIES.length})"></div>
 					{#each DENSITIES as d}
-						<button type="button" role="radio" aria-checked={t.density === d} onclick={() => set('density', d)}>{d}</button>
+						<button type="button" role="radio" aria-checked={t.density === d} onclick={() => set('density', d)} data-testid="tweaks.density-radio">{d}</button>
 					{/each}
 				</div>
 			</div>
 			<div class="twk-row twk-row-h">
 				<div class="twk-lbl"><span>Show key hints</span></div>
-				<button type="button" class="twk-toggle" data-on={t.hintBar ? '1' : '0'} role="switch" aria-checked={t.hintBar} onclick={() => set('hintBar', !t.hintBar)}><i></i></button>
+				<button type="button" class="twk-toggle" data-on={t.hintBar ? '1' : '0'} role="switch" aria-checked={t.hintBar} onclick={() => set('hintBar', !t.hintBar)} data-testid="tweaks.hints-toggle"><i></i></button>
 			</div>
 			{#if pushSupported}
 				<div class="twk-sect">Notifications</div>
 				<div class="twk-row twk-row-h">
 					<div class="twk-lbl"><span>Enable notifications</span></div>
-					<button type="button" class="twk-toggle" data-on={pushEnabled ? '1' : '0'} role="switch" aria-checked={pushEnabled} onclick={togglePush}><i></i></button>
+					<button type="button" class="twk-toggle" data-on={pushEnabled ? '1' : '0'} role="switch" aria-checked={pushEnabled} onclick={togglePush} data-testid="tweaks.notifications-toggle"><i></i></button>
 				</div>
 			{/if}
 		</div>

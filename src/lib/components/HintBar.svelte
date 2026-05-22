@@ -37,6 +37,7 @@
 			onclick={onShowHelp}
 			title="Show all keyboard shortcuts (?)"
 			aria-label="Show all keyboard shortcuts"
+			data-testid="hint-bar.overflow-btn"
 		>
 			?
 		</button>

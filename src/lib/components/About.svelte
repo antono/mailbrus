@@ -19,8 +19,8 @@
 	class="mb-curtain"
 	onclick={(e) => { if ((e.target as HTMLElement).classList.contains('mb-curtain')) onClose(); }}
 >
-	<div class="mb-about" role="dialog" aria-modal="true" aria-label="About Mailbrus">
-		<button type="button" class="mb-about-close" onclick={onClose} aria-label="Close">×</button>
+	<div class="mb-about" role="dialog" aria-modal="true" aria-label="About Mailbrus" data-testid="about.dialog">
+		<button type="button" class="mb-about-close" onclick={onClose} aria-label="Close" data-testid="about.close-btn">×</button>
 		<div class="mb-about-logo">
 			<img src={logoUrl} alt="Mailbrus" class="mb-about-logo-img" />
 		</div>

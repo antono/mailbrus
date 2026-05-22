@@ -47,4 +47,5 @@
 	onSelect={(it) => onSelect((it as typeof items[0]).raw)}
 	{onCancel}
 	emptyText="No folders match."
+	curtainTestId="folders.curtain"
 />

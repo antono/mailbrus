@@ -9,24 +9,24 @@ export class MailboxPage {
 	/** Folder names listed in the folder picker, in display order. */
 	async listedFolders(): Promise<string[]> {
 		await expect(this.page.getByText('Open a folder')).toBeVisible();
-		return this.page.locator('.mb-curtain .mb-row .primary').allTextContents();
+		return this.page.getByTestId('folders.curtain').getByTestId('palette.row').locator('.primary').allTextContents();
 	}
 
 	/** Open a folder by name; the message list appears afterwards. */
 	async openFolder(name: string): Promise<void> {
 		await expect(this.page.getByText('Open a folder')).toBeVisible();
 		await this.page
-			.locator('.mb-curtain .mb-row')
+			.getByTestId('folders.curtain').getByTestId('palette.row')
 			.filter({ has: this.page.getByText(name, { exact: true }) })
 			.first()
 			.click();
-		await expect(this.page.locator('.mb-list-screen')).toBeVisible();
+		await expect(this.page.getByTestId('mail-list.container')).toBeVisible();
 	}
 
 	// ── Message list ────────────────────────────────────────────────────────────
 
 	private messages(): Locator {
-		return this.page.locator('.mb-mail-list .mb-msg');
+		return this.page.getByTestId('mail-list.message-row');
 	}
 
 	/** Subjects of the messages currently rendered, in list order. */
@@ -41,7 +41,7 @@ export class MailboxPage {
 	/** Open a message by subject; the reader appears afterwards. */
 	async openMessage(subject: string): Promise<void> {
 		await this.messageRow(subject).first().click();
-		await expect(this.page.locator('.mb-reader')).toBeVisible();
+		await expect(this.page.getByTestId('reader.container')).toBeVisible();
 	}
 
 	/** Whether the row for `subject` is styled unread. */
@@ -65,10 +65,10 @@ export class MailboxPage {
 	}
 
 	async nextPage(): Promise<void> {
-		await this.page.getByRole('button', { name: 'Next page' }).click();
+		await this.page.getByTestId('mail-list.next-btn').click();
 	}
 
 	async prevPage(): Promise<void> {
-		await this.page.getByRole('button', { name: 'Previous page' }).click();
+		await this.page.getByTestId('mail-list.prev-btn').click();
 	}
 }

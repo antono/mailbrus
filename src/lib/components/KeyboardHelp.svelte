@@ -86,7 +86,7 @@
 	class="mb-curtain"
 	onclick={(e) => { if ((e.target as HTMLElement).classList.contains('mb-curtain')) onClose(); }}
 >
-	<div class="mb-help" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+	<div class="mb-help" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" data-testid="keyboard-help.dialog">
 		<div class="head">
 			<div class="eyebrow">
 				<span>keyboard shortcuts</span>
