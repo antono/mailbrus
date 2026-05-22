@@ -1,0 +1,26 @@
+From: Erin Data <erin@work.example>
+To: alice@example.com
+Subject: Monthly report and chart
+Date: Thu, 14 May 2026 16:45:00 +0000
+Message-ID: <alice-inbox-04@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="=_mailbrus_alice-inbox-04-replied-multi_="
+
+--=_mailbrus_alice-inbox-04-replied-multi_=
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Attaching the monthly report chart and the raw numbers as CSV.
+--=_mailbrus_alice-inbox-04-replied-multi_=
+Content-Type: image/png; name="chart.png"
+Content-Disposition: attachment; filename="chart.png"
+Content-Transfer-Encoding: base64
+
+ZmFrZS1wbmctYnl0ZXMtZm9yLWUyZS1jaGFydA==
+--=_mailbrus_alice-inbox-04-replied-multi_=
+Content-Type: text/csv; name="data.csv"
+Content-Disposition: attachment; filename="data.csv"
+Content-Transfer-Encoding: base64
+
+bW9udGgsdmFsdWUKTWFyLDQyCkFwciw1Nwo=
+--=_mailbrus_alice-inbox-04-replied-multi_=--

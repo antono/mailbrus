@@ -1,0 +1,20 @@
+From: Carol Finance <carol@work.example>
+To: alice@example.com
+Subject: Invoice for March
+Date: Wed, 13 May 2026 11:30:00 +0000
+Message-ID: <alice-inbox-03@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="=_mailbrus_alice-inbox-03-flagged-pdf_="
+
+--=_mailbrus_alice-inbox-03-flagged-pdf_=
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Please find the March invoice attached. Payment is due by the end of the month.
+--=_mailbrus_alice-inbox-03-flagged-pdf_=
+Content-Type: application/pdf; name="invoice-march.pdf"
+Content-Disposition: attachment; filename="invoice-march.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQgZmFrZSBpbnZvaWNlIGZvciBNYXJjaCAoRTJFIGZpeHR1cmUpCg==
+--=_mailbrus_alice-inbox-03-flagged-pdf_=--

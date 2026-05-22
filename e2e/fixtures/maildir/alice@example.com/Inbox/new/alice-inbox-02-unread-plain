@@ -1,0 +1,10 @@
+From: Dave Ops <dave@work.example>
+To: alice@example.com
+Subject: Server migration window
+Date: Tue, 19 May 2026 14:02:00 +0000
+Message-ID: <alice-inbox-02@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+The migration window is scheduled for Saturday night. Expect about two hours of downtime on the staging cluster.

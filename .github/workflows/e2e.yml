@@ -1,0 +1,47 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The Nix devShell provides everything the suite needs: notmuch, Node, Deno,
+# the Rust toolchain, and Playwright browsers (PLAYWRIGHT_BROWSERS_PATH is set
+# in nix/devshell.nix), so no browsers are downloaded at runtime.
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Rust target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build + run the E2E suite
+        run: |
+          nix develop --command bash -euo pipefail -c '
+            deno install
+            deno task build
+            cargo build --release -p mailbrus-server
+            deno task e2e:generate
+            deno task test:e2e
+          '
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

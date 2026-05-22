@@ -27,5 +27,11 @@
     clippy
     rustfmt
     rust-analyzer
+    # E2E (Playwright) toolchain. Node runs the Playwright test runner; the
+    # browsers come from nixpkgs so they are never downloaded at runtime. Keep
+    # @playwright/test (package.json) pinned to playwright-driver's version
+    # (currently 1.59.1) to avoid the "browser/runner version mismatch" error.
+    nodejs
+    playwright-driver.browsers
   ];
 }

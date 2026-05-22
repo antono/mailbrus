@@ -1,0 +1,10 @@
+From: Bob Example <bob@example.com>
+To: alice@example.com
+Subject: Lunch?
+Date: Wed, 06 May 2026 12:30:00 +0000
+Message-ID: <bob-sent-01@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Want to grab lunch on Thursday?

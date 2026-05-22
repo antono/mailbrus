@@ -1,0 +1,10 @@
+From: Scrum Master <scrum@work.example>
+To: bob@example.com
+Subject: Standup notes
+Date: Tue, 12 May 2026 09:30:00 +0000
+Message-ID: <bob-inbox-02@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Notes from this morning standup are attached to the ticket. Nothing blocking.

@@ -21,5 +21,10 @@ pkgs.mkShell {
     WEBKIT_DISABLE_COMPOSITING_MODE = "1";
     WEBKIT_DISABLE_DMABUF_RENDERER = "1";
     GDK_BACKEND = "x11";
+
+    # Playwright E2E: use the Nix-provided browsers, never download at runtime.
+    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
   };
 }

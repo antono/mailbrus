@@ -1,0 +1,10 @@
+From: Archive Bot <archive@work.example>
+To: alice@example.com
+Subject: Archived item 26
+Date: Tue, 26 May 2026 07:26:00 +0000
+Message-ID: <alice-archive-26@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+This is archived content number 26.

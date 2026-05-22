@@ -1,0 +1,10 @@
+# Playwright run artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+/.last-run.json
+
+# notmuch/Xapian indexes must NEVER be committed: the pristine corpus stays raw
+# (per-test indexes live in throwaway /tmp clones, see harness/clone.ts).
+**/.notmuch/
+**/xapian/
