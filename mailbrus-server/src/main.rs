@@ -16,12 +16,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::{
     collections::HashMap,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 use tower_http::services::{ServeDir, ServeFile};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 // ── App state ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +63,24 @@ struct Cli {
     frontend_dist: PathBuf,
     #[arg(long)]
     auth: Option<String>,
+    /// Open the default web browser at the server URL after startup
+    #[arg(long)]
+    browser: bool,
+}
+
+/// Build the URL to open in a browser from the listener's bound address.
+///
+/// The port is taken from the actual bound address, so ephemeral ports
+/// (`--bind ADDR:0`) resolve to the real assigned port. Unspecified hosts
+/// (`0.0.0.0` / `::`) are mapped to loopback because a browser cannot connect
+/// to an unspecified address.
+fn browser_url(addr: SocketAddr) -> String {
+    match addr.ip() {
+        IpAddr::V4(v4) if v4.is_unspecified() => format!("http://127.0.0.1:{}", addr.port()),
+        IpAddr::V6(v6) if v6.is_unspecified() => format!("http://[::1]:{}", addr.port()),
+        IpAddr::V4(v4) => format!("http://{}:{}", v4, addr.port()),
+        IpAddr::V6(v6) => format!("http://[{}]:{}", v6, addr.port()),
+    }
 }
 
 fn json_error(status: StatusCode, msg: &str) -> Response {
@@ -510,5 +528,44 @@ async fn main() {
         });
 
     info!("Listening on http://{bind_addr}");
+
+    if cli.browser {
+        let url = browser_url(listener.local_addr().unwrap_or(bind_addr));
+        match open::that_detached(&url) {
+            Ok(()) => info!("Opened browser at {url}"),
+            Err(e) => warn!("could not open browser at {url}: {e}"),
+        }
+    }
+
     axum::serve(listener, app).await.expect("server error");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::browser_url;
+    use std::net::SocketAddr;
+
+    #[test]
+    fn ephemeral_port_uses_real_port() {
+        let addr: SocketAddr = "127.0.0.1:54321".parse().unwrap();
+        assert_eq!(browser_url(addr), "http://127.0.0.1:54321");
+    }
+
+    #[test]
+    fn unspecified_ipv4_maps_to_loopback() {
+        let addr: SocketAddr = "0.0.0.0:9000".parse().unwrap();
+        assert_eq!(browser_url(addr), "http://127.0.0.1:9000");
+    }
+
+    #[test]
+    fn unspecified_ipv6_maps_to_loopback() {
+        let addr: SocketAddr = "[::]:9000".parse().unwrap();
+        assert_eq!(browser_url(addr), "http://[::1]:9000");
+    }
+
+    #[test]
+    fn specific_ipv4_passes_through() {
+        let addr: SocketAddr = "192.168.1.10:8080".parse().unwrap();
+        assert_eq!(browser_url(addr), "http://192.168.1.10:8080");
+    }
 }

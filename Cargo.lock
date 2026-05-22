@@ -2580,6 +2580,7 @@ dependencies = [
  "clap",
  "mail-parser",
  "mailbrus-core",
+ "open",
  "serde",
  "serde_json",
  "tokio",

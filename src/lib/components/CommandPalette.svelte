@@ -14,7 +14,7 @@
 		onCancel: () => void;
 	} = $props();
 
-	const items = [
+	const items = $derived([
 		{ key: 'switch-account', primary: 'Switch account…', secondary: 'Choose a different maildir', meta: 'g a' },
 		{ key: 'switch-folder', primary: 'Switch folder…', secondary: `Within ${account.address}`, meta: 'g f' },
 		{ key: 'go-inbox', primary: 'Go to inbox', secondary: 'Jump to INBOX', meta: 'g i' },
@@ -25,7 +25,7 @@
 		{ key: 'keyboard-help', primary: 'Keyboard shortcuts…', secondary: 'Show all hotkeys', meta: '?' },
 		{ key: 'about', primary: 'About Mailbrus…', secondary: 'Philosophy, source, license', meta: '' },
 		{ key: 'toggle-dark', primary: 'Toggle dark mode', secondary: '', meta: '' }
-	];
+	]);
 </script>
 
 <Palette

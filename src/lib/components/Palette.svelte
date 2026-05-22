@@ -16,7 +16,8 @@
 		onSelect,
 		onCancel,
 		showCancelHint = true,
-		emptyText = 'No matches.'
+		emptyText = 'No matches.',
+		curtainTestId = 'palette.curtain'
 	}: {
 		eyebrow: string;
 		title: string;
@@ -26,6 +27,7 @@
 		onCancel?: () => void;
 		showCancelHint?: boolean;
 		emptyText?: string;
+		curtainTestId?: string;
 	} = $props();
 
 	let q = $state('');
@@ -105,7 +107,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="mb-curtain" role="dialog" aria-modal="true" onclick={onCurtainClick} data-testid={curtainTestId}>
+<div class="mb-curtain" role="dialog" aria-modal="true" tabindex="-1" onclick={onCurtainClick} data-testid={curtainTestId}>
 	<div class="mb-palette">
 		<div class="head">
 			<div class="eyebrow">

@@ -1,4 +1,4 @@
-import { idbGet, idbPut } from './idb';
+import { idbGet, idbPut, idbGetAll } from './idb';
 import { pwaLog } from './pwa-log';
 
 const MAX_VISITS = 20;
@@ -37,8 +37,6 @@ export async function recordVisit(store: string, key: string): Promise<void> {
 }
 
 export async function getRanked(store: string, prefix?: string): Promise<string[]> {
-	// read all frecency entries for this store namespace
-	const { idbGetAll } = await import('./idb');
 	const all = await idbGetAll<FrecencyEntry>('frecency');
 	const storePrefix = `${store}:`;
 	const relevant = all

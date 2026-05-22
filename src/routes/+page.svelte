@@ -376,7 +376,6 @@
 
 	function handleListPageChange(page: number) {
 		if (!account || !folder) return;
-		currentPage = page;
 		loadMessages(account.id, folder.id, page);
 	}
 
