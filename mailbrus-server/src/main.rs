@@ -419,12 +419,25 @@ async fn get_message(Path(id): Path<String>) -> Response {
         Ok(Ok((id, raw))) => {
             let body = parse_message_body(&id, &raw);
             let headers = body["headers"].as_object();
-            debug!("[api] GET /api/messages/{} body: from={:?} subject={:?} attachments={} body_len={}",
+            let hdr = |key: &str| {
+                headers
+                    .and_then(|h| h.get(key))
+                    .and_then(|v| v.as_array())
+                    .and_then(|a| a.first())
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
+                    .to_string()
+            };
+            debug!(
+                "[api] GET /api/messages/{}\n  from: {}\n  to: {}\n  subject: {}\n  date: {}\n  attachments: {}\n  body_len: {}",
                 id,
-                headers.and_then(|h| h.get("From")).and_then(|v| v.as_array()).and_then(|a| a.first()).and_then(|v| v.as_str()),
-                headers.and_then(|h| h.get("Subject")).and_then(|v| v.as_array()).and_then(|a| a.first()).and_then(|v| v.as_str()),
+                hdr("From"),
+                hdr("To"),
+                hdr("Subject"),
+                hdr("Date"),
                 body["attachments"].as_array().map(|a| a.len()).unwrap_or(0),
-                body["body"].as_str().map(|s| s.len()).unwrap_or(0));
+                body["body"].as_str().map(|s| s.len()).unwrap_or(0),
+            );
             Json(body).into_response()
         }
         Ok(Err(MailboxError::MessageNotFound { id })) => {

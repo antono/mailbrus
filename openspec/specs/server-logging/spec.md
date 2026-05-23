@@ -42,29 +42,39 @@ All API endpoints SHALL log their HTTP method, path, and status code at info lev
 - **WHEN** a client requests a non-existent maildir `GET /api/maildirs/notfound/folders`
 - **THEN** middleware logs `[api] GET /api/maildirs/notfound/folders -> 404` at info level
 
-### Requirement: Response detail logging at debug level
-At debug level, endpoints additionally log operation results with relevant details.
+### Requirement: Full response body logging at debug level
+At debug level, endpoints additionally log the full response body (or key metadata for large payloads).
 
-#### Scenario: GET /api/maildirs logs response count
+#### Scenario: GET /api/maildirs logs full response body
 - **WHEN** a client requests `GET /api/maildirs` at debug level
-- **THEN** server logs `[api] GET /api/maildirs response: N maildirs` at debug level
+- **THEN** server logs `[api] GET /api/maildirs body: [{"id":"...","address":"...",...},...]` with the complete JSON array
 - **AND** also logs the info-level `[api] GET /api/maildirs -> 200`
 
-#### Scenario: GET /api/maildirs/{id}/folders logs response count
+#### Scenario: GET /api/maildirs/{id}/folders logs full response body
 - **WHEN** a client requests `GET /api/maildirs/gmail/folders` at debug level
-- **THEN** server logs `[api] GET /api/maildirs/gmail/folders response: N folders` at debug level
+- **THEN** server logs `[api] GET /api/maildirs/gmail/folders body: [{"id":"...","name":"...",...},...]` with the complete JSON array
 
-#### Scenario: GET /api/maildirs/{id}/folders/{folder}/messages logs pagination
+#### Scenario: GET /api/maildirs/{id}/folders/{folder}/messages logs full messages array
 - **WHEN** a client requests `GET /api/maildirs/gmail/folders/INBOX/messages?page=2&per_page=50` at debug level
-- **THEN** server logs response with `[api] GET /api/maildirs/gmail/folders/INBOX/messages response: N messages (page M of T)` at debug level
+- **THEN** server logs `[api] GET /api/maildirs/.../messages body: page M/T count=N messages=[...]` including the full messages array with message metadata
 
-#### Scenario: GET /api/messages/search logs result count
+#### Scenario: GET /api/messages/search logs full messages array
 - **WHEN** a client requests `GET /api/messages/search?q=from%3Amaya` at debug level
-- **THEN** server logs `[api] GET /api/messages/search response: N results` at debug level
+- **THEN** server logs `[api] GET /api/messages/search body: count=N messages=[...]` with the full messages array
 
-#### Scenario: GET /api/messages/{id} logs retrieval success
+#### Scenario: GET /api/messages/{id} logs key headers in YAML style
 - **WHEN** a client requests `GET /api/messages/abc123` at debug level
-- **THEN** server logs `[api] GET /api/messages/abc123 response: message retrieved` at debug level
+- **THEN** server logs the message metadata with each field on its own indented line:
+  ```
+  [api] GET /api/messages/abc123
+    from: Alice <alice@example.com>
+    to: Bob <bob@example.com>
+    subject: Hello World
+    date: Mon, 1 Jan 2024 12:00:00 +0000
+    attachments: 2
+    body_len: 4096
+  ```
+- **AND** the email body text itself is not logged (may be arbitrarily large)
 
 #### Scenario: PATCH /api/messages/{id} logs operation
 - **WHEN** a client sends `PATCH /api/messages/abc123` with operation type at debug level
