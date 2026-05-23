@@ -197,16 +197,12 @@ async fn log_middleware(
     let method = req.method().to_string();
     let uri = req.uri().to_string();
 
-    if state.log_level == LogLevel::Debug {
-        debug!("[req] {} {}", method, uri);
-    }
-
     let res = next.run(req).await;
     let status = res.status();
 
     match state.log_level {
         LogLevel::Debug => {
-            debug!("[res] {} {} -> {}", method, uri, status);
+            debug!("[api] {} {} -> {}", method, uri, status);
         }
         LogLevel::Info => {
             info!("[api] {} {} -> {}", method, uri, status);
@@ -224,7 +220,6 @@ async fn log_middleware(
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 async fn list_maildirs() -> Response {
-    debug!("[endpoint] GET /api/maildirs");
     match tokio::task::spawn_blocking(|| {
         MaildirReader::open().and_then(|r| r.list_maildirs())
     })
@@ -247,22 +242,21 @@ async fn list_maildirs() -> Response {
                     })
                 })
                 .collect();
-            debug!("[endpoint] listed {} maildirs", maildirs.len());
+            debug!("[api] GET /api/maildirs response: {} maildirs", maildirs.len());
             Json(json!(maildirs)).into_response()
         }
         Ok(Err(e)) => {
-            warn!("[endpoint] error listing maildirs: {}", e);
+            warn!("[api] GET /api/maildirs error: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
         Err(e) => {
-            warn!("[endpoint] task error: {}", e);
+            warn!("[api] GET /api/maildirs task error: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
     }
 }
 
 async fn list_folders(Path(id): Path<String>) -> Response {
-    debug!("[endpoint] GET /api/maildirs/{}/folders", &id);
     match tokio::task::spawn_blocking({
         let id = id.clone();
         move || {
@@ -291,19 +285,19 @@ async fn list_folders(Path(id): Path<String>) -> Response {
                     })
                 })
                 .collect();
-            debug!("[endpoint] listed {} folders for maildir {}", folders.len(), &id);
+            debug!("[api] GET /api/maildirs/{}/folders response: {} folders", &id, folders.len());
             Json(json!(folders)).into_response()
         }
         Ok(Ok(None)) => {
-            warn!("[endpoint] maildir not found: {}", &id);
+            warn!("[api] GET /api/maildirs/{}/folders not found", &id);
             json_error(StatusCode::NOT_FOUND, "maildir not found")
         }
         Ok(Err(e)) => {
-            warn!("[endpoint] error listing folders: {}", e);
+            warn!("[api] GET /api/maildirs/{}/folders error: {}", &id, e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
         Err(e) => {
-            warn!("[endpoint] task error: {}", e);
+            warn!("[api] GET /api/maildirs/{}/folders task error: {}", &id, e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
     }
@@ -334,8 +328,6 @@ async fn list_messages(
     Path((maildir_id, folder_id)): Path<(String, String)>,
     Query(pagination): Query<Pagination>,
 ) -> Response {
-    debug!("[endpoint] GET /api/maildirs/{}/folders/{}/messages page={:?} per_page={:?}",
-        maildir_id, folder_id, pagination.page, pagination.per_page);
     let (opts, page, per_page) = pagination.to_opts();
     let query = format!("folder:\"{maildir_id}/{folder_id}\"");
     match tokio::task::spawn_blocking(move || {
@@ -345,7 +337,8 @@ async fn list_messages(
     {
         Ok(Ok((messages, total))) => {
             let total_pages = (total as u64 + per_page - 1) / per_page;
-            debug!("[endpoint] listed {} messages (page {} of {})", messages.len(), page, total_pages);
+            debug!("[api] GET /api/maildirs/{}/folders/{}/messages response: {} messages (page {} of {})",
+                maildir_id, folder_id, messages.len(), page, total_pages);
             Json(json!({
                 "messages": messages.iter().map(message_to_json).collect::<Vec<_>>(),
                 "count": total,
@@ -355,11 +348,11 @@ async fn list_messages(
             .into_response()
         }
         Ok(Err(e)) => {
-            warn!("[endpoint] error listing messages: {}", e);
+            warn!("[api] error listing messages: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
         Err(e) => {
-            warn!("[endpoint] task error: {}", e);
+            warn!("[api] task error: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
     }
@@ -373,12 +366,10 @@ struct SearchParams {
 }
 
 async fn search_messages(Query(params): Query<SearchParams>) -> Response {
-    debug!("[endpoint] GET /api/messages/search q={:?} page={:?} per_page={:?}",
-        params.q, params.page, params.per_page);
     let q = match params.q.filter(|s| !s.is_empty()) {
         Some(q) => q,
         None => {
-            warn!("[endpoint] search missing required parameter: q");
+            warn!("[api] GET /api/messages/search missing required parameter: q");
             return json_error(StatusCode::BAD_REQUEST, "missing required parameter: q");
         }
     };
@@ -394,7 +385,7 @@ async fn search_messages(Query(params): Query<SearchParams>) -> Response {
     .await
     {
         Ok(Ok((messages, total))) => {
-            debug!("[endpoint] search found {} results", total);
+            debug!("[api] GET /api/messages/search response: {} results", total);
             Json(json!({
                 "messages": messages.iter().map(message_to_json).collect::<Vec<_>>(),
                 "count": total,
@@ -404,18 +395,17 @@ async fn search_messages(Query(params): Query<SearchParams>) -> Response {
             .into_response()
         }
         Ok(Err(e)) => {
-            warn!("[endpoint] error searching messages: {}", e);
+            warn!("[api] error searching messages: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
         Err(e) => {
-            warn!("[endpoint] task error: {}", e);
+            warn!("[api] task error: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
     }
 }
 
 async fn get_message(Path(id): Path<String>) -> Response {
-    debug!("[endpoint] GET /api/messages/{}", id);
     match tokio::task::spawn_blocking(move || {
         let reader = MaildirReader::open()?;
         let raw = reader.get_message_body(&id)?;
@@ -424,19 +414,19 @@ async fn get_message(Path(id): Path<String>) -> Response {
     .await
     {
         Ok(Ok((id, raw))) => {
-            debug!("[endpoint] retrieved message {}", id);
+            debug!("[api] GET /api/messages/{} response: message retrieved", id);
             Json(parse_message_body(&id, &raw)).into_response()
         }
         Ok(Err(MailboxError::MessageNotFound { id })) => {
-            warn!("[endpoint] message not found: {}", id);
+            warn!("[api] GET /api/messages/{} not found", id);
             json_error(StatusCode::NOT_FOUND, &format!("message not found: {id}"))
         }
         Ok(Err(e)) => {
-            warn!("[endpoint] error getting message: {}", e);
+            warn!("[api] GET /api/messages error: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
         Err(e) => {
-            warn!("[endpoint] task error: {}", e);
+            warn!("[api] task error: {}", e);
             json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string())
         }
     }
@@ -452,12 +442,12 @@ struct MessagePatch {
 }
 
 async fn patch_message(Path(id): Path<String>, Json(body): Json<MessagePatch>) -> Response {
-    debug!("[endpoint] PATCH /api/messages/{} op={}", id, body.op);
+    debug!("[api] PATCH /api/messages/{} op={}", id, body.op);
     Json(json!({"ok": true})).into_response()
 }
 
 async fn delete_message(Path(id): Path<String>) -> Response {
-    debug!("[endpoint] DELETE /api/messages/{}", id);
+    debug!("[api] DELETE /api/messages/{}", id);
     Json(json!({"ok": true})).into_response()
 }
 
@@ -474,7 +464,7 @@ async fn push_subscribe(
     State(state): State<AppState>,
     Json(body): Json<PushSubscribeBody>,
 ) -> Response {
-    debug!("[endpoint] POST /api/push/subscribe account={}", body.account);
+    debug!("[api] POST /api/push/subscribe account={}", body.account);
     let id = uuid::Uuid::new_v4().to_string();
     let sub = PushSubscription {
         id: id.clone(),
@@ -483,7 +473,7 @@ async fn push_subscribe(
         keys: body.keys,
     };
     state.push_subscriptions.lock().unwrap().insert(id, sub);
-    debug!("[endpoint] subscription created for account {}", body.account);
+    debug!("[api] subscription created for account {}", body.account);
     Json(json!({"ok": true})).into_response()
 }
 
@@ -492,15 +482,15 @@ async fn push_unsubscribe(
     Json(body): Json<serde_json::Value>,
 ) -> Response {
     let account = body.get("account").and_then(|v| v.as_str()).unwrap_or("");
-    debug!("[endpoint] DELETE /api/push/subscribe account={}", account);
+    debug!("[api] DELETE /api/push/subscribe account={}", account);
     let mut subs = state.push_subscriptions.lock().unwrap();
     subs.retain(|_, v| v.account != account);
-    debug!("[endpoint] unsubscribed account {}", account);
+    debug!("[api] unsubscribed account {}", account);
     Json(json!({"ok": true})).into_response()
 }
 
 async fn push_vapid_key(State(state): State<AppState>) -> Response {
-    debug!("[endpoint] GET /api/push/vapid-key");
+    debug!("[api] GET /api/push/vapid-key");
     Json(json!({"publicKey": *state.vapid_public_key})).into_response()
 }
 
@@ -508,7 +498,7 @@ async fn push_vapid_key(State(state): State<AppState>) -> Response {
 
 async fn send_message(Json(body): Json<serde_json::Value>) -> Response {
     let msg_id = body.get("id").and_then(|v| v.as_str()).unwrap_or("-");
-    debug!("[endpoint] POST /api/send msg_id={}", msg_id);
+    debug!("[api] POST /api/send msg_id={}", msg_id);
     Json(json!({"ok": true})).into_response()
 }
 
