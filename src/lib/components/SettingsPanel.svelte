@@ -71,7 +71,7 @@
 		{ value: 'amber',  label: 'Amber'  },
 		{ value: 'mono',   label: 'Mono'   },
 	];
-	const FONTS      = ['sans', 'mono', 'serif'];
+	const FONTS      = ['sans', 'mono'];
 	const FONT_SIZES = ['xs', 'sm', 'md', 'lg'];
 	const DENSITIES  = ['dense', 'twoline', 'spacious'];
 </script>

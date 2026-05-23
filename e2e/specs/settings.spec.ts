@@ -157,6 +157,19 @@ test('font size lg sets --font-size-app to 15px', async ({ page }) => {
 	expect(fontSize).toBe('15px');
 });
 
+test('font size lg visually applies to body element', async ({ page }) => {
+	await openMailbox(page);
+	await openSettings(page);
+
+	await page.getByTestId('settings.font-size-seg').getByRole('radio', { name: 'lg' }).click();
+	await page.getByTestId('settings.close-btn').click();
+
+	const computedSize = await page.evaluate(() =>
+		window.getComputedStyle(document.body).fontSize
+	);
+	expect(computedSize).toBe('15px');
+});
+
 test('font size xs sets --font-size-app to 11px', async ({ page }) => {
 	await openMailbox(page);
 	await openSettings(page);

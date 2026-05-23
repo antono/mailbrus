@@ -33,11 +33,11 @@
 
 	const FONT_STACKS: Record<string, string> = {
 		sans: 'var(--font-sans)',
-		mono: 'var(--font-mono)',
-		serif: '"Iowan Old Style", "Charter", "Iowan", Georgia, "Times New Roman", serif'
+		mono: 'var(--font-mono)'
 	};
 
 	const FONT_SIZES: Record<string, string> = { xs: '11px', sm: '12px', md: '13px', lg: '15px' };
+	const FONT_SIZE_SCALES: Record<string, number> = { xs: 0.85, sm: 0.925, md: 1, lg: 1.125 };
 
 	// ── UI Preferences ────────────────────────────────────────────────────────
 	let uiPrefs = $state<UiPrefs>({
@@ -52,6 +52,8 @@
 		root.setAttribute('data-accent', uiPrefs.accent || 'indigo');
 		root.style.setProperty('--font-app', FONT_STACKS[uiPrefs.font] || FONT_STACKS.sans);
 		root.style.setProperty('--font-size-app', FONT_SIZES[uiPrefs.fontSize] || FONT_SIZES.md);
+		const scale = FONT_SIZE_SCALES[uiPrefs.fontSize] ?? 1;
+		root.style.setProperty('--font-size-scale', String(scale));
 	});
 
 	// Persist to IDB whenever ui prefs change
