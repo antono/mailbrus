@@ -599,12 +599,21 @@ fn spawn_push_poller(state: AppState) {
 
 #[tokio::main]
 async fn main() {
+    let cli = Cli::parse();
+
+    let env_filter = std::env::var("RUST_LOG").ok().map(|s| s.as_str().to_string());
+    let default_level = match cli.log_level {
+        LogLevel::Debug => "debug",
+        LogLevel::Info => "info",
+        LogLevel::Warn => "warn",
+    };
+    let filter_str = env_filter.as_deref().unwrap_or(default_level);
+
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(tracing_subscriber::EnvFilter::new(filter_str))
         .init();
 
     info!("[startup] mailbrus-server starting");
-    let cli = Cli::parse();
     info!("[startup] log-level: {:?}", cli.log_level);
     let state = AppState::new(cli.log_level);
     spawn_push_poller(state.clone());
