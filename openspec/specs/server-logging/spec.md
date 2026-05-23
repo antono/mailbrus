@@ -23,53 +23,72 @@ The `mailbrus-server` binary SHALL accept a `--log-level` CLI flag with three di
 - **WHEN** user runs `mailbrus-server --log-level invalid`
 - **THEN** server exits with non-zero code and displays valid options (debug, info, warn)
 
-### Requirement: Endpoint logging with request details
-Each API endpoint SHALL log its invocation with relevant request parameters and operation results.
+### Requirement: Request/response logging at info level and above
+All API endpoints SHALL log their HTTP method, path, and status code at info level or above.
 
-#### Scenario: GET /api/maildirs logs count
+#### Scenario: GET request logged at info level
 - **WHEN** a client requests `GET /api/maildirs`
-- **THEN** server logs `[endpoint] GET /api/maildirs` at debug level and `[endpoint] listed N maildirs` on success
-- **AND** at info level logs `[api] GET /api/maildirs -> 200`
+- **THEN** middleware logs `[api] GET /api/maildirs -> 200` at info level
 
-#### Scenario: GET /api/maildirs/{id}/folders logs operation
-- **WHEN** a client requests `GET /api/maildirs/gmail/folders`
-- **THEN** server logs the maildir id and folder count at debug level
-- **AND** logs "maildir not found" warning if id does not exist
+#### Scenario: POST request logged at info level
+- **WHEN** a client sends `POST /api/push/subscribe` 
+- **THEN** middleware logs `[api] POST /api/push/subscribe -> 200` at info level
+
+#### Scenario: DELETE request logged at info level
+- **WHEN** a client sends `DELETE /api/messages/abc123`
+- **THEN** middleware logs `[api] DELETE /api/messages/abc123 -> 200` at info level
+
+#### Scenario: Non-success status logged at info level
+- **WHEN** a client requests a non-existent maildir `GET /api/maildirs/notfound/folders`
+- **THEN** middleware logs `[api] GET /api/maildirs/notfound/folders -> 404` at info level
+
+### Requirement: Response detail logging at debug level
+At debug level, endpoints additionally log operation results with relevant details.
+
+#### Scenario: GET /api/maildirs logs response count
+- **WHEN** a client requests `GET /api/maildirs` at debug level
+- **THEN** server logs `[api] GET /api/maildirs response: N maildirs` at debug level
+- **AND** also logs the info-level `[api] GET /api/maildirs -> 200`
+
+#### Scenario: GET /api/maildirs/{id}/folders logs response count
+- **WHEN** a client requests `GET /api/maildirs/gmail/folders` at debug level
+- **THEN** server logs `[api] GET /api/maildirs/gmail/folders response: N folders` at debug level
 
 #### Scenario: GET /api/maildirs/{id}/folders/{folder}/messages logs pagination
-- **WHEN** a client requests `GET /api/maildirs/gmail/folders/INBOX/messages?page=2&per_page=50`
-- **THEN** server logs the query parameters and result counts at debug level
+- **WHEN** a client requests `GET /api/maildirs/gmail/folders/INBOX/messages?page=2&per_page=50` at debug level
+- **THEN** server logs response with `[api] GET /api/maildirs/gmail/folders/INBOX/messages response: N messages (page M of T)` at debug level
 
-#### Scenario: GET /api/messages/search logs query and results
-- **WHEN** a client requests `GET /api/messages/search?q=from%3Amaya`
-- **THEN** server logs the search query and number of results found at debug level
-- **AND** logs missing query parameter as a warning if q is omitted
+#### Scenario: GET /api/messages/search logs result count
+- **WHEN** a client requests `GET /api/messages/search?q=from%3Amaya` at debug level
+- **THEN** server logs `[api] GET /api/messages/search response: N results` at debug level
 
-#### Scenario: GET /api/messages/{id} logs message retrieval
-- **WHEN** a client requests `GET /api/messages/abc123`
-- **THEN** server logs the message id at debug level
-- **AND** logs "message not found" warning if id does not exist
+#### Scenario: GET /api/messages/{id} logs retrieval success
+- **WHEN** a client requests `GET /api/messages/abc123` at debug level
+- **THEN** server logs `[api] GET /api/messages/abc123 response: message retrieved` at debug level
 
 #### Scenario: PATCH /api/messages/{id} logs operation
-- **WHEN** a client sends `PATCH /api/messages/abc123` with operation type
-- **THEN** server logs the message id and operation type at debug level
+- **WHEN** a client sends `PATCH /api/messages/abc123` with operation type at debug level
+- **THEN** server logs `[api] PATCH /api/messages/abc123 op=<operation>` at debug level
 
-#### Scenario: DELETE /api/messages/{id} logs deletion
-- **WHEN** a client sends `DELETE /api/messages/abc123`
-- **THEN** server logs the message id at debug level
+#### Scenario: DELETE /api/messages/{id} logs operation
+- **WHEN** a client sends `DELETE /api/messages/abc123` at debug level
+- **THEN** server logs `[api] DELETE /api/messages/abc123` at debug level
 
-#### Scenario: POST /api/send logs message send
-- **WHEN** a client sends `POST /api/send` with message data
-- **THEN** server logs the message id at debug level
+#### Scenario: POST /api/send logs message details
+- **WHEN** a client sends `POST /api/send` with message id at debug level
+- **THEN** server logs `[api] POST /api/send msg_id=<id>` at debug level
 
-#### Scenario: Push subscription endpoints log operations
-- **WHEN** a client sends `POST /api/push/subscribe` with account and endpoint
-- **THEN** server logs the account and subscription creation at debug level
-- **AND** logs unsubscribe operations with account at debug level
+#### Scenario: Push subscription endpoints log account
+- **WHEN** a client sends `POST /api/push/subscribe` with account at debug level
+- **THEN** server logs `[api] POST /api/push/subscribe account=<account>` and `subscription created for account <account>` at debug level
 
-#### Scenario: GET /api/push/vapid-key is logged
-- **WHEN** a client requests `GET /api/push/vapid-key`
-- **THEN** server logs the request at debug level
+#### Scenario: Push unsubscribe logs account
+- **WHEN** a client sends `DELETE /api/push/subscribe` for an account at debug level
+- **THEN** server logs `[api] DELETE /api/push/subscribe account=<account>` and `unsubscribed account <account>` at debug level
+
+#### Scenario: GET /api/push/vapid-key logs at debug level
+- **WHEN** a client requests `GET /api/push/vapid-key` at debug level
+- **THEN** server logs `[api] GET /api/push/vapid-key` at debug level
 
 ### Requirement: Startup and shutdown logging
 Server initialization and graceful shutdown events SHALL be logged with context.
@@ -133,9 +152,9 @@ API errors and warning conditions SHALL be logged at appropriate levels.
 ### Requirement: Structured logging tags
 All log messages SHALL use consistent prefixes to identify context.
 
-#### Scenario: Endpoint logs use [endpoint] prefix
-- **WHEN** any API handler logs a message
-- **THEN** the message begins with `[endpoint]`
+#### Scenario: API endpoint logs use [api] prefix
+- **WHEN** any API handler or middleware logs a message
+- **THEN** the message begins with `[api]`
 
 #### Scenario: Startup logs use [startup] prefix
 - **WHEN** initialization code logs a message
@@ -149,9 +168,9 @@ All log messages SHALL use consistent prefixes to identify context.
 - **WHEN** push polling task logs a message
 - **THEN** the message begins with `[push-poller]`
 
-#### Scenario: API middleware logs use [api] prefix
-- **WHEN** request/response middleware logs at info level
-- **THEN** the message begins with `[api]`
+#### Scenario: PWA logs use [pwa] prefix
+- **WHEN** PWA-related initialization logs (like VAPID key)
+- **THEN** the message begins with `[pwa]`
 
 ### Requirement: Integration with RUST_LOG environment variable
 The logging system SHALL respect the `RUST_LOG` environment variable for fine-grained control.
