@@ -242,8 +242,9 @@ async fn list_maildirs() -> Response {
                     })
                 })
                 .collect();
-            debug!("[api] GET /api/maildirs response: {} maildirs", maildirs.len());
-            Json(json!(maildirs)).into_response()
+            let body = json!(maildirs);
+            debug!("[api] GET /api/maildirs body: {}", body);
+            Json(body).into_response()
         }
         Ok(Err(e)) => {
             warn!("[api] GET /api/maildirs error: {}", e);
@@ -285,8 +286,9 @@ async fn list_folders(Path(id): Path<String>) -> Response {
                     })
                 })
                 .collect();
-            debug!("[api] GET /api/maildirs/{}/folders response: {} folders", &id, folders.len());
-            Json(json!(folders)).into_response()
+            let body = json!(folders);
+            debug!("[api] GET /api/maildirs/{}/folders body: {}", &id, body);
+            Json(body).into_response()
         }
         Ok(Ok(None)) => {
             warn!("[api] GET /api/maildirs/{}/folders not found", &id);
@@ -337,15 +339,16 @@ async fn list_messages(
     {
         Ok(Ok((messages, total))) => {
             let total_pages = (total as u64 + per_page - 1) / per_page;
-            debug!("[api] GET /api/maildirs/{}/folders/{}/messages response: {} messages (page {} of {})",
-                maildir_id, folder_id, messages.len(), page, total_pages);
-            Json(json!({
+            let body = json!({
                 "messages": messages.iter().map(message_to_json).collect::<Vec<_>>(),
                 "count": total,
                 "page": page,
                 "per_page": per_page,
-            }))
-            .into_response()
+            });
+            debug!("[api] GET /api/maildirs/{}/folders/{}/messages body: page {}/{} count={} messages={}",
+                maildir_id, folder_id, page, total_pages, total,
+                body["messages"]);
+            Json(body).into_response()
         }
         Ok(Err(e)) => {
             warn!("[api] error listing messages: {}", e);
@@ -385,14 +388,14 @@ async fn search_messages(Query(params): Query<SearchParams>) -> Response {
     .await
     {
         Ok(Ok((messages, total))) => {
-            debug!("[api] GET /api/messages/search response: {} results", total);
-            Json(json!({
+            let body = json!({
                 "messages": messages.iter().map(message_to_json).collect::<Vec<_>>(),
                 "count": total,
                 "page": page,
                 "per_page": per_page,
-            }))
-            .into_response()
+            });
+            debug!("[api] GET /api/messages/search body: count={} messages={}", total, body["messages"]);
+            Json(body).into_response()
         }
         Ok(Err(e)) => {
             warn!("[api] error searching messages: {}", e);
@@ -414,8 +417,15 @@ async fn get_message(Path(id): Path<String>) -> Response {
     .await
     {
         Ok(Ok((id, raw))) => {
-            debug!("[api] GET /api/messages/{} response: message retrieved", id);
-            Json(parse_message_body(&id, &raw)).into_response()
+            let body = parse_message_body(&id, &raw);
+            let headers = body["headers"].as_object();
+            debug!("[api] GET /api/messages/{} body: from={:?} subject={:?} attachments={} body_len={}",
+                id,
+                headers.and_then(|h| h.get("From")).and_then(|v| v.as_array()).and_then(|a| a.first()).and_then(|v| v.as_str()),
+                headers.and_then(|h| h.get("Subject")).and_then(|v| v.as_array()).and_then(|a| a.first()).and_then(|v| v.as_str()),
+                body["attachments"].as_array().map(|a| a.len()).unwrap_or(0),
+                body["body"].as_str().map(|s| s.len()).unwrap_or(0));
+            Json(body).into_response()
         }
         Ok(Err(MailboxError::MessageNotFound { id })) => {
             warn!("[api] GET /api/messages/{} not found", id);
