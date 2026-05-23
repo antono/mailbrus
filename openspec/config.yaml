@@ -15,3 +15,6 @@ rules:
     - Always include a "Non-goals" section
   design:
     - Use mermaid skill to draw diagrams (when needed)
+    - Ensure e2e test exist for each ui feature
+  tasks:
+    - At the end of task list add e2e test validation and fixes cycle

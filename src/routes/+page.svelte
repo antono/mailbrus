@@ -9,7 +9,7 @@
 	import About from '$lib/components/About.svelte';
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import HintBar from '$lib/components/HintBar.svelte';
-	import TweaksPanel, { type Tweaks } from '$lib/components/TweaksPanel.svelte';
+	import SettingsPanel from '$lib/components/SettingsPanel.svelte';
 	import {
 		fetchMaildirs,
 		fetchFolders,
@@ -20,7 +20,7 @@
 		type Folder,
 		type Message
 	} from '$lib/api.js';
-	import { loadSettings, addSearchHistory, setLastFolder } from '$lib/settings.js';
+	import { loadSettings, writeSetting, addSearchHistory, setLastFolder, type UiPrefs } from '$lib/settings.js';
 	import { cacheMessages, getLocalMessages } from '$lib/message-cache.js';
 	import { enqueue as outboxEnqueue, getOutbox, initOutboxFlusher, type OutboxEntry } from '$lib/outbox.js';
 	import { enqueueMutation, initMutationsFlusher } from '$lib/mutations.js';
@@ -37,16 +37,29 @@
 		serif: '"Iowan Old Style", "Charter", "Iowan", Georgia, "Times New Roman", serif'
 	};
 
-	// ── Tweaks ────────────────────────────────────────────────────────────────
-	let tweaks = $state<Tweaks>({
-		dark: false, accent: 'indigo', font: 'sans', density: 'twoline', hintBar: true
-	});
+	const FONT_SIZES: Record<string, string> = { xs: '11px', sm: '12px', md: '13px', lg: '15px' };
 
+	// ── UI Preferences ────────────────────────────────────────────────────────
+	let uiPrefs = $state<UiPrefs>({
+		dark: false, accent: 'indigo', font: 'sans', fontSize: 'md', density: 'twoline', hintBar: true
+	});
+	let settingsOpen = $state(false);
+
+	// Apply CSS vars whenever any ui pref changes (deep $state tracks property mutations)
 	$effect(() => {
 		const root = document.documentElement;
-		root.classList.toggle('dark', !!tweaks.dark);
-		root.setAttribute('data-accent', tweaks.accent || 'indigo');
-		root.style.setProperty('--font-app', FONT_STACKS[tweaks.font] || FONT_STACKS.sans);
+		root.classList.toggle('dark', !!uiPrefs.dark);
+		root.setAttribute('data-accent', uiPrefs.accent || 'indigo');
+		root.style.setProperty('--font-app', FONT_STACKS[uiPrefs.font] || FONT_STACKS.sans);
+		root.style.setProperty('--font-size-app', FONT_SIZES[uiPrefs.fontSize] || FONT_SIZES.md);
+	});
+
+	// Persist to IDB whenever ui prefs change
+	let _prefsLoaded = $state(false);
+	$effect(() => {
+		// read all fields to establish deps
+		const snap = { ...uiPrefs };
+		if (_prefsLoaded) writeSetting('ui_prefs', snap);
 	});
 
 	// ── State machine ─────────────────────────────────────────────────────────
@@ -87,6 +100,8 @@
 	$effect(() => {
 		// Settings
 		loadSettings().then((s) => {
+			if (s.ui_prefs) Object.assign(uiPrefs, s.ui_prefs);
+			_prefsLoaded = true;
 			if (s.last_folder) { /* restored on folder navigation */ }
 		});
 
@@ -210,7 +225,8 @@
 			case 'keyboard-help': helpOpen = true; break;
 			case 'about': aboutOpen = true; break;
 			case 'search': searchOpen = true; break;
-			case 'toggle-dark': tweaks = { ...tweaks, dark: !tweaks.dark }; break;
+			case 'toggle-dark': { uiPrefs.dark = !uiPrefs.dark; break; }
+			case 'open-settings': settingsOpen = true; break;
 		}
 	}
 
@@ -226,6 +242,12 @@
 			if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
 				e.preventDefault();
 				if (account && folder) { clearLeader(); cmdOpen = !cmdOpen; }
+				return;
+			}
+			// ⌘, / Ctrl+, — open settings
+			if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+				e.preventDefault();
+				settingsOpen = true;
 				return;
 			}
 			// ? keyboard help
@@ -410,7 +432,7 @@
 			{folder}
 			messages={currentMessages}
 			{outboxEntries}
-			density={tweaks.density}
+			density={uiPrefs.density}
 			{selectedIdx}
 			onSelectIdx={(i) => (selectedIdx = i)}
 			{searchOpen}
@@ -429,7 +451,7 @@
 		/>
 	{/if}
 
-	{#if phase === 'list' && tweaks.hintBar && !openMessage}
+	{#if phase === 'list' && uiPrefs.hintBar && !openMessage}
 		<HintBar onShowHelp={() => (helpOpen = true)}>
 			<span class="hint"><span class="kbd">j</span><span class="kbd">k</span> move</span>
 			<span class="hint"><span class="kbd">↵</span> open</span>
@@ -545,5 +567,9 @@
 		<div class="mb-loading" aria-live="polite">loading…</div>
 	{/if}
 
-	<TweaksPanel onTweakChange={(t) => (tweaks = t)} />
+	<SettingsPanel
+		bind:open={settingsOpen}
+		{uiPrefs}
+		onPrefChange={(k, v) => { uiPrefs[k] = v; }}
+	/>
 </div>

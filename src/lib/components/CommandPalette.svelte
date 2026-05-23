@@ -24,7 +24,8 @@
 		{ key: 'search', primary: 'Search this folder', secondary: 'Filter messages by sender / subject', meta: '/' },
 		{ key: 'keyboard-help', primary: 'Keyboard shortcuts…', secondary: 'Show all hotkeys', meta: '?' },
 		{ key: 'about', primary: 'About Mailbrus…', secondary: 'Philosophy, source, license', meta: '' },
-		{ key: 'toggle-dark', primary: 'Toggle dark mode', secondary: '', meta: '' }
+		{ key: 'toggle-dark', primary: 'Toggle dark mode', secondary: '', meta: '' },
+		{ key: 'open-settings', primary: 'Open settings…', secondary: 'UI preferences', meta: ',' }
 	]);
 </script>
 

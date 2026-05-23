@@ -3,12 +3,31 @@ import { pwaLog } from './pwa-log';
 
 export interface SortOrder { field: string; direction: 'asc' | 'desc' }
 
+export interface UiPrefs {
+	dark: boolean;
+	accent: string;
+	font: string;
+	fontSize: string;
+	density: string;
+	hintBar: boolean;
+}
+
+const UI_PREFS_DEFAULTS: UiPrefs = {
+	dark: false,
+	accent: 'indigo',
+	font: 'sans',
+	fontSize: 'md',
+	density: 'twoline',
+	hintBar: true
+};
+
 export interface Settings {
 	theme: 'dark' | 'light' | 'system';
 	last_folder: string;
 	search_history: string[];
 	sort_order: SortOrder;
 	push_subscription: PushSubscriptionJSON | null;
+	ui_prefs: UiPrefs;
 }
 
 const DEFAULTS: Settings = {
@@ -16,7 +35,8 @@ const DEFAULTS: Settings = {
 	last_folder: 'INBOX',
 	search_history: [],
 	sort_order: { field: 'date', direction: 'desc' },
-	push_subscription: null
+	push_subscription: null,
+	ui_prefs: { ...UI_PREFS_DEFAULTS }
 };
 
 let _settings: Settings = { ...DEFAULTS };
@@ -28,9 +48,23 @@ export async function loadSettings(): Promise<Settings> {
 	const theme = (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) as Settings['theme'] | null;
 	const rows = await idbGetAll<{ key: string; value: unknown }>('settings');
 	const idbMap = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+
+	// one-time migration from mailbrus-tweaks localStorage
+	if (typeof localStorage !== 'undefined' && localStorage.getItem('mailbrus-tweaks') && !idbMap['ui_prefs']) {
+		try {
+			const legacy = JSON.parse(localStorage.getItem('mailbrus-tweaks')!);
+			const migrated: UiPrefs = { ...UI_PREFS_DEFAULTS, ...legacy, fontSize: legacy.fontSize ?? 'md' };
+			await idbPut('settings', { key: 'ui_prefs', value: migrated });
+			idbMap['ui_prefs'] = migrated;
+			pwaLog('settings', 'migrated mailbrus-tweaks to ui_prefs');
+		} catch {}
+		localStorage.removeItem('mailbrus-tweaks');
+	}
+
 	_settings = {
 		..._settings,
 		...idbMap,
+		ui_prefs: { ...UI_PREFS_DEFAULTS, ...((idbMap['ui_prefs'] as UiPrefs) ?? {}) },
 		theme: (theme ?? (idbMap.theme as Settings['theme'])) ?? DEFAULTS.theme
 	} as Settings;
 	_loaded = true;
