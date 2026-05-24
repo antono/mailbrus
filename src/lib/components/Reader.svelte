@@ -40,8 +40,7 @@
 	} = $props();
 
 	let showHeaders = $state(false);
-	// Task 5.3: restore per-message remote-load decision from settings.
-	let remoteLoaded = $state(
+	let remoteLoaded = $derived(
 		getSettings().remote_loaded_messages.includes(message.id)
 	);
 
@@ -281,7 +280,7 @@
 				></iframe>
 			{:else}
 				<!-- Task 4.3/4.4: text and simple modes rendered as escaped DOM text with linkify -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 				{@html textHtml}
 				{#if parts.sig}
