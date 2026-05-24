@@ -34,6 +34,8 @@ export interface Settings {
 	email_mode: EmailMode;
 	/** Set of message IDs for which the user has opted in to load remote content. */
 	remote_loaded_messages: string[];
+	/** Per-sender rendering mode overrides. Key is the raw message.from string. */
+	sender_mode_overrides: Record<string, EmailMode>;
 }
 
 const DEFAULTS: Settings = {
@@ -45,6 +47,7 @@ const DEFAULTS: Settings = {
 	ui_prefs: { ...UI_PREFS_DEFAULTS },
 	email_mode: 'text',
 	remote_loaded_messages: [],
+	sender_mode_overrides: {},
 };
 
 let _settings: Settings = { ...DEFAULTS };
@@ -108,4 +111,18 @@ export async function setSortOrder(order: SortOrder): Promise<void> {
 
 export async function setEmailMode(mode: EmailMode): Promise<void> {
 	await writeSetting('email_mode', mode);
+}
+
+export function getSenderEmailMode(sender: string): EmailMode | null {
+	return _settings.sender_mode_overrides[sender] ?? null;
+}
+
+export async function setSenderEmailMode(sender: string, mode: EmailMode | null): Promise<void> {
+	const updated = { ..._settings.sender_mode_overrides };
+	if (mode === null) {
+		delete updated[sender];
+	} else {
+		updated[sender] = mode;
+	}
+	await writeSetting('sender_mode_overrides', updated);
 }

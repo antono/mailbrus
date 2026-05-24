@@ -25,7 +25,7 @@
 		type Message,
 		type RenderMode,
 	} from '$lib/api.js';
-	import { loadSettings, getSettings, writeSetting, addSearchHistory, setLastFolder, setEmailMode, type UiPrefs, type EmailMode } from '$lib/settings.js';
+	import { loadSettings, getSettings, writeSetting, addSearchHistory, setLastFolder, setEmailMode, getSenderEmailMode, setSenderEmailMode, type UiPrefs, type EmailMode } from '$lib/settings.js';
 	import { cacheMessages, getLocalMessages } from '$lib/message-cache.js';
 	import { enqueue as outboxEnqueue, getOutbox, initOutboxFlusher, type OutboxEntry } from '$lib/outbox.js';
 	import { enqueueMutation, initMutationsFlusher } from '$lib/mutations.js';
@@ -351,8 +351,11 @@
 		}
 		const id = openMessage.id;
 		// HTML mode is per-message only; only text/simple are restored from settings.
-		const stored = getSettings().email_mode;
-		const preferredMode = stored === 'text' || stored === 'simple' ? stored : undefined;
+		const settings = getSettings();
+		// Resolve mode: per-sender override → global default → undefined (auto-detect)
+		const senderOverride = openMessage.from ? getSenderEmailMode(openMessage.from) : null;
+		const globalMode = settings.email_mode === 'text' || settings.email_mode === 'simple' ? settings.email_mode : undefined;
+		const preferredMode: import('$lib/api.js').RenderMode | undefined = senderOverride ?? globalMode ?? undefined;
 		fetchMessage(id, preferredMode)
 			.then((data) => {
 				messageBody = data.body;
@@ -383,6 +386,10 @@
 		// HTML mode is per-message only — never persisted as global default.
 		if (newMode === 'text' || newMode === 'simple') {
 			setEmailMode(newMode as EmailMode);
+			// Persist per-sender override so next open of same sender restores mode.
+			if (openMessage.from) {
+				setSenderEmailMode(openMessage.from, newMode as EmailMode).catch(() => {});
+			}
 		}
 	}
 
