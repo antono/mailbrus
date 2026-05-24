@@ -1,6 +1,7 @@
 {
   "nodeModulesDir": "manual",
   "tasks": {
+    "watch": "deno run --allow-run --allow-read --allow-write --allow-env --allow-net scripts/watch.ts",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
