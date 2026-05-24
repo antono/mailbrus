@@ -627,6 +627,10 @@ async fn get_message(
             let body = match extract_message(&raw) {
                 Some(parsed) => {
                     let resolved_mode = match mode.as_str() {
+                        // Fall back gracefully when the requested mode isn't available.
+                        "text" if !parsed.has_plain => {
+                            if parsed.has_html { "simple" } else { "text" }
+                        }
                         "html" | "simple" | "text" => mode.as_str(),
                         _ => {
                             if parsed.has_plain {
@@ -1122,5 +1126,57 @@ mod tests {
         let (out, _) = sanitize_html("id1", "<form action='/steal'><input type='text'></form>");
         assert!(!out.contains("<form"), "form must be stripped");
         assert!(!out.contains("<input"), "input must be stripped");
+    }
+
+    #[test]
+    fn sanitize_strips_meta_refresh() {
+        let (out, _) = sanitize_html("id1", r#"<meta http-equiv="refresh" content="0;url=https://evil.example/phish"><p>Loading...</p>"#);
+        eprintln!("meta-refresh output: {:?}", out);
+        assert!(!out.contains("<meta"), "meta must be stripped: got {:?}", out);
+    }
+
+    #[test]
+    fn extract_message_detects_html_only() {
+        let raw = b"From: Test <t@x.com>\r\nTo: me@x.com\r\nSubject: S\r\n\
+Date: Sat, 22 May 2026 09:00:00 +0000\r\nMessage-ID: <t@x.com>\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n\
+<p>Hello</p>\r\n";
+        let parsed = extract_message(raw).expect("should parse");
+        assert!(parsed.has_html, "html-only message must set has_html=true");
+        assert!(!parsed.has_plain, "html-only message must have has_plain=false");
+        assert!(parsed.html_body.contains("<p>Hello</p>"));
+    }
+
+    #[test]
+    fn extract_message_detects_html_only_fixture() {
+        let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("e2e/fixtures/maildir/alice@example.com/Inbox/cur/alice-inbox-07-html-only:2,S");
+        let raw = std::fs::read(&fixture_path)
+            .unwrap_or_else(|_| panic!("fixture not found: {}", fixture_path.display()));
+        let parsed = extract_message(&raw).expect("should parse fixture");
+        assert!(parsed.has_html, "html-only fixture must set has_html=true, got has_html={} has_plain={}", parsed.has_html, parsed.has_plain);
+        assert!(!parsed.has_plain, "html-only fixture must have has_plain=false, got has_plain={}", parsed.has_plain);
+    }
+
+    #[test]
+    fn extract_message_detects_multipart_alternative() {
+        let boundary = "=_alt_=";
+        let raw = format!(
+            "From: Test <t@x.com>\r\nTo: me@x.com\r\nSubject: S\r\n\
+Date: Sat, 22 May 2026 09:00:00 +0000\r\nMessage-ID: <t@x.com>\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/alternative; boundary=\"{boundary}\"\r\n\r\n\
+--{boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n\
+Plain text\r\n\
+--{boundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n\
+<p>HTML</p>\r\n\
+--{boundary}--\r\n"
+        );
+        let parsed = extract_message(raw.as_bytes()).expect("should parse");
+        assert!(parsed.has_html, "multipart/alt must set has_html=true");
+        assert!(parsed.has_plain, "multipart/alt must set has_plain=true");
+        assert!(parsed.html_body.contains("<p>HTML</p>"));
+        assert!(parsed.text_body.contains("Plain text"));
     }
 }

@@ -253,14 +253,15 @@ test.describe('mode persistence', () => {
 
 	test('HTML mode does NOT persist — next message opens in last text/simple mode', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
-		await mailbox.openMessage(plainMsg.subject);
+		// Use a message that HAS an HTML body so the HTML button is enabled.
+		await mailbox.openMessage(multipartMsg.subject);
 		const reader = new MessagePage(page);
 		await expect.poll(() => reader.activeMode()).toBe('text');
 		await reader.modeHtmlBtn().click();
 		await expect.poll(() => reader.activeMode()).toBe('html');
 		await reader.close();
 		await expect(page.getByTestId('mail-list.container')).toBeVisible();
-		await mailbox.openMessage(multipartMsg.subject);
+		await mailbox.openMessage(plainMsg.subject);
 		await expect.poll(() => reader.activeMode()).not.toBe('html');
 	});
 });
@@ -369,13 +370,17 @@ test.describe('XSS attack regressions', () => {
 		expect(srcdoc).not.toContain('<iframe');
 	});
 
-	test('meta-refresh injection: <meta> is stripped in HTML mode', async ({ page }) => {
+	test('meta-refresh injection: <meta http-equiv=refresh> is stripped in HTML mode', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
 		await mailbox.openMessage(metaRefreshMsg.subject);
 		const reader = new MessagePage(page);
 		await reader.modeHtmlBtn().click();
 		await expect(reader.htmlIframe()).toBeVisible();
 		const srcdoc = (await reader.htmlIframe().getAttribute('srcdoc')) ?? '';
-		expect(srcdoc).not.toContain('<meta');
+		// The iframe wrapper includes legitimate <meta charset> and <meta http-equiv=Content-Security-Policy>.
+		// Verify that the dangerous refresh directive from the email body is stripped.
+		expect(srcdoc).not.toContain('http-equiv="refresh"');
+		expect(srcdoc).not.toContain("http-equiv='refresh'");
+		expect(srcdoc).toContain('<p>Loading');
 	});
 });

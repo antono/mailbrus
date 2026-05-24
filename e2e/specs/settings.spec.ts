@@ -27,7 +27,8 @@ test('settings panel opens via command palette', async ({ page }) => {
 	await openMailbox(page);
 	await page.keyboard.press('Control+k');
 	await expect(page.getByTestId('commands.curtain')).toBeVisible();
-	await page.keyboard.type('settings');
+	// Fill the palette input directly to avoid the 30ms focus delay in Palette.svelte.
+	await page.getByTestId('commands.curtain').locator('input').fill('settings');
 	await page.getByTestId('commands.curtain').getByText('Open settings').waitFor();
 	await page.getByTestId('commands.curtain').getByTestId('palette.row').first().click();
 	await expect(page.getByTestId('settings.panel')).toBeVisible();
