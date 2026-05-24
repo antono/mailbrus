@@ -1,0 +1,14 @@
+From: Test User <test.user@example.com>
+To: testlist@lists.example.org
+Subject: [testlist] Historical mailing list message
+Date: Sat, 08 Aug 2009 14:50:49 +0000
+Message-ID: <alice-inbox-05b@example.com>
+MIME-Version: 1.0
+List-Id: <testlist.lists.example.org>
+List-Unsubscribe: <mailto:testlist-request@lists.example.org?subject=unsubscribe>
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+This is a historical mailing list message from August 2009.
+
+It tests date formatting for old messages that should display as a full date rather than relative time.

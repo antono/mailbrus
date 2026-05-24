@@ -96,7 +96,11 @@
 			.replace(/"/g, '&quot;');
 		return escaped.replace(
 			/(https?:\/\/[^\s<>"'()[\]{}]+|mailto:[^\s<>"'()[\]{}]+)/g,
-			(url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`,
+			(url) => {
+				const isMailto = url.startsWith('mailto:');
+				const icon = isMailto ? '✉' : '↗';
+				return `<a class="mb-link" href="${url}" target="_blank" rel="noopener noreferrer" title="Opens in a new window">${url}<span class="mb-link-icon">${icon}</span></a>`;
+			}
 		);
 	}
 
@@ -244,8 +248,7 @@
 					<div><span class="meta-label">To</span>{"   "}<span style="opacity: 0.5">(no recipient)</span></div>
 				{:else}
 					<div>
-						<span class="meta-label">From</span> {message.from}
-						{#if message.addr && message.addr.trim() !== message.from.trim()}&lt;{message.addr}&gt;{/if}
+						<span class="meta-label">From</span> {message.from || message.addr}
 					</div>
 					<div><span class="meta-label">To</span>{"   "}{account.address}</div>
 				{/if}
@@ -367,5 +370,29 @@
 		height: 600px;
 		border: none;
 		display: block;
+	}
+
+	.mb-link {
+		color: var(--mb-accent, #6366f1);
+		text-decoration: underline;
+		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+		word-break: break-all;
+	}
+	.mb-link:visited {
+		color: color-mix(in srgb, var(--mb-accent, #6366f1) 60%, #666);
+	}
+	.mb-link:hover {
+		color: color-mix(in srgb, var(--mb-accent, #6366f1) 80%, #000);
+		text-decoration: underline dotted;
+	}
+	.mb-link-icon {
+		display: inline-block;
+		font-size: 0.75em;
+		opacity: 0.7;
+		flex-shrink: 0;
+		margin-left: 2px;
 	}
 </style>

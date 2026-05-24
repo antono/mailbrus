@@ -255,6 +255,25 @@ export const manifest: ManifestAccount[] = [
 						attachments: []
 					},
 					{
+						slug: 'alice-inbox-05b-historical-date',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-05b@example.com',
+						from: 'Test User',
+						fromAddr: 'test.user@example.com',
+						to: 'testlist@lists.example.org',
+						subject: '[testlist] Historical mailing list message',
+						date: 'Sat, 08 Aug 2009 14:50:49 +0000',
+						bodyText:
+							'This is a historical mailing list message from August 2009.\n\nIt tests date formatting for old messages that should display as a full date rather than relative time.',
+						signature: 'unsigned',
+						list: {
+							id: 'testlist.lists.example.org',
+							unsubscribe: '<mailto:testlist-request@lists.example.org?subject=unsubscribe>'
+						},
+						attachments: []
+					},
+					{
 						slug: 'alice-inbox-06-broken-sig',
 						box: 'cur',
 						flags: 'S',

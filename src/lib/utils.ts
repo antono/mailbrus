@@ -61,6 +61,15 @@ export function expandTime(short: string, now = new Date()): { label: string; is
 			return { label: s, iso: _fmtISO(d) };
 		}
 	}
+	// Handle Unix timestamps (numeric strings, typically 10 digits for seconds)
+	if ((m = s.match(/^(\d{10})$/))) {
+		const timestamp = +m[1] * 1000; // convert seconds to milliseconds
+		const d = new Date(timestamp);
+		const dn = _WEEKDAYS[d.getDay()];
+		const mn = _MONTHS[d.getMonth()];
+		const label = `${dn}, ${d.getDate()} ${mn} ${d.getFullYear()}`;
+		return { label, iso: _fmtISO(d) };
+	}
 	return { label: s, iso: s };
 }
 

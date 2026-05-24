@@ -5,7 +5,14 @@ schema: spec-driven
 # Example:
 context: |
   Tech stack: Rust, SvelteKit, Tauri, Pimalaya libs for email
+  Modules:
+    - 'mailbrus-core' - core functionality for mail operations
+    - 'mailbrus-cli' - exposes functionality of mailbrus-core
+    - 'mailbrus-server' - exposes functionality of core via http
+    - 'mailbrus-frontend' - svelte based ui
+    - 'mailbrus-desktop' - runs server and ui in tauri shell
   Domain: email client cli tui and gui
+  Testing: E2E testing implemented via playwring
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
 # Example:

@@ -1,0 +1,68 @@
+Delivered-To: test.user@example.com
+Received: by 10.86.57.14 with SMTP id f14cs28409fga;
+        Sat, 8 Aug 2009 07:50:58 -0700 (PDT)
+Received: by 10.210.125.13 with SMTP id x13mr730396ebc.38.1249743058185;
+        Sat, 08 Aug 2009 07:50:58 -0700 (PDT)
+Return-Path: <testlist-bounces@lists.example.org>
+Received: from mailserver.example.org (mailserver.example.org [192.0.2.1])
+        by mx.example.com with ESMTP id 9si5483542ewy.23.2009.08.08.07.50.57;
+        Sat, 08 Aug 2009 07:50:58 -0700 (PDT)
+Received-SPF: neutral (example.com: 192.0.2.1 is neither permitted nor denied by domain of testlist-bounces@lists.example.org) client-ip=192.0.2.1;
+Authentication-Results: mx.example.com; spf=neutral (example.com: 192.0.2.1 is neither permitted nor denied by domain of testlist-bounces@lists.example.org) smtp.mail=testlist-bounces@lists.example.org
+Received: from localhost ([127.0.0.1] helo=mailserver.example.org)
+	by mailserver.example.org with esmtp (Exim 4.60)
+	(envelope-from <testlist-bounces@lists.example.org>)
+	id 1MZnG5-0007D1-Qr; Sat, 08 Aug 2009 15:50:57 +0100
+Received: from relay.example.org ([192.0.2.10])
+	by mailserver.example.org with esmtp (Exim 4.60)
+	(envelope-from <bounces@example.org>) id 1MZnG0-0007BV-9N
+	for testlist@lists.example.org; Sat, 08 Aug 2009 15:50:52 +0100
+Received: from mx2.example.org ([192.0.2.20])
+	by relay.example.org with esmtp (Exim 4.69 #1 (Debian))
+	id 1MZnG0-0002DT-8H
+	for <testlist@lists.example.org>; Sat, 08 Aug 2009 15:50:52 +0100
+Received: from mx2.example.org (localhost [127.0.0.1])
+	by mx2.example.org (Postfix) with ESMTP id 3794E670053
+	for <testlist@lists.example.org>; Sat,  8 Aug 2009 15:50:52 +0100 (BST)
+MIME-Version: 1.0
+From: Test User <test.user@example.com>
+To: Test Team <testlist@lists.example.org>
+Message-ID: <20090808145049.11537.50796.launchpad@mx2.example.org>
+X-Launchpad-Message-Rationale: ContactViaWeb member (test team)
+Date: Sat, 08 Aug 2009 14:50:49 -0000
+X-Generated-By: Launchpad (example.org); Revision="9041";
+	Instance="launchpad-lazr.conf"
+X-Launchpad-Hash: ac15e968e12248e467fd3be6ad20720a55227ca8
+Subject: [testlist] =?utf-8?b?0KDQsNGB0YHRi9C70LrQsCDRgdC00LXQu9Cw0L0=?=
+ =?utf-8?b?0LAuINCf0YDQuNGB0L7QtdC00LjQvdGP0LnRgtC10YHRjCDQuiDQvtCx0Yk=?=
+ =?utf-8?b?0LXQvdC40Y4h?=
+X-BeenThere: testlist@lists.example.org
+X-Mailman-Version: 2.1.8
+Precedence: list
+Reply-To: Test User <test.user@example.com>
+List-Id: Test Team <testlist.lists.example.org>
+List-Unsubscribe: <https://lists.example.org/mailman/listinfo/testlist>,
+	<mailto:testlist-request@lists.example.org?subject=unsubscribe>
+List-Archive: <https://lists.example.org/archives/testlist>
+List-Post: <mailto:testlist@lists.example.org>
+List-Help: <mailto:testlist-request@lists.example.org?subject=help>
+List-Subscribe: <https://lists.example.org/mailman/listinfo/testlist>,
+	<mailto:testlist-request@lists.example.org?subject=subscribe>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: base64
+Sender: testlist-bounces@lists.example.org
+Errors-To: testlist-bounces@lists.example.org
+X-TUID: Z86iGdyHPq53
+
+U3Vic2NyaWJlIGhlcmU6Cmh0dHBzOi8vbGlzdHMuZXhhbXBsZS5vcmcvbWFpbG1hbi9saXN0aW5m
+by90ZXN0bGlzdAoKSm9pbiB1cyEhCkFsbCB0aGlzIG1lYW5zIHdlIGFyZSBhbHJlYWR5IGFsbW9z
+dCBvZmZpY2lhbCBMb0NvIFRlYW0uIEp1c3QgYSBtYXR0ZXIgb2YgdGltZSEKCmh0dHBzOi8vd2lr
+aS5leGFtcGxlLm9yZy9UZXN0VGVhbQpodHRwczovL3dpa2kuZXhhbXBsZS5vcmcvVGVzdFRlYW1B
+cHByb3ZhbEFwcGxpY2F0aW9uCi0tClRoaXMgbWVzc2FnZSB3YXMgc2VudCBmcm9tIExhdW5jaHBh
+ZCBieSB0aGUgdXNlcgpUZXN0IFVzZXIgKGh0dHBzOi8vZWRnZS5sYXVuY2hwYWQubmV0L350ZXN0
+dXNlcikKdXNpbmcgdGhlICJDb250YWN0IHRoaXMgdGVhbSIgbGluayBvbiB0aGUgVGVzdCBUZWFt
+IHBhZ2UuCkZvciBtb3JlIGluZm9ybWF0aW9uIHNlZQpodHRwczovL2hlbHAubGF1bmNocGFkLm5l
+dC9Zb3VyQWNjb3VudC9Db250YWN0aW5nUGVvcGxlCgotLQpUZXN0IExpc3QgbWFpbGluZyBsaXN0
+ClRlc3RsaXN0QGxpc3RzLmV4YW1wbGUub3JnCk1vZGlmeSBzZXR0aW5ncyBvciB1bnN1YnNjcmli
+ZSBhdDogaHR0cHM6Ly9saXN0cy5leGFtcGxlLm9yZy9tYWlsbWFuL2xpc3RpbmZvL3Rlc3RsaXN0
+Cg==
