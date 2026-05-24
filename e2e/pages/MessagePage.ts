@@ -52,6 +52,44 @@ export class MessagePage {
 		return this.page.getByTestId('reader.unsubscribe-btn');
 	}
 
+	// ── Rendering mode controls ─────────────────────────────────────────────────
+
+	modeTextBtn(): Locator {
+		return this.page.getByTestId('reader.mode-text');
+	}
+
+	modeSimpleBtn(): Locator {
+		return this.page.getByTestId('reader.mode-simple');
+	}
+
+	modeHtmlBtn(): Locator {
+		return this.page.getByTestId('reader.mode-html');
+	}
+
+	/** The sandboxed srcdoc iframe (visible only in HTML mode). */
+	htmlIframe(): Locator {
+		return this.page.getByTestId('reader.html-iframe');
+	}
+
+	/** Banner warning that this message contains remote resources. */
+	remoteBanner(): Locator {
+		return this.page.getByTestId('reader.remote-banner');
+	}
+
+	/** The "Load" button inside the remote-content banner. */
+	loadRemoteBtn(): Locator {
+		return this.page.getByTestId('reader.load-remote');
+	}
+
+	/** Current rendering mode derived from aria-pressed state. */
+	async activeMode(): Promise<'text' | 'simple' | 'html' | null> {
+		for (const m of ['text', 'simple', 'html'] as const) {
+			const pressed = await this.page.getByTestId(`reader.mode-${m}`).getAttribute('aria-pressed');
+			if (pressed === 'true') return m;
+		}
+		return null;
+	}
+
 	async close(): Promise<void> {
 		await this.page.keyboard.press('Escape');
 	}

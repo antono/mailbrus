@@ -1,0 +1,10 @@
+From: Attacker Four <atk4@evil.example>
+To: alice@example.com
+Subject: XSS via CSS expression
+Date: Sat, 23 May 2026 08:15:00 +0000
+Message-ID: <alice-inbox-xss-04@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<p style="color:expression(document.title='pwned');behavior:url(#default#homePage)">Styled text</p>

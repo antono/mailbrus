@@ -51,8 +51,10 @@ export interface ManifestMessage {
 	subject: string;
 	/** RFC 2822 Date header value. */
 	date: string;
-	/** Main body text (without the signature block). */
+	/** Main body text (without the signature block). Empty string for HTML-only messages. */
 	bodyText: string;
+	/** Optional HTML body. When set without bodyText, the message is HTML-only (no text/plain part). */
+	bodyHtml?: string;
 	signature: SignatureKind;
 	/** Present for mailing-list / subscription messages. */
 	list?: { id: string; unsubscribe: string };
@@ -84,6 +86,12 @@ export function isReplied(m: ManifestMessage): boolean {
 }
 export function isTrashed(m: ManifestMessage): boolean {
 	return m.flags.includes('T');
+}
+export function hasHtmlBody(m: ManifestMessage): boolean {
+	return !!m.bodyHtml;
+}
+export function hasRemoteImages(m: ManifestMessage): boolean {
+	return !!m.bodyHtml && /https?:\/\//.test(m.bodyHtml);
 }
 
 /** Maildir filename for a message: `new/` has no info part; `cur/` has `:2,FLAGS`. */
@@ -259,6 +267,155 @@ export const manifest: ManifestAccount[] = [
 						bodyText:
 							'-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\nThis message claims to be signed but the signature does not verify.\n-----BEGIN PGP SIGNATURE-----\n\nVGhpcyBzaWduYXR1cmUgaXMgZGVsaWJlcmF0ZWx5IGNvcnJ1cHRlZA==\n-----END PGP SIGNATURE-----',
 						signature: 'broken',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-07-html-only',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-07@example.com',
+						from: 'Promo Bot',
+						fromAddr: 'promo@marketing.example',
+						to: 'alice@example.com',
+						subject: 'HTML-only newsletter',
+						date: utc(20, 10, 0),
+						bodyText: '',
+						bodyHtml:
+							'<p>Welcome to our <strong>newsletter</strong>!</p>' +
+							'<p>Visit <a href="https://example.com/news">our site</a>.</p>' +
+							'<script>alert("XSS")</script>',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-08-multipart-alt',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-08@example.com',
+						from: 'Marketing Team',
+						fromAddr: 'marketing@work.example',
+						to: 'alice@example.com',
+						subject: 'Monthly update (text and HTML)',
+						date: utc(21, 11, 0),
+						bodyText:
+							'Plain-text version: The monthly update is ready.\nCheck https://work.example/update for details.',
+						bodyHtml:
+							'<p>The monthly update is ready.</p>' +
+							'<p>Check <a href="https://work.example/update">here</a> for details.</p>',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-09-html-remote-img',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-09@example.com',
+						from: 'Tracker Corp',
+						fromAddr: 'track@tracker.example',
+						to: 'alice@example.com',
+						subject: 'Email with tracking pixel',
+						date: utc(22, 9, 0),
+						bodyText: '',
+						bodyHtml:
+							'<p>You have a new notification.</p>' +
+							'<img src="https://tracker.example.com/open.gif" alt="" width="1" height="1">',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-xss-01-script-tag',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-xss-01@example.com',
+						from: 'Attacker One',
+						fromAddr: 'atk1@evil.example',
+						to: 'alice@example.com',
+						subject: 'XSS via script tag',
+						date: utc(23, 8, 0),
+						bodyText: '',
+						bodyHtml:
+							'<p>Click me!</p><script>document.title="pwned"</script>',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-xss-02-event-handler',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-xss-02@example.com',
+						from: 'Attacker Two',
+						fromAddr: 'atk2@evil.example',
+						to: 'alice@example.com',
+						subject: 'XSS via event handler',
+						date: utc(23, 8, 5),
+						bodyText: '',
+						bodyHtml:
+							'<img src="x.png" onerror="document.title=\'pwned\'" alt="img">',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-xss-03-javascript-href',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-xss-03@example.com',
+						from: 'Attacker Three',
+						fromAddr: 'atk3@evil.example',
+						to: 'alice@example.com',
+						subject: 'XSS via javascript: href',
+						date: utc(23, 8, 10),
+						bodyText: '',
+						bodyHtml:
+							'<a href="javascript:document.title=\'pwned\'">Click here</a>',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-xss-04-css-injection',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-xss-04@example.com',
+						from: 'Attacker Four',
+						fromAddr: 'atk4@evil.example',
+						to: 'alice@example.com',
+						subject: 'XSS via CSS expression',
+						date: utc(23, 8, 15),
+						bodyText: '',
+						bodyHtml:
+							'<p style="color:expression(document.title=\'pwned\');behavior:url(#default#homePage)">Styled text</p>',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-xss-05-iframe-injection',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-xss-05@example.com',
+						from: 'Attacker Five',
+						fromAddr: 'atk5@evil.example',
+						to: 'alice@example.com',
+						subject: 'XSS via nested iframe',
+						date: utc(23, 8, 20),
+						bodyText: '',
+						bodyHtml:
+							'<p>Content</p><iframe src="https://evil.example/steal"></iframe>',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
+						slug: 'alice-inbox-xss-06-meta-refresh',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-xss-06@example.com',
+						from: 'Attacker Six',
+						fromAddr: 'atk6@evil.example',
+						to: 'alice@example.com',
+						subject: 'XSS via meta refresh redirect',
+						date: utc(23, 8, 25),
+						bodyText: '',
+						bodyHtml:
+							'<meta http-equiv="refresh" content="0;url=https://evil.example/phish"><p>Loading...</p>',
+						signature: 'unsigned',
 						attachments: []
 					}
 				]

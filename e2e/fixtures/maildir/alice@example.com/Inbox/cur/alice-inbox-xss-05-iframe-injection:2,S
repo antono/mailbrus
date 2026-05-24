@@ -1,0 +1,10 @@
+From: Attacker Five <atk5@evil.example>
+To: alice@example.com
+Subject: XSS via nested iframe
+Date: Sat, 23 May 2026 08:20:00 +0000
+Message-ID: <alice-inbox-xss-05@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<p>Content</p><iframe src="https://evil.example/steal"></iframe>

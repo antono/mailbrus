@@ -1,0 +1,10 @@
+From: Attacker Three <atk3@evil.example>
+To: alice@example.com
+Subject: XSS via javascript: href
+Date: Sat, 23 May 2026 08:10:00 +0000
+Message-ID: <alice-inbox-xss-03@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<a href="javascript:document.title='pwned'">Click here</a>

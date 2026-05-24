@@ -1,0 +1,10 @@
+From: Attacker Six <atk6@evil.example>
+To: alice@example.com
+Subject: XSS via meta refresh redirect
+Date: Sat, 23 May 2026 08:25:00 +0000
+Message-ID: <alice-inbox-xss-06@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<meta http-equiv="refresh" content="0;url=https://evil.example/phish"><p>Loading...</p>

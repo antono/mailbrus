@@ -1,0 +1,10 @@
+From: Attacker Two <atk2@evil.example>
+To: alice@example.com
+Subject: XSS via event handler
+Date: Sat, 23 May 2026 08:05:00 +0000
+Message-ID: <alice-inbox-xss-02@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<img src="x.png" onerror="document.title='pwned'" alt="img">

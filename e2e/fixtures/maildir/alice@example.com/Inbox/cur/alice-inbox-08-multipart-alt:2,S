@@ -1,0 +1,20 @@
+From: Marketing Team <marketing@work.example>
+To: alice@example.com
+Subject: Monthly update (text and HTML)
+Date: Thu, 21 May 2026 11:00:00 +0000
+Message-ID: <alice-inbox-08@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="=_mailbrus_alice-inbox-08-multipart-alt_alt_="
+
+--=_mailbrus_alice-inbox-08-multipart-alt_alt_=
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Plain-text version: The monthly update is ready.
+Check https://work.example/update for details.
+--=_mailbrus_alice-inbox-08-multipart-alt_alt_=
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<p>The monthly update is ready.</p><p>Check <a href="https://work.example/update">here</a> for details.</p>
+--=_mailbrus_alice-inbox-08-multipart-alt_alt_=--

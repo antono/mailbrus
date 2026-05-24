@@ -21,6 +21,8 @@ const UI_PREFS_DEFAULTS: UiPrefs = {
 	hintBar: true
 };
 
+export type EmailMode = 'text' | 'simple' | 'html';
+
 export interface Settings {
 	theme: 'dark' | 'light' | 'system';
 	last_folder: string;
@@ -28,6 +30,10 @@ export interface Settings {
 	sort_order: SortOrder;
 	push_subscription: PushSubscriptionJSON | null;
 	ui_prefs: UiPrefs;
+	/** Global default rendering mode for HTML email. Defaults to 'text'. */
+	email_mode: EmailMode;
+	/** Set of message IDs for which the user has opted in to load remote content. */
+	remote_loaded_messages: string[];
 }
 
 const DEFAULTS: Settings = {
@@ -36,7 +42,9 @@ const DEFAULTS: Settings = {
 	search_history: [],
 	sort_order: { field: 'date', direction: 'desc' },
 	push_subscription: null,
-	ui_prefs: { ...UI_PREFS_DEFAULTS }
+	ui_prefs: { ...UI_PREFS_DEFAULTS },
+	email_mode: 'text',
+	remote_loaded_messages: [],
 };
 
 let _settings: Settings = { ...DEFAULTS };
@@ -96,4 +104,8 @@ export async function setLastFolder(folderId: string): Promise<void> {
 
 export async function setSortOrder(order: SortOrder): Promise<void> {
 	await writeSetting('sort_order', order);
+}
+
+export async function setEmailMode(mode: EmailMode): Promise<void> {
+	await writeSetting('email_mode', mode);
 }

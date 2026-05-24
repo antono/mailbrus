@@ -23,3 +23,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
 open = "5"
+ammonia = "4"
+html2text = "0.12"
+lol_html = "2"

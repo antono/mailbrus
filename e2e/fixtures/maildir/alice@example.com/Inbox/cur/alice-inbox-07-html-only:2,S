@@ -1,0 +1,10 @@
+From: Promo Bot <promo@marketing.example>
+To: alice@example.com
+Subject: HTML-only newsletter
+Date: Wed, 20 May 2026 10:00:00 +0000
+Message-ID: <alice-inbox-07@example.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<p>Welcome to our <strong>newsletter</strong>!</p><p>Visit <a href="https://example.com/news">our site</a>.</p><script>alert("XSS")</script>

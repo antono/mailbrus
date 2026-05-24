@@ -2,13 +2,20 @@ import type { Account, Folder, Message, Attachment } from '$lib/data.js';
 
 export type { Account, Folder, Message, Attachment };
 
+export type RenderMode = 'text' | 'simple' | 'html';
+
 export interface MessageBody extends Message {
 	body: string;
 	attachments: Attachment[];
+	mode: RenderMode;
+	has_plain: boolean;
+	has_html: boolean;
+	has_remote: number;
+	format_flowed: boolean;
 }
 
-async function apiFetch(path: string): Promise<unknown> {
-	const res = await fetch(path);
+async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
+	const res = await fetch(path, init);
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({ error: res.statusText }));
 		throw new Error((err as { error?: string }).error ?? res.statusText);
@@ -43,6 +50,13 @@ export async function searchMessages(
 	return apiFetch(url) as Promise<{ messages: Message[]; page: number; per_page: number; count: number }>;
 }
 
-export async function fetchMessage(id: string): Promise<MessageBody> {
-	return apiFetch(`/api/messages/${encodeURIComponent(id)}`) as Promise<MessageBody>;
+export async function openMessageHtml(id: string): Promise<{ ok: boolean; path: string }> {
+	return apiFetch(`/api/messages/${encodeURIComponent(id)}/open-html`, { method: 'POST' }) as Promise<{ ok: boolean; path: string }>;
+}
+
+export async function fetchMessage(id: string, mode?: RenderMode): Promise<MessageBody> {
+	const url = mode
+		? `/api/messages/${encodeURIComponent(id)}?mode=${mode}`
+		: `/api/messages/${encodeURIComponent(id)}`;
+	return apiFetch(url) as Promise<MessageBody>;
 }

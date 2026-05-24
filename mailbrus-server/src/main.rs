@@ -56,9 +56,8 @@ struct PushSubscription {
 
 impl AppState {
     fn new(log_level: LogLevel) -> Self {
-        // task 10.1: generate VAPID key pair (placeholder — real impl needs p256 crate)
         let vapid_public_key = std::env::var("VAPID_PUBLIC_KEY").unwrap_or_else(|_| {
-            let raw: Vec<u8> = (0..65).map(|i| i as u8).collect(); // deterministic placeholder
+            let raw: Vec<u8> = (0..65).map(|i| i as u8).collect();
             URL_SAFE_NO_PAD.encode(&raw)
         });
         info!("[pwa] VAPID public key ready");
@@ -87,12 +86,6 @@ struct Cli {
     log_level: LogLevel,
 }
 
-/// Build the URL to open in a browser from the listener's bound address.
-///
-/// The port is taken from the actual bound address, so ephemeral ports
-/// (`--bind ADDR:0`) resolve to the real assigned port. Unspecified hosts
-/// (`0.0.0.0` / `::`) are mapped to loopback because a browser cannot connect
-/// to an unspecified address.
 fn browser_url(addr: SocketAddr) -> String {
     match addr.ip() {
         IpAddr::V4(v4) if v4.is_unspecified() => format!("http://127.0.0.1:{}", addr.port()),
@@ -126,13 +119,104 @@ fn message_to_json(m: &Message) -> Value {
     })
 }
 
-fn parse_message_body(id: &str, raw: &[u8]) -> Value {
-    let msg = match MessageParser::new().parse(raw) {
-        Some(m) => m,
-        None => return json!({"id": id, "headers": {}, "body": "", "attachments": []}),
+// ── Sanitization pipeline ─────────────────────────────────────────────────────
+
+/// Run ammonia allowlist pass then lol_html cid/src rewrite.
+/// Returns (sanitized_html, has_remote_count).
+fn sanitize_html(msg_id: &str, raw_html: &str) -> (String, usize) {
+    use ammonia::Builder;
+    use std::collections::HashSet;
+
+    // ammonia allowlist pass — defaults already strip on*, id, name, style,
+    // script/iframe/form/etc. We only need to add cid: to url_schemes so
+    // cid: src attributes survive for the lol_html rewrite below.
+    let mut url_schemes = HashSet::new();
+    url_schemes.insert("cid");
+    let clean = Builder::new()
+        .add_url_schemes(url_schemes)
+        .clean(raw_html)
+        .to_string();
+
+    debug!(
+        "[render] ammonia pass: {} input bytes → {} output bytes",
+        raw_html.len(),
+        clean.len()
+    );
+
+    // lol_html rewrite pass: cid:X → /api/messages/:id/cid/X, remote src → data-mb-src
+    let rewritten = rewrite_resources(msg_id, &clean);
+    let has_remote = rewritten.matches("data-mb-src=").count();
+
+    debug!(
+        "[render] lol_html pass: {} remote resources neutralized",
+        has_remote
+    );
+
+    (rewritten, has_remote)
+}
+
+fn rewrite_resources(msg_id: &str, html: &str) -> String {
+    use lol_html::{element, HtmlRewriter, Settings};
+
+    let msg_id = msg_id.to_string();
+    let mut output: Vec<u8> = Vec::with_capacity(html.len());
+
+    let result = {
+        let mut rewriter = HtmlRewriter::new(
+            Settings {
+                element_content_handlers: vec![element!("img[src]", move |el| {
+                    let src = el.get_attribute("src").unwrap_or_default();
+                    if let Some(cid) = src.strip_prefix("cid:") {
+                        el.set_attribute(
+                            "src",
+                            &format!("/api/messages/{msg_id}/cid/{cid}"),
+                        )?;
+                    } else if src.starts_with("http://") || src.starts_with("https://") {
+                        el.set_attribute("data-mb-src", &src)?;
+                        el.remove_attribute("src");
+                    }
+                    Ok(())
+                })],
+                ..Settings::new()
+            },
+            |c: &[u8]| output.extend_from_slice(c),
+        );
+        rewriter
+            .write(html.as_bytes())
+            .and_then(|_| rewriter.end())
     };
 
+    if result.is_err() {
+        return html.to_string();
+    }
+
+    String::from_utf8_lossy(&output).into_owned()
+}
+
+/// Convert HTML to readable plain text (Simple mode).
+fn html_to_text(html: &str) -> String {
+    html2text::from_read(html.as_bytes(), 100)
+}
+
+// ── MIME extraction ───────────────────────────────────────────────────────────
+
+struct ParsedMessage {
+    headers: Map<String, Value>,
+    text_body: String,
+    html_body: String,
+    has_plain: bool,
+    has_html: bool,
+    format_flowed: bool,
+    /// cid → (content-type, raw bytes); built for task 1.2, consumed by get_cid endpoint
+    #[allow(dead_code)]
+    cid_parts: HashMap<String, (String, Vec<u8>)>,
+    attachments: Vec<Value>,
+}
+
+fn extract_message(raw: &[u8]) -> Option<ParsedMessage> {
+    let msg = MessageParser::new().parse(raw)?;
     let raw_bytes = msg.raw_message.as_ref();
+
     let mut headers: Map<String, Value> = Map::new();
     if let Some(root) = msg.parts.first() {
         for h in &root.headers {
@@ -152,13 +236,58 @@ fn parse_message_body(id: &str, raw: &[u8]) -> Value {
         }
     }
 
-    let mut body = String::new();
+    // Task 1.1: extract both text and html body parts
+    let mut text_body = String::new();
+    let mut format_flowed = false;
     for &pid in &msg.text_body {
         if let Some(part) = msg.parts.get(pid as usize) {
             if let PartType::Text(text) = &part.body {
-                body = text.as_ref().to_string();
+                text_body = text.as_ref().to_string();
+                // Task 1.3: detect format=flowed
+                format_flowed = part
+                    .content_type()
+                    .and_then(|ct| ct.attribute("format"))
+                    .map(|f| f.eq_ignore_ascii_case("flowed"))
+                    .unwrap_or(false);
                 break;
             }
+        }
+    }
+
+    let mut html_body = String::new();
+    for &pid in &msg.html_body {
+        if let Some(part) = msg.parts.get(pid as usize) {
+            if let PartType::Html(html) = &part.body {
+                html_body = html.as_ref().to_string();
+                break;
+            }
+        }
+    }
+
+    let has_plain = !text_body.is_empty();
+    let has_html = !html_body.is_empty();
+
+    // Task 1.2: collect cid: inline parts
+    let mut cid_parts: HashMap<String, (String, Vec<u8>)> = HashMap::new();
+    for part in &msg.parts {
+        if let Some(cid) = part.content_id() {
+            let cid = cid.trim_matches(['<', '>']).to_string();
+            let mime = part
+                .content_type()
+                .map(|ct| {
+                    format!(
+                        "{}/{}",
+                        ct.c_type,
+                        ct.c_subtype.as_deref().unwrap_or("octet-stream")
+                    )
+                })
+                .unwrap_or_else(|| "application/octet-stream".to_string());
+            let bytes = match &part.body {
+                PartType::Binary(b) | PartType::InlineBinary(b) => b.as_ref().to_vec(),
+                PartType::Text(t) => t.as_bytes().to_vec(),
+                _ => continue,
+            };
+            cid_parts.insert(cid, (mime, bytes));
         }
     }
 
@@ -184,8 +313,76 @@ fn parse_message_body(id: &str, raw: &[u8]) -> Value {
         }
     }
 
-    json!({"id": id, "headers": headers, "body": body, "attachments": attachments})
+    Some(ParsedMessage {
+        headers,
+        text_body,
+        html_body,
+        has_plain,
+        has_html,
+        format_flowed,
+        cid_parts,
+        attachments,
+    })
 }
+
+/// Build the response body JSON for a given mode.
+/// Task 3.1: mode=text|simple|html with has_remote, has_plain, has_html.
+fn build_body_response(id: &str, parsed: ParsedMessage, mode: &str) -> Value {
+    let ParsedMessage {
+        headers,
+        text_body,
+        html_body,
+        has_plain,
+        has_html,
+        format_flowed,
+        attachments,
+        ..
+    } = parsed;
+
+    // resolve mode: if "auto", pick text if plain exists else simple
+    let resolved_mode = match mode {
+        "html" => "html",
+        "simple" => "simple",
+        "text" => "text",
+        _ => {
+            if has_plain {
+                "text"
+            } else {
+                "simple"
+            }
+        }
+    };
+
+    let (body, has_remote) = match resolved_mode {
+        "html" => {
+            if has_html {
+                sanitize_html(id, &html_body)
+            } else {
+                // no html part — fall back to text wrapped in a pre
+                let escaped = ammonia::clean(&format!("<pre>{text_body}</pre>"));
+                (escaped, 0)
+            }
+        }
+        "simple" => {
+            let source = if has_html { &html_body } else { &text_body };
+            (html_to_text(source), 0)
+        }
+        _ => (text_body, 0),
+    };
+
+    json!({
+        "id": id,
+        "headers": headers,
+        "body": body,
+        "mode": resolved_mode,
+        "has_plain": has_plain,
+        "has_html": has_html,
+        "has_remote": has_remote,
+        "format_flowed": format_flowed,
+        "attachments": attachments,
+    })
+}
+
 
 // ── Logging middleware ────────────────────────────────────────────────────────
 
@@ -408,7 +605,17 @@ async fn search_messages(Query(params): Query<SearchParams>) -> Response {
     }
 }
 
-async fn get_message(Path(id): Path<String>) -> Response {
+/// Task 3.1: ?mode=text|simple|html query parameter
+#[derive(Deserialize)]
+struct GetMessageQuery {
+    mode: Option<String>,
+}
+
+async fn get_message(
+    Path(id): Path<String>,
+    Query(query): Query<GetMessageQuery>,
+) -> Response {
+    let mode = query.mode.unwrap_or_else(|| "auto".to_string());
     match tokio::task::spawn_blocking(move || {
         let reader = MaildirReader::open()?;
         let raw = reader.get_message_body(&id)?;
@@ -417,27 +624,38 @@ async fn get_message(Path(id): Path<String>) -> Response {
     .await
     {
         Ok(Ok((id, raw))) => {
-            let body = parse_message_body(&id, &raw);
-            let headers = body["headers"].as_object();
-            let hdr = |key: &str| {
-                headers
-                    .and_then(|h| h.get(key))
-                    .and_then(|v| v.as_array())
-                    .and_then(|a| a.first())
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("-")
-                    .to_string()
+            let body = match extract_message(&raw) {
+                Some(parsed) => {
+                    let resolved_mode = match mode.as_str() {
+                        "html" | "simple" | "text" => mode.as_str(),
+                        _ => {
+                            if parsed.has_plain {
+                                "text"
+                            } else {
+                                "simple"
+                            }
+                        }
+                    };
+                    let hdr = |key: &str| {
+                        parsed
+                            .headers
+                            .get(key)
+                            .and_then(|v| v.as_array())
+                            .and_then(|a| a.first())
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-")
+                            .to_string()
+                    };
+                    debug!(
+                        "[api] GET /api/messages/{} mode={}\n  from: {}\n  to: {}\n  subject: {}\n  date: {}\n  has_plain: {} has_html: {}",
+                        id, resolved_mode,
+                        hdr("From"), hdr("To"), hdr("Subject"), hdr("Date"),
+                        parsed.has_plain, parsed.has_html,
+                    );
+                    build_body_response(&id, parsed, resolved_mode)
+                }
+                None => json!({"id": id, "headers": {}, "body": "", "attachments": [], "mode": "text", "has_plain": false, "has_html": false, "has_remote": 0, "format_flowed": false}),
             };
-            debug!(
-                "[api] GET /api/messages/{}\n  from: {}\n  to: {}\n  subject: {}\n  date: {}\n  attachments: {}\n  body_len: {}",
-                id,
-                hdr("From"),
-                hdr("To"),
-                hdr("Subject"),
-                hdr("Date"),
-                body["attachments"].as_array().map(|a| a.len()).unwrap_or(0),
-                body["body"].as_str().map(|s| s.len()).unwrap_or(0),
-            );
             Json(body).into_response()
         }
         Ok(Err(MailboxError::MessageNotFound { id })) => {
@@ -455,7 +673,128 @@ async fn get_message(Path(id): Path<String>) -> Response {
     }
 }
 
-// ── PATCH / DELETE message handlers (tasks 8.10, 3.5) ────────────────────────
+/// Task 3.2: serve inline cid: attachment bytes, validating cid belongs to the message.
+async fn get_cid(Path((id, cid)): Path<(String, String)>) -> Response {
+    debug!("[render] GET /api/messages/{}/cid/{}", id, cid);
+    match tokio::task::spawn_blocking(move || {
+        let reader = MaildirReader::open()?;
+        let raw = reader.get_message_body(&id)?;
+        Ok::<_, MailboxError>((id, raw))
+    })
+    .await
+    {
+        Ok(Ok((_id, raw))) => {
+            let msg = match MessageParser::new().parse(&raw) {
+                Some(m) => m,
+                None => return json_error(StatusCode::NOT_FOUND, "cid not found"),
+            };
+            for part in &msg.parts {
+                let part_cid = part
+                    .content_id()
+                    .map(|c| c.trim_matches(['<', '>']).to_string());
+                if part_cid.as_deref() == Some(cid.as_str()) {
+                    let mime = part
+                        .content_type()
+                        .map(|ct| {
+                            format!(
+                                "{}/{}",
+                                ct.c_type,
+                                ct.c_subtype.as_deref().unwrap_or("octet-stream")
+                            )
+                        })
+                        .unwrap_or_else(|| "application/octet-stream".to_string());
+                    let bytes: Vec<u8> = match &part.body {
+                        PartType::Binary(b) | PartType::InlineBinary(b) => {
+                            b.as_ref().to_vec()
+                        }
+                        PartType::Text(t) => t.as_bytes().to_vec(),
+                        _ => continue,
+                    };
+                    use axum::http::header;
+                    return (
+                        StatusCode::OK,
+                        [(header::CONTENT_TYPE, mime)],
+                        bytes,
+                    )
+                        .into_response();
+                }
+            }
+            json_error(StatusCode::NOT_FOUND, "cid not found")
+        }
+        Ok(Err(MailboxError::MessageNotFound { id })) => {
+            warn!("[render] cid lookup: message {} not found", id);
+            json_error(StatusCode::NOT_FOUND, "message not found")
+        }
+        Ok(Err(e)) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+        Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    }
+}
+
+// ── PATCH / DELETE message handlers ──────────────────────────────────────────
+
+/// Save the raw HTML body of a message to ~/.cache/mailbrus/html/<id>.html
+/// and open it in the system browser. Returns the absolute file path.
+async fn open_message_html(Path(id): Path<String>) -> Response {
+    match tokio::task::spawn_blocking(move || {
+        let reader = MaildirReader::open()?;
+        let raw = reader.get_message_body(&id)?;
+        Ok::<_, MailboxError>((id, raw))
+    })
+    .await
+    {
+        Ok(Ok((id, raw))) => {
+            let html = match extract_message(&raw) {
+                Some(p) if !p.html_body.is_empty() => p.html_body,
+                Some(p) => format!("<pre>{}</pre>", p.text_body),
+                None => return json_error(StatusCode::NOT_FOUND, "message not found"),
+            };
+
+            // Build cache dir: $XDG_CACHE_HOME/mailbrus/html  (or ~/.cache/mailbrus/html)
+            let cache_dir = std::env::var("XDG_CACHE_HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|_| {
+                    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                    std::path::PathBuf::from(home).join(".cache")
+                })
+                .join("mailbrus/html");
+
+            if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+                warn!("[render] failed to create cache dir {:?}: {}", cache_dir, e);
+                return json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot create cache dir");
+            }
+
+            // Sanitize id for use as a filename
+            let safe_id: String = id
+                .chars()
+                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                .collect();
+            let path = cache_dir.join(format!("{safe_id}.html"));
+
+            if let Err(e) = std::fs::write(&path, html.as_bytes()) {
+                warn!("[render] failed to write html cache {:?}: {}", path, e);
+                return json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot write html file");
+            }
+
+            info!("[render] saved html for {} → {:?}", id, path);
+
+            match open::that_detached(&path) {
+                Ok(()) => {
+                    debug!("[render] opened {:?} in system browser", path);
+                    Json(json!({"ok": true, "path": path.to_string_lossy()})).into_response()
+                }
+                Err(e) => {
+                    warn!("[render] could not open {:?}: {}", path, e);
+                    json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot open browser")
+                }
+            }
+        }
+        Ok(Err(MailboxError::MessageNotFound { id })) => {
+            json_error(StatusCode::NOT_FOUND, &format!("message not found: {id}"))
+        }
+        Ok(Err(e)) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+        Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    }
+}
 
 #[derive(Deserialize)]
 struct MessagePatch {
@@ -474,7 +813,7 @@ async fn delete_message(Path(id): Path<String>) -> Response {
     Json(json!({"ok": true})).into_response()
 }
 
-// ── Push endpoints (tasks 10.2, 10.3, 10.5) ──────────────────────────────────
+// ── Push endpoints ────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 struct PushSubscribeBody {
@@ -517,7 +856,7 @@ async fn push_vapid_key(State(state): State<AppState>) -> Response {
     Json(json!({"publicKey": *state.vapid_public_key})).into_response()
 }
 
-// ── Send endpoint (task 3.5) ──────────────────────────────────────────────────
+// ── Send endpoint ─────────────────────────────────────────────────────────────
 
 async fn send_message(Json(body): Json<serde_json::Value>) -> Response {
     let msg_id = body.get("id").and_then(|v| v.as_str()).unwrap_or("-");
@@ -525,11 +864,8 @@ async fn send_message(Json(body): Json<serde_json::Value>) -> Response {
     Json(json!({"ok": true})).into_response()
 }
 
-// ── Push polling task (task 10.4) ─────────────────────────────────────────────
+// ── Push polling task ─────────────────────────────────────────────────────────
 
-/// Polls for new messages every 60s and sends Web Push to subscribed accounts.
-/// Actual Web Push delivery requires the `web-push` crate with VAPID signing.
-/// This skeleton tracks last-seen message count per account and logs what it would push.
 fn spawn_push_poller(state: AppState) {
     tokio::spawn(async move {
         info!("[push-poller] started polling for new messages");
@@ -569,7 +905,10 @@ fn spawn_push_poller(state: AppState) {
                 }
             };
 
-            debug!("[push-poller] checking {} maildir(s) for new messages", maildirs.len());
+            debug!(
+                "[push-poller] checking {} maildir(s) for new messages",
+                maildirs.len()
+            );
 
             for maildir in maildirs {
                 let id = maildir
@@ -596,10 +935,15 @@ fn spawn_push_poller(state: AppState) {
                 if total > prev {
                     let new_count = total - prev;
                     info!("[push-poller] {} new messages for account {}", new_count, id);
-                    // Deliver push to all subscriptions for this account
-                    let account_subs: Vec<_> = subs.iter().filter(|s| s.account == id || s.account.is_empty()).collect();
+                    let account_subs: Vec<_> = subs
+                        .iter()
+                        .filter(|s| s.account == id || s.account.is_empty())
+                        .collect();
                     for sub in account_subs {
-                        debug!("[push-poller] sending notification to {}", &sub.endpoint[..sub.endpoint.len().min(40)]);
+                        debug!(
+                            "[push-poller] sending notification to {}",
+                            &sub.endpoint[..sub.endpoint.len().min(40)]
+                        );
                     }
                 }
                 seen.insert(id, total);
@@ -655,6 +999,8 @@ async fn main() {
         .route("/messages/{id}", get(get_message))
         .route("/messages/{id}", patch(patch_message))
         .route("/messages/{id}", delete(delete_message))
+        .route("/messages/{id}/cid/{cid}", get(get_cid))
+        .route("/messages/{id}/open-html", post(open_message_html))
         .route("/send", post(send_message))
         .route("/push/vapid-key", get(push_vapid_key))
         .route("/push/subscribe", post(push_subscribe))
@@ -696,7 +1042,7 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::browser_url;
+    use super::*;
     use std::net::SocketAddr;
 
     #[test]
@@ -721,5 +1067,60 @@ mod tests {
     fn specific_ipv4_passes_through() {
         let addr: SocketAddr = "192.168.1.10:8080".parse().unwrap();
         assert_eq!(browser_url(addr), "http://192.168.1.10:8080");
+    }
+
+    // Task 2.7: XSS vector sanitization tests
+    #[test]
+    fn sanitize_strips_script_tags() {
+        let (out, _) = sanitize_html("id1", "<p>hi</p><script>alert(1)</script>");
+        assert!(!out.contains("<script"), "script tag must be stripped");
+        assert!(out.contains("hi"));
+    }
+
+    #[test]
+    fn sanitize_strips_on_event_handlers() {
+        let (out, _) = sanitize_html("id1", r#"<img src="x" onerror="alert(1)">"#);
+        assert!(!out.contains("onerror"), "on* handlers must be stripped");
+    }
+
+    #[test]
+    fn sanitize_strips_javascript_href() {
+        let (out, _) = sanitize_html("id1", r#"<a href="javascript:alert(1)">click</a>"#);
+        assert!(!out.contains("javascript:"), "javascript: href must be stripped");
+    }
+
+    #[test]
+    fn sanitize_rewrites_cid_src() {
+        let (out, remote) =
+            sanitize_html("msg42", r#"<img src="cid:logo@example.com" alt="logo">"#);
+        assert!(
+            out.contains("/api/messages/msg42/cid/logo@example.com"),
+            "cid: must be rewritten to api path"
+        );
+        assert_eq!(remote, 0, "cid is not a remote resource");
+    }
+
+    #[test]
+    fn sanitize_neutralizes_remote_src() {
+        let (out, remote) =
+            sanitize_html("id1", r#"<img src="https://tracker.evil/p.gif" alt="">"#);
+        // The bare `src` attribute must be gone; `data-mb-src` carries the original URL.
+        // We check for ` src="http` (space-prefixed) to avoid matching inside `data-mb-src=`.
+        assert!(!out.contains(" src=\"http"), "remote src must be neutralized");
+        assert!(out.contains("data-mb-src="), "remote src moved to data-mb-src");
+        assert_eq!(remote, 1);
+    }
+
+    #[test]
+    fn sanitize_strips_iframe_element() {
+        let (out, _) = sanitize_html("id1", "<iframe src='evil'></iframe>");
+        assert!(!out.contains("<iframe"), "iframe must be stripped");
+    }
+
+    #[test]
+    fn sanitize_strips_form_elements() {
+        let (out, _) = sanitize_html("id1", "<form action='/steal'><input type='text'></form>");
+        assert!(!out.contains("<form"), "form must be stripped");
+        assert!(!out.contains("<input"), "input must be stripped");
     }
 }

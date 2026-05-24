@@ -18,9 +18,10 @@
 		fetchMessage,
 		type Account,
 		type Folder,
-		type Message
+		type Message,
+		type RenderMode,
 	} from '$lib/api.js';
-	import { loadSettings, writeSetting, addSearchHistory, setLastFolder, type UiPrefs } from '$lib/settings.js';
+	import { loadSettings, getSettings, writeSetting, addSearchHistory, setLastFolder, setEmailMode, type UiPrefs, type EmailMode } from '$lib/settings.js';
 	import { cacheMessages, getLocalMessages } from '$lib/message-cache.js';
 	import { enqueue as outboxEnqueue, getOutbox, initOutboxFlusher, type OutboxEntry } from '$lib/outbox.js';
 	import { enqueueMutation, initMutationsFlusher } from '$lib/mutations.js';
@@ -89,6 +90,11 @@
 	let outboxEntries = $state<OutboxEntry[]>([]);
 	let currentMessages = $state<Message[]>([]);
 	let messageBody = $state('');
+	let messageMode = $state<RenderMode>('text');
+	let messageHasPlain = $state(false);
+	let messageHasHtml = $state(false);
+	let messageHasRemote = $state(0);
+	let messageFormatFlowed = $state(false);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
@@ -160,14 +166,51 @@
 		};
 	});
 
-	// Fetch message body when a message is opened
+	// Task 6.3: resolve initial mode from settings when a message is opened
 	$effect(() => {
-		if (!openMessage) { messageBody = ''; return; }
+		if (!openMessage) {
+			messageBody = '';
+			messageMode = 'text';
+			messageHasPlain = false;
+			messageHasHtml = false;
+			messageHasRemote = 0;
+			messageFormatFlowed = false;
+			return;
+		}
 		const id = openMessage.id;
-		fetchMessage(id)
-			.then((data) => { messageBody = data.body; })
-			.catch(() => { messageBody = ''; });
+		// HTML mode is per-message only; only text/simple are restored from settings.
+		const stored = getSettings().email_mode;
+		const preferredMode = stored === 'text' || stored === 'simple' ? stored : undefined;
+		fetchMessage(id, preferredMode)
+			.then((data) => {
+				messageBody = data.body;
+				messageMode = data.mode;
+				messageHasPlain = data.has_plain;
+				messageHasHtml = data.has_html;
+				messageHasRemote = data.has_remote;
+				messageFormatFlowed = data.format_flowed;
+			})
+			.catch(() => { messageBody = ''; messageMode = 'text'; });
 	});
+
+	// Task 6.3: re-fetch when user switches modes
+	function handleModeChange(newMode: RenderMode) {
+		if (!openMessage) return;
+		fetchMessage(openMessage.id, newMode)
+			.then((data) => {
+				messageBody = data.body;
+				messageMode = data.mode;
+				messageHasPlain = data.has_plain;
+				messageHasHtml = data.has_html;
+				messageHasRemote = data.has_remote;
+				messageFormatFlowed = data.format_flowed;
+			})
+			.catch(() => {});
+		// HTML mode is per-message only — never persisted as global default.
+		if (newMode === 'text' || newMode === 'simple') {
+			setEmailMode(newMode as EmailMode);
+		}
+	}
 
 	// ── Helpers ───────────────────────────────────────────────────────────────
 	function goToFolder(fId: string) {
@@ -476,10 +519,16 @@
 			{account}
 			{folder}
 			body={messageBody}
+			mode={messageMode}
+			has_plain={messageHasPlain}
+			has_html={messageHasHtml}
+			has_remote={messageHasRemote}
+			format_flowed={messageFormatFlowed}
 			onClose={() => (openMessage = null)}
 			onHome={() => (aboutOpen = true)}
 			onAccount={() => { openMessage = null; phase = 'account'; }}
 			onFolder={() => { openMessage = null; phase = 'folder'; }}
+			onModeChange={handleModeChange}
 		/>
 	{/if}
 

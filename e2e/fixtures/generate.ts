@@ -69,38 +69,53 @@ function commonHeaders(m: ManifestMessage): string[] {
 
 function renderMessage(m: ManifestMessage): string {
 	const headers = commonHeaders(m);
+	const textBody = bodyWithSignature(m);
+	const hasText = textBody.length > 0;
+	const hasHtml = !!m.bodyHtml;
 
-	if (m.attachments.length === 0) {
-		headers.push('Content-Type: text/plain; charset=utf-8');
-		headers.push('Content-Transfer-Encoding: 8bit');
-		return crlf(`${headers.join('\n')}\n\n${bodyWithSignature(m)}\n`);
-	}
-
-	const boundary = `=_mailbrus_${m.slug}_=`;
-	headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
-
-	const parts: string[] = [];
-	parts.push(
-		[
-			`--${boundary}`,
-			'Content-Type: text/plain; charset=utf-8',
-			'Content-Transfer-Encoding: 8bit',
-			'',
-			bodyWithSignature(m)
-		].join('\n')
-	);
-	for (const att of m.attachments) {
+	if (!hasHtml) {
+		// Text-only (plain or with attachments).
+		if (m.attachments.length === 0) {
+			headers.push('Content-Type: text/plain; charset=utf-8');
+			headers.push('Content-Transfer-Encoding: 8bit');
+			return crlf(`${headers.join('\n')}\n\n${textBody}\n`);
+		}
+		const boundary = `=_mailbrus_${m.slug}_=`;
+		headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+		const parts: string[] = [];
 		parts.push(
-			[
-				`--${boundary}`,
-				`Content-Type: ${att.mime}; name="${att.filename}"`,
-				`Content-Disposition: attachment; filename="${att.filename}"`,
-				'Content-Transfer-Encoding: base64',
-				'',
-				base64Lines(att.content)
-			].join('\n')
+			[`--${boundary}`, 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit', '', textBody].join('\n')
 		);
+		for (const att of m.attachments) {
+			parts.push(
+				[
+					`--${boundary}`,
+					`Content-Type: ${att.mime}; name="${att.filename}"`,
+					`Content-Disposition: attachment; filename="${att.filename}"`,
+					'Content-Transfer-Encoding: base64',
+					'',
+					base64Lines(att.content)
+				].join('\n')
+			);
+		}
+		const body = `${parts.join('\n')}\n--${boundary}--\n`;
+		return crlf(`${headers.join('\n')}\n\n${body}`);
 	}
+
+	if (!hasText) {
+		// HTML-only — no text/plain part at all.
+		headers.push('Content-Type: text/html; charset=utf-8');
+		headers.push('Content-Transfer-Encoding: 8bit');
+		return crlf(`${headers.join('\n')}\n\n${m.bodyHtml}\n`);
+	}
+
+	// multipart/alternative — text/plain then text/html.
+	const boundary = `=_mailbrus_${m.slug}_alt_=`;
+	headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+	const parts = [
+		[`--${boundary}`, 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit', '', textBody].join('\n'),
+		[`--${boundary}`, 'Content-Type: text/html; charset=utf-8', 'Content-Transfer-Encoding: 8bit', '', m.bodyHtml].join('\n')
+	];
 	const body = `${parts.join('\n')}\n--${boundary}--\n`;
 	return crlf(`${headers.join('\n')}\n\n${body}`);
 }
