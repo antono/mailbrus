@@ -1,5 +1,5 @@
 <script lang="ts">
-	import '../app.css';
+	import '../../app.css';
 	import AccountPicker from '$lib/components/AccountPicker.svelte';
 	import FolderPicker from '$lib/components/FolderPicker.svelte';
 	import CommandPalette from '$lib/components/CommandPalette.svelte';
@@ -10,6 +10,10 @@
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import HintBar from '$lib/components/HintBar.svelte';
 	import SettingsPanel from '$lib/components/SettingsPanel.svelte';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import { untrack } from 'svelte';
+	import { parsePath, buildFolderUrl, buildMessageUrl, buildSearchUrl } from '$lib/url.js';
 	import {
 		fetchMaildirs,
 		fetchFolders,
@@ -105,6 +109,171 @@
 	let totalCount = $state(0);
 	let currentPerPage = $state(25);
 	let searchPage = $state(1);
+
+	// ── URL-driven routing ────────────────────────────────────────────────────
+
+	// $derived route descriptor — pure read from page.url, never writes history
+	const routeDescriptor = $derived(parsePath(page.url));
+
+	const NAV_OPTS = { noScroll: true, keepFocus: true };
+	const REPLACE_OPTS = { ...NAV_OPTS, replaceState: true };
+
+	// Nav helpers — the only place history is written; goto() updates page.url
+	function navigateToFolder(folderId: string) {
+		goto(buildFolderUrl(folderId), NAV_OPTS);
+	}
+
+	function openMessageRoute(folderId: string, messageId: string) {
+		goto(buildMessageUrl(folderId, messageId), NAV_OPTS);
+	}
+
+	function closeReaderRoute(folderId: string) {
+		goto(buildFolderUrl(folderId), NAV_OPTS);
+	}
+
+	function runSearchRoute(query: string) {
+		goto(buildSearchUrl(query), NAV_OPTS);
+	}
+
+	function replaceRoute(url: string) {
+		goto(url, REPLACE_OPTS);
+	}
+
+	function goBack() {
+		history.back();
+	}
+
+	// Tracks what the reconciler last loaded to stay idempotent (plain vars, not $state)
+	let _lastFolderId: string | null = null;
+	let _lastMessageId: string | null = null;
+	let _lastQuery: string | null = null;
+
+	// Single reconciler: URL descriptor + account + accounts → app state.
+	// These are reactive dependencies; all other state is read via untrack().
+	$effect(() => {
+		const { folderId, messageId, query } = routeDescriptor; // reactive: URL
+		const acct = account; // reactive: account changes trigger re-run
+		const accts = accounts; // reactive: enables auto-select when accounts load
+
+		untrack(() => {
+			// Search route
+			if (query !== undefined) {
+				if (!acct) {
+					// Deep-link search without account — auto-select or show picker
+					if (accts.length > 0) { onAccountPick(accts[0]); }
+					else { phase = 'account'; }
+					return;
+				}
+				if (query === _lastQuery && searchOpen) return;
+				_lastQuery = query;
+				_lastFolderId = null;
+				_lastMessageId = null;
+				searchOpen = true;
+				searchQuery = query;
+				openMessage = null;
+				if (query) {
+					searchPage = 1;
+					loading = true;
+					error = null;
+					searchMessages(query, 1, currentPerPage)
+						.then((data) => {
+							currentMessages = data.messages;
+							totalCount = data.count;
+							searchPage = data.page;
+							loading = false;
+						})
+						.catch((e: Error) => { error = e.message; loading = false; });
+				}
+				return;
+			}
+
+			// Folder or folder+message route
+			if (folderId) {
+				const folderChanged = folderId !== _lastFolderId;
+				const messageChanged = messageId !== _lastMessageId;
+
+				if (!folderChanged && !messageChanged) return;
+
+				_lastQuery = null;
+				searchOpen = false;
+				searchQuery = '';
+
+				const tryOpenMessage = (msgs: Message[]) => {
+					if (!messageId || messageId === _lastMessageId) return;
+					_lastMessageId = messageId;
+					const msg = msgs.find((m) => m.id === messageId);
+					if (msg) {
+						openMessage = msg;
+						selectedIdx = msgs.indexOf(msg);
+					} else {
+						// D7: message not in loaded list — fall back to folder URL
+						replaceRoute(buildFolderUrl(folderId!));
+						_lastMessageId = null;
+					}
+				};
+
+				const resolveAndLoad = () => {
+					const f = folderList.find((x) => x.id === folderId);
+					if (!f) {
+						replaceRoute('/');
+						return;
+					}
+					if (folderChanged) {
+						folder = f;
+						_lastFolderId = folderId;
+						selectedIdx = 0;
+						currentPage = 1;
+						if (acct) {
+							if (messageId) {
+								// Load messages then open the message once the list arrives
+								loadMessages(acct.id, f.id, 1, tryOpenMessage);
+							} else {
+								loadMessages(acct.id, f.id, 1);
+							}
+						}
+					} else if (messageId && messageId !== _lastMessageId) {
+						// Same folder, new messageId — try from already-loaded list
+						tryOpenMessage(currentMessages);
+					} else if (!messageId && _lastMessageId) {
+						_lastMessageId = null;
+						openMessage = null;
+					}
+					if (phase !== 'list') phase = 'list';
+				};
+
+				if (folderList.length > 0) {
+					resolveAndLoad();
+				} else if (acct) {
+					loading = true;
+					fetchFolders(acct.id)
+						.then((data) => {
+							folderList = data;
+							loading = false;
+							getRanked('folders').then((ids) => { rankedFolderIds = ids; }).catch(() => {});
+							resolveAndLoad();
+						})
+						.catch((e: Error) => { error = e.message; loading = false; });
+				} else if (accts.length > 0) {
+					// Deep link with no account selected — auto-select the only/first account
+					// The reconciler will re-run when account is set (account is a reactive dep)
+					onAccountPick(accts[0]);
+				} else {
+					// Accounts not yet loaded; they'll load soon and trigger onAccountPick
+					// If still no account after load, show account picker
+					phase = 'account';
+				}
+				return;
+			}
+
+			// Root path — clear any URL-driven state; leave account/folder picker phase alone
+			_lastFolderId = null;
+			_lastMessageId = null;
+			_lastQuery = null;
+			openMessage = null;
+			searchOpen = false;
+			searchQuery = '';
+		});
+	});
 
 	// Load accounts and init PWA on mount
 	$effect(() => {
@@ -220,20 +389,15 @@
 	// ── Helpers ───────────────────────────────────────────────────────────────
 	function goToFolder(fId: string) {
 		if (!account) return;
-		const f = folderList.find((x) => x.id === fId);
-		if (f) {
-			folder = f;
-			selectedIdx = 0;
-			searchOpen = false;
-			searchQuery = '';
-			openMessage = null;
-			phase = 'list';
-			currentPage = 1;
-			loadMessages(account.id, f.id, 1);
-		}
+		navigateToFolder(fId);
 	}
 
-	async function loadMessages(accountId: string, folderId: string, page = 1) {
+	async function loadMessages(
+		accountId: string,
+		folderId: string,
+		page = 1,
+		onLoaded?: (msgs: import('$lib/api.js').Message[]) => void
+	) {
 		loading = true;
 		error = null;
 		// task 6.2: render from IDB immediately, then update from network
@@ -246,6 +410,7 @@
 				currentPerPage = data.per_page;
 				totalCount = data.count;
 				loading = false;
+				onLoaded?.(data.messages);
 				// task 6.1: upsert into IDB after successful fetch (page 1 only)
 				if (page === 1) cacheMessages(folderId, data.messages).catch(() => {});
 			})
@@ -310,19 +475,25 @@
 			if (phase !== 'list' || cmdOpen || composeOpen || helpOpen || aboutOpen) return;
 			// reader open
 			if (openMessage) {
-				if (e.key === 'Escape') { e.preventDefault(); openMessage = null; return; }
+				if (e.key === 'Escape') {
+					e.preventDefault();
+					if (folder) closeReaderRoute(folder.id); else goBack();
+					return;
+				}
 				if (e.key === 'j' || e.key === 'ArrowDown') {
 					e.preventDefault();
 					const next = Math.min(selectedIdx + 1, currentMessages.length - 1);
 					selectedIdx = next;
-					openMessage = currentMessages[next] || null;
+					const nextMsg = currentMessages[next];
+					if (nextMsg && folder) openMessageRoute(folder.id, nextMsg.id);
 					return;
 				}
 				if (e.key === 'k' || e.key === 'ArrowUp') {
 					e.preventDefault();
 					const next = Math.max(selectedIdx - 1, 0);
 					selectedIdx = next;
-					openMessage = currentMessages[next] || null;
+					const prevMsg = currentMessages[next];
+					if (prevMsg && folder) openMessageRoute(folder.id, prevMsg.id);
 					return;
 				}
 				if (leader === 'g' && e.key === 'g') {
@@ -373,7 +544,8 @@
 			}
 			if (e.key === 'Enter') {
 				e.preventDefault();
-				if (currentMessages[selectedIdx]) openMessage = currentMessages[selectedIdx];
+				const msg = currentMessages[selectedIdx];
+				if (msg && folder) openMessageRoute(folder.id, msg.id);
 				return;
 			}
 			// task 8.2: mark read (r), mark unread (u), delete (d/#)
@@ -403,7 +575,7 @@
 			if (e.key === '/') { e.preventDefault(); searchOpen = true; return; }
 			if (e.key === 'Escape') {
 				e.preventDefault();
-				if (searchOpen) { searchOpen = false; searchQuery = ''; return; }
+				if (searchOpen) { handleSearchClose(); return; }
 				clearLeader();
 				phase = 'folder';
 				return;
@@ -434,34 +606,24 @@
 	}
 
 	function onFolderPick(f: Folder) {
-		folder = f;
-		selectedIdx = 0;
-		searchOpen = false;
-		searchQuery = '';
-		phase = 'list';
-		currentPage = 1;
 		// task 5.5: persist last folder; task 9.3: record frecency
 		setLastFolder(f.id).catch(() => {});
 		recordVisit('folders', f.id).catch(() => {});
-		if (account) loadMessages(account.id, f.id, 1);
+		navigateToFolder(f.id);
 	}
 
 	function handleSearchSubmit() {
 		if (!searchQuery.trim()) return;
-		searchPage = 1;
 		// task 5.7 + 9.7: record search history and frecency
 		addSearchHistory(searchQuery).catch(() => {});
 		recordVisit('searches', searchQuery).catch(() => {});
-		loading = true;
-		error = null;
-		searchMessages(searchQuery, searchPage, currentPerPage)
-			.then((data) => {
-				currentMessages = data.messages;
-				searchPage = data.page;
-				totalCount = data.count;
-				loading = false;
-			})
-			.catch((e: Error) => { error = e.message; loading = false; });
+		runSearchRoute(searchQuery);
+	}
+
+	function handleSearchQueryChange(q: string) {
+		searchQuery = q;
+		// replace for in-place edits so history isn't polluted (task 4.5)
+		replaceRoute(buildSearchUrl(q));
 	}
 
 	function handleListPageChange(page: number) {
@@ -483,9 +645,11 @@
 	}
 
 	function handleSearchClose() {
-		searchOpen = false;
-		searchQuery = '';
-		if (account && folder) loadMessages(account.id, folder.id, 1);
+		if (folder) {
+			navigateToFolder(folder.id);
+		} else {
+			replaceRoute('/');
+		}
 	}
 </script>
 
@@ -505,10 +669,10 @@
 			onSelectIdx={(i) => (selectedIdx = i)}
 			{searchOpen}
 			{searchQuery}
-			onSearchChange={(q) => (searchQuery = q)}
+			onSearchChange={handleSearchQueryChange}
 			onSearchSubmit={handleSearchSubmit}
 			onSearchClose={handleSearchClose}
-			onOpen={(m) => (openMessage = m)}
+			onOpen={(m) => { if (folder) openMessageRoute(folder.id, m.id); }}
 			onHome={() => (aboutOpen = true)}
 			onAccount={() => (phase = 'account')}
 			onFolder={() => (phase = 'folder')}
@@ -551,9 +715,9 @@
 			has_remote={messageHasRemote}
 			format_flowed={messageFormatFlowed}
 			attachments={messageAttachments}
-			onClose={() => (openMessage = null)}
+			onClose={() => { if (folder) closeReaderRoute(folder.id); else goBack(); }}
 			onHome={() => (aboutOpen = true)}
-			onAccount={() => { openMessage = null; phase = 'account'; }}
+			onAccount={() => (phase = 'account')}
 			onFolder={() => { openMessage = null; phase = 'folder'; }}
 			onModeChange={handleModeChange}
 		/>

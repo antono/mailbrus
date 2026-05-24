@@ -19,6 +19,7 @@ async function openInbox(page: import('@playwright/test').Page): Promise<Mailbox
 	return mailbox;
 }
 
+// openspec/specs/message-read/spec.md: attachment rendering
 test('a message without attachments shows no attachment chips', async ({ page }) => {
 	expect(noAttachMsg.attachments).toHaveLength(0); // fixture sanity
 	const mailbox = await openInbox(page);
@@ -29,6 +30,7 @@ test('a message without attachments shows no attachment chips', async ({ page })
 	await expect(reader.attachments()).toHaveCount(0);
 });
 
+// openspec/specs/message-read/spec.md: attachment display
 test('a message with attachments shows them in the reader', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(multiAttachMsg.subject);
@@ -37,6 +39,7 @@ test('a message with attachments shows them in the reader', async ({ page }) => 
 	expect(await reader.attachmentNames()).toEqual(multiAttachMsg.attachments.map((a) => a.filename));
 });
 
+// openspec/specs/mailbrus-server-crate/spec.md: attachment API
 test('the backend serves attachments of attachment-bearing messages', async ({ app, request }) => {
 	expect(multiAttachMsg.attachments.length).toBeGreaterThan(1); // multiple, differing MIME
 	const res = await request.get(`${app.baseURL}/api/messages/${encodeURIComponent(multiAttachMsg.messageId)}`);

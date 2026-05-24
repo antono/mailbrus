@@ -3,6 +3,7 @@ import { test, expect } from '../harness/fixtures.ts';
 import { AccountsPage } from '../pages/AccountsPage.ts';
 import { manifest } from '../fixtures/manifest.ts';
 
+// openspec/specs/sveltekit-ui/spec.md: maildir listing
 test('lists every account from the manifest', async ({ page }) => {
 	const accounts = new AccountsPage(page);
 	await accounts.open();

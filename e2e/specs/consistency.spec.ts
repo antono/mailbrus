@@ -24,6 +24,7 @@ function listMessageFiles(dir: string, acc: string[] = []): string[] {
 }
 
 test.describe('fixture corpus consistency', () => {
+	// openspec/specs/test-maildir-fixtures/spec.md: corpus consistency
 	test('every manifest message exists on disk', () => {
 		for (const account of manifest) {
 			for (const folder of account.folders) {
@@ -35,6 +36,7 @@ test.describe('fixture corpus consistency', () => {
 		}
 	});
 
+	// openspec/specs/test-maildir-fixtures/spec.md: manifest coverage
 	test('every on-disk message is in the manifest', () => {
 		const expected = new Set<string>();
 		for (const account of manifest) {
@@ -49,6 +51,7 @@ test.describe('fixture corpus consistency', () => {
 		expect(onDisk.length).toBe(expected.size);
 	});
 
+	// openspec/specs/test-maildir-fixtures/spec.md: maildir structure
 	test('each account has the standard folder set as valid maildirs', () => {
 		for (const account of manifest) {
 			for (const name of FOLDER_NAMES) {
@@ -60,6 +63,7 @@ test.describe('fixture corpus consistency', () => {
 		}
 	});
 
+	// openspec/specs/test-maildir-fixtures/spec.md: clean artifacts
 	test('no notmuch/Xapian index artifacts are committed', () => {
 		const stack = [PRISTINE_MAILDIR];
 		while (stack.length) {

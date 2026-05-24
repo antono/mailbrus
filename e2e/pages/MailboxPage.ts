@@ -57,6 +57,15 @@ export class MailboxPage {
 		await this.page.keyboard.press('r');
 	}
 
+	// ── Search ─────────────────────────────────────────────────────────────────
+
+	/** Open search (via `/` key), type a query, and submit it. */
+	async search(query: string): Promise<void> {
+		await this.page.keyboard.press('/');
+		await this.page.getByTestId('mail-list.search-input').fill(query);
+		await this.page.keyboard.press('Enter');
+	}
+
 	// ── Pagination ──────────────────────────────────────────────────────────────
 
 	/** The breadcrumb pagination indicator, e.g. "page 2: 26–27 of 27". */

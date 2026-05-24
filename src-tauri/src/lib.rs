@@ -1,16 +1,16 @@
-use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
+        .setup(|_app| {
             // In dev mode the server is started by beforeDevCommand.
             // In production the sidecar is bundled and spawned here.
             #[cfg(not(dev))]
             {
+                use tauri::Manager;
+                use tauri_plugin_shell::ShellExt;
+                let app = _app;
                 let resource_dir = app.path().resource_dir().unwrap_or_else(|_| {
                     std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
                 });

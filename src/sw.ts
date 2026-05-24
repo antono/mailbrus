@@ -85,6 +85,21 @@ self.addEventListener('fetch', (e) => {
 
 	if (e.request.method !== 'GET') return;
 
+	// navigation requests for in-grammar deep paths → serve cached app shell
+	// so offline deep-link/reload works (task 7.1)
+	// Static files are excluded so they still resolve normally (task 7.2)
+	if (
+		e.request.mode === 'navigate' &&
+		!pathname.startsWith('/api/') &&
+		!pathname.startsWith('/assets/') &&
+		!pathname.startsWith('/icons/') &&
+		pathname !== '/sw.js' &&
+		pathname !== '/manifest.webmanifest'
+	) {
+		e.respondWith(serveAppShell());
+		return;
+	}
+
 	// message list: network-first with 5s timeout, cache fallback
 	if (pathname.startsWith('/api/messages') && !pathname.match(/\/api\/messages\/.+/)) {
 		e.respondWith(networkFirstWithFallback(e.request, APP_SHELL_CACHE, 5000));
@@ -103,6 +118,15 @@ self.addEventListener('fetch', (e) => {
 		return;
 	}
 });
+
+// ── App shell fallback ────────────────────────────────────────────────────────
+
+async function serveAppShell(): Promise<Response> {
+	const cache = await caches.open(APP_SHELL_CACHE);
+	const cached = await cache.match('/');
+	if (cached) return cached;
+	return fetch('/');
+}
 
 // ── Caching strategies ────────────────────────────────────────────────────────
 

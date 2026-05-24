@@ -19,6 +19,7 @@ async function openInbox(page: import('@playwright/test').Page): Promise<Mailbox
 	return mailbox;
 }
 
+// openspec/specs/message-read/spec.md: message rendering
 test('opening a message renders its subject, sender, and body', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(readMsg.subject);
@@ -30,6 +31,7 @@ test('opening a message renders its subject, sender, and body', async ({ page })
 	await expect(reader.bodyLocator()).toContainText('roadmap section');
 });
 
+// openspec/specs/sveltekit-ui/spec.md: unread state management
 test('an unread message becomes read in the UI', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	expect(isUnread(unreadMsg), 'fixture sanity: in-02 is unread').toBe(true);

@@ -6,6 +6,7 @@ import { folderOf, manifest } from '../fixtures/manifest.ts';
 
 const alice = manifest.find((a) => a.address === 'alice@example.com')!;
 
+// openspec/specs/sveltekit-ui/spec.md: folder navigation
 test('selecting an account shows its folders', async ({ page }) => {
 	const accounts = new AccountsPage(page);
 	await accounts.open();

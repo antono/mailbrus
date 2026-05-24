@@ -20,6 +20,7 @@ async function openInbox(page: import('@playwright/test').Page): Promise<Mailbox
 	return mailbox;
 }
 
+// openspec/specs/sveltekit-ui/spec.md: link styling
 test('links have mb-link class for styling', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(msgWithLinks.subject);
@@ -40,6 +41,7 @@ test('links have mb-link class for styling', async ({ page }) => {
 	expect(className).toContain('mb-link');
 });
 
+// openspec/specs/sveltekit-ui/spec.md: link color
 test('links have distinct color', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(msgWithLinks.subject);
@@ -56,6 +58,7 @@ test('links have distinct color', async ({ page }) => {
 	expect(linkColor).toBeTruthy();
 });
 
+// openspec/specs/sveltekit-ui/spec.md: link icon
 test('links have visual icon indicator', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(msgWithLinks.subject);
@@ -72,6 +75,7 @@ test('links have visual icon indicator', async ({ page }) => {
 	expect(iconText?.trim()).toBeTruthy();
 });
 
+// openspec/specs/sveltekit-ui/spec.md: mailto links
 test('mailto links display email icon', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	// Use historical message which has a mailto link in the unsubscribe section
@@ -90,6 +94,7 @@ test('mailto links display email icon', async ({ page }) => {
 	expect(linkText).toContain('work.example');
 });
 
+// openspec/specs/sveltekit-ui/spec.md: link behavior
 test('links are clickable and open in new window', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(msgWithLinks.subject);

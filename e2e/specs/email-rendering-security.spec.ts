@@ -36,6 +36,7 @@ async function openAliceInbox(page: import('@playwright/test').Page): Promise<Ma
 
 // ── Fixture sanity ────────────────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: HTML rendering
 test('fixture sanity: HTML test messages are in the manifest', () => {
 	expect(htmlOnlyMsg, 'alice-inbox-07-html-only must be in manifest').toBeTruthy();
 	expect(multipartMsg, 'alice-inbox-08-multipart-alt must be in manifest').toBeTruthy();
@@ -47,6 +48,7 @@ test('fixture sanity: HTML test messages are in the manifest', () => {
 
 // ── Default mode selection ────────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: rendering mode selection
 test.describe('default mode selection', () => {
 	test('plain-text message opens in Text mode by default', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
@@ -85,6 +87,7 @@ test.describe('default mode selection', () => {
 
 // ── Mode toggle UI ────────────────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: mode toggle UI
 test.describe('mode toggle buttons', () => {
 	test('all three mode buttons are always visible', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
@@ -124,6 +127,7 @@ test.describe('mode toggle buttons', () => {
 
 // ── HTML iframe sandbox ───────────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: iframe sandbox security
 test.describe('HTML iframe sandbox', () => {
 	test('sandbox allows popups but blocks scripts and same-origin access', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
@@ -195,6 +199,7 @@ test.describe('HTML iframe sandbox', () => {
 
 // ── Remote content blocking ───────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: remote content blocking
 test.describe('remote content blocking', () => {
 	test('remote-content banner appears in HTML mode when message has remote images', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
@@ -238,6 +243,7 @@ test.describe('remote content blocking', () => {
 
 // ── Mode persistence ──────────────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: mode persistence
 test.describe('mode persistence', () => {
 	test('Simple mode selection persists to the next message', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
@@ -268,6 +274,7 @@ test.describe('mode persistence', () => {
 
 // ── Simple mode content ───────────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: simple mode content
 test.describe('Simple mode content', () => {
 	test('Simple mode shows readable text without raw HTML tags', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
@@ -292,6 +299,7 @@ test.describe('Simple mode content', () => {
 
 // ── Text mode content ─────────────────────────────────────────────────────────
 
+// openspec/specs/message-read/spec.md: text mode content
 test.describe('Text mode content', () => {
 	test('plain-text body is rendered and not empty', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);
@@ -317,6 +325,7 @@ test.describe('Text mode content', () => {
 // before the HTML ever reaches the client. Assertions check the rendered srcdoc
 // in HTML mode (the most permissive rendering path) and the DOM in Simple mode.
 
+// openspec/specs/message-read/spec.md: XSS security
 test.describe('XSS attack regressions', () => {
 	test('script-tag injection: <script> is stripped in HTML mode', async ({ page }) => {
 		const mailbox = await openAliceInbox(page);

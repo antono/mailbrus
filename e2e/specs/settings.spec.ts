@@ -23,6 +23,7 @@ async function openSettings(page: import('@playwright/test').Page): Promise<void
 
 // ── Open / close ─────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: settings panel UI
 test('settings panel opens via command palette', async ({ page }) => {
 	await openMailbox(page);
 	await page.keyboard.press('Control+k');
@@ -64,6 +65,7 @@ test('settings panel closes by clicking outside', async ({ page }) => {
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: dark mode toggle
 test('dark mode toggle adds .dark class to <html>', async ({ page }) => {
 	await openMailbox(page);
 	await openSettings(page);
@@ -96,6 +98,7 @@ test('toggle-dark command flips dark mode and settings switch reflects it', asyn
 
 // ── Accent color ──────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: accent color selection
 test('selecting Blue accent sets data-accent="blue" on <html>', async ({ page }) => {
 	await openMailbox(page);
 	await openSettings(page);
@@ -119,6 +122,7 @@ test('accent select trigger shows selected label', async ({ page }) => {
 
 // ── Font family ───────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: font family selection
 test('selecting mono font sets --font-app to mono stack', async ({ page }) => {
 	await openMailbox(page);
 	await openSettings(page);
@@ -146,6 +150,7 @@ test('selecting sans font sets --font-app to sans stack', async ({ page }) => {
 
 // ── Font size ─────────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: font size adjustment
 test('font size lg sets --font-size-app to 15px', async ({ page }) => {
 	await openMailbox(page);
 	await openSettings(page);
@@ -197,6 +202,7 @@ test('font size sm sets --font-size-app to 12px', async ({ page }) => {
 
 // ── Density ───────────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: density setting
 test('density spacious adds dens-spacious class to mail list', async ({ page }) => {
 	await openMailbox(page);
 	await openSettings(page);
@@ -219,6 +225,7 @@ test('density dense adds dens-dense class to mail list', async ({ page }) => {
 
 // ── Key hints ─────────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: key hints toggle
 test('disabling key hints hides the hint bar', async ({ page }) => {
 	await openMailbox(page);
 	await expect(page.locator('.mb-hints')).toBeVisible();
@@ -249,13 +256,12 @@ test('re-enabling key hints shows the hint bar', async ({ page }) => {
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 
+// openspec/specs/sveltekit-ui/spec.md: settings persistence
 async function reloadToMailbox(page: import('@playwright/test').Page): Promise<void> {
 	await page.waitForTimeout(400); // let async IDB write commit before unloading
 	await page.reload();
-	await expect(page.getByText('Open a maildir')).toBeVisible();
-	await page.getByText(alice.address, { exact: true }).click();
-	const mailbox = new MailboxPage(page);
-	await mailbox.openFolder(inbox.name);
+	// Push-state routing auto-restores the folder on reload; just wait for the mail list.
+	await expect(page.getByTestId('mail-list.container')).toBeVisible({ timeout: 15000 });
 }
 
 test('font size persists across page reload', async ({ page }) => {

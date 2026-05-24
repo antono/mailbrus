@@ -26,6 +26,7 @@ async function openInbox(page: import('@playwright/test').Page): Promise<Mailbox
 	return mailbox;
 }
 
+// openspec/specs/message-read/spec.md: date formatting
 test('recent messages display date information', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(recentMsg.subject);
@@ -39,6 +40,7 @@ test('recent messages display date information', async ({ page }) => {
 	expect(metaText?.length).toBeGreaterThan(20);
 });
 
+// openspec/specs/message-read/spec.md: historical date formatting
 test('historical messages display date information', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(historicalMsg.subject);
@@ -53,6 +55,7 @@ test('historical messages display date information', async ({ page }) => {
 	expect(metaText).not.toMatch(/Date[\s\S]+1249743049$/);
 });
 
+// openspec/specs/message-read/spec.md: sender display
 test('From field displays sender without duplication', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(recentMsg.subject);
@@ -72,6 +75,7 @@ test('From field displays sender without duplication', async ({ page }) => {
 	expect(emailCount).toBeLessThanOrEqual(1);
 });
 
+// openspec/specs/message-read/spec.md: recipient display
 test('To field displays recipient email', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(recentMsg.subject);
@@ -97,6 +101,7 @@ test('Date field displays formatted date', async ({ page }) => {
 	expect(metaText).toMatch(/Date[\s\S]+\d/);
 });
 
+// openspec/specs/message-read/spec.md: metadata with attachments
 test('message with attachments displays metadata correctly', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	// Use a message known to have attachments

@@ -20,6 +20,7 @@ async function openInbox(page: import('@playwright/test').Page): Promise<Mailbox
 	return mailbox;
 }
 
+// openspec/specs/message-read/spec.md: signature rendering
 test('a signed message is shown as signed', async ({ page }) => {
 	expect(signedMsg.signature).toBe('signed'); // fixture sanity
 	const mailbox = await openInbox(page);

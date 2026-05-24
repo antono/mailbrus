@@ -1,6 +1,8 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@*": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.13",
     "jsr:@std/yaml@1": "1.1.0",
     "npm:@playwright/test@1.59.1": "1.59.1",
     "npm:@sveltejs/adapter-static@^3.0.8": "3.0.10_@sveltejs+kit@2.60.1__@sveltejs+vite-plugin-svelte@5.1.1___svelte@5.55.9___vite@6.4.2____@types+node@22.19.19___@types+node@22.19.19__svelte@5.55.9__vite@6.4.2___@types+node@22.19.19__@types+node@22.19.19_@types+node@22.19.19",
@@ -17,6 +19,15 @@
     "npm:vite@^6.3.5": "6.4.2_@types+node@22.19.19"
   },
   "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.13": {
+      "integrity": "2f9546691d4ac2d32859c82dff284aaeac980ddeca38430d07941e7e288725c0"
+    },
     "@std/yaml@1.1.0": {
       "integrity": "fc1c5c63e05c4c5eb6118355f557958035d41940d6c29d35b306ef7155d6edb0"
     }

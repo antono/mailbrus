@@ -6,6 +6,7 @@ import { folderOf, manifest, messagesNewestFirst, PER_PAGE } from '../fixtures/m
 
 const alice = manifest.find((a) => a.address === 'alice@example.com')!;
 
+// openspec/specs/message-pagination-ui/spec.md: pagination navigation
 test('navigates pages and shows correct indicators', async ({ page }) => {
 	const archive = folderOf(alice, 'Archive');
 	const count = archive.messages.length;
