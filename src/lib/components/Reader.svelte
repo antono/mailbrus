@@ -17,6 +17,7 @@
 		has_html,
 		has_remote,
 		format_flowed,
+		attachments = [],
 		onClose,
 		onHome,
 		onAccount,
@@ -32,6 +33,7 @@
 		has_html: boolean;
 		has_remote: number;
 		format_flowed: boolean;
+		attachments?: { name: string; size: number; mime: string }[];
 		onClose: () => void;
 		onHome: () => void;
 		onAccount: () => void;
@@ -126,7 +128,6 @@
 				<div class="sub-line">
 					<span class="sub-text">
 						{message.subject}
-						<span class="sub-ago" title={ago.iso}> [{ago.label}]</span>
 					</span>
 					<span class="sub-icons">
 						<!-- Task 4.2: mode toggle segmented control -->
@@ -244,14 +245,22 @@
 				{:else}
 					<div>
 						<span class="meta-label">From</span> {message.from}
-						{#if message.addr && message.addr !== message.from}&lt;{message.addr}&gt;{/if}
+						{#if message.addr && message.addr.trim() !== message.from.trim()}&lt;{message.addr}&gt;{/if}
 					</div>
 					<div><span class="meta-label">To</span>{"   "}{account.address}</div>
 				{/if}
+				<div>
+					<span class="meta-label">Date</span>{"  "}
+					{#if ago.label !== message.time.trim()}
+						<time datetime={ago.iso} title={ago.iso}>{ago.label}</time>
+					{:else}
+						{ago.iso}
+					{/if}
+				</div>
 			</div>
 		</div>
 
-		<Attachments items={message.attachments} />
+		<Attachments items={attachments} />
 
 		<!-- Task 5.1: remote content banner in HTML mode -->
 		{#if mode === 'html' && has_remote > 0 && !remoteLoaded}
@@ -266,7 +275,7 @@
 			</div>
 		{/if}
 
-		<div class="mb-reader-body">
+		<div class="mb-reader-body" data-testid="reader-body-scroll">
 			{#if mode === 'html'}
 				<!-- Task 4.5: sandboxed srcdoc iframe, null origin, no scripts.
 				     allow-popups + allow-popups-to-escape-sandbox lets links open in a real

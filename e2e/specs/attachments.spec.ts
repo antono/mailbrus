@@ -29,14 +29,7 @@ test('a message without attachments shows no attachment chips', async ({ page })
 	await expect(reader.attachments()).toHaveCount(0);
 });
 
-/**
- * KNOWN UI GAP (out of scope here — production code is frozen for this change):
- * the SPA never shows attachments. The list API omits them and `+page.svelte`
- * discards `fetchMessage().attachments`, so `<Attachments>` always renders
- * nothing. The backend DOES expose them — proven by the API test below — so
- * this scenario is enabled the moment the SPA wires attachments into the reader.
- */
-test.fixme('a message with attachments shows them in the reader', async ({ page }) => {
+test('a message with attachments shows them in the reader', async ({ page }) => {
 	const mailbox = await openInbox(page);
 	await mailbox.openMessage(multiAttachMsg.subject);
 

@@ -80,6 +80,7 @@
 	let leader = $state<string | null>(null);
 	let leaderTimer: ReturnType<typeof setTimeout> | null = null;
 	let installPromptEvent = $state<Event | null>(null);
+	let listEl = $state<HTMLDivElement | null>(null);
 	let showInstallButton = $state(false);
 	let conflictNotice = $state(false);
 
@@ -95,6 +96,7 @@
 	let messageHasHtml = $state(false);
 	let messageHasRemote = $state(0);
 	let messageFormatFlowed = $state(false);
+	let messageAttachments = $state<{ name: string; size: number; mime: string }[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
@@ -175,6 +177,7 @@
 			messageHasHtml = false;
 			messageHasRemote = 0;
 			messageFormatFlowed = false;
+			messageAttachments = [];
 			return;
 		}
 		const id = openMessage.id;
@@ -189,6 +192,7 @@
 				messageHasHtml = data.has_html;
 				messageHasRemote = data.has_remote;
 				messageFormatFlowed = data.format_flowed;
+				messageAttachments = data.attachments ?? [];
 			})
 			.catch(() => { messageBody = ''; messageMode = 'text'; });
 	});
@@ -204,6 +208,7 @@
 				messageHasHtml = data.has_html;
 				messageHasRemote = data.has_remote;
 				messageFormatFlowed = data.format_flowed;
+				messageAttachments = data.attachments ?? [];
 			})
 			.catch(() => {});
 		// HTML mode is per-message only — never persisted as global default.
@@ -305,19 +310,35 @@
 			if (phase !== 'list' || cmdOpen || composeOpen || helpOpen || aboutOpen) return;
 			// reader open
 			if (openMessage) {
-				if (e.key === 'Escape') { e.preventDefault(); openMessage = null; }
+				if (e.key === 'Escape') { e.preventDefault(); openMessage = null; return; }
 				if (e.key === 'j' || e.key === 'ArrowDown') {
 					e.preventDefault();
 					const next = Math.min(selectedIdx + 1, currentMessages.length - 1);
 					selectedIdx = next;
 					openMessage = currentMessages[next] || null;
+					return;
 				}
 				if (e.key === 'k' || e.key === 'ArrowUp') {
 					e.preventDefault();
 					const next = Math.max(selectedIdx - 1, 0);
 					selectedIdx = next;
 					openMessage = currentMessages[next] || null;
+					return;
 				}
+				if (leader === 'g' && e.key === 'g') {
+					e.preventDefault();
+					clearLeader();
+					document.querySelector('[data-testid="reader-body-scroll"]')?.scrollTo({ top: 0 });
+					return;
+				}
+				if (e.key === 'g' && !leader) { e.preventDefault(); startLeader('g'); return; }
+				if (e.key === 'G') {
+					e.preventDefault();
+					const el = document.querySelector<HTMLElement>('[data-testid="reader-body-scroll"]');
+					el?.scrollTo({ top: el.scrollHeight });
+					return;
+				}
+				if (leader) clearLeader();
 				return;
 			}
 			if (isTyping(e)) return;
@@ -329,12 +350,14 @@
 				if (e.key === 'f') { e.preventDefault(); clearLeader(); phase = 'folder'; return; }
 				if (e.key === 'd') { e.preventDefault(); clearLeader(); goToFolder('drafts'); return; }
 				if (e.key === 's') { e.preventDefault(); clearLeader(); goToFolder('sent'); return; }
-				if (e.key === 'g') { e.preventDefault(); clearLeader(); selectedIdx = 0; return; }
+				if (e.key === 'g') { e.preventDefault(); clearLeader(); selectedIdx = 0; listEl?.scrollTo({ top: 0 }); return; }
 				clearLeader();
 				return;
 			}
 			if (e.key === 'g') { e.preventDefault(); startLeader('g'); return; }
-			if (e.key === 'G') { e.preventDefault(); selectedIdx = currentMessages.length - 1; return; }
+			if (e.key === 'G') { e.preventDefault(); selectedIdx = currentMessages.length - 1; listEl?.scrollTo({ top: listEl.scrollHeight }); return; }
+			if (e.key === 'h' && !leader && currentPage > 1) { e.preventDefault(); handleListPageChange(currentPage - 1); return; }
+			if (e.key === 'l' && !leader && currentMessages.length >= currentPerPage) { e.preventDefault(); handleListPageChange(currentPage + 1); return; }
 			if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !leader) {
 				e.preventDefault(); clearLeader(); composeOpen = true; return;
 			}
@@ -493,6 +516,7 @@
 			perPage={currentPerPage}
 			count={totalCount}
 			onPageChange={searchOpen ? handleSearchPageChange : handleListPageChange}
+			bind:listEl
 		/>
 	{/if}
 
@@ -508,6 +532,8 @@
 			<span class="hint"><span class="kbd">r</span> read</span>
 			<span class="hint"><span class="kbd">u</span> unread</span>
 			<span class="hint"><span class="kbd">d</span> delete</span>
+			<span class="hint"><span class="kbd">h</span> prev-page</span>
+			<span class="hint"><span class="kbd">l</span> next-page</span>
 			<span class="hint"><span class="kbd">g</span><span class="kbd">f</span> folder</span>
 			<span class="hint"><span class="kbd">g</span><span class="kbd" style="text-transform: none">A</span> account</span>
 		</HintBar>
@@ -524,6 +550,7 @@
 			has_html={messageHasHtml}
 			has_remote={messageHasRemote}
 			format_flowed={messageFormatFlowed}
+			attachments={messageAttachments}
 			onClose={() => (openMessage = null)}
 			onHome={() => (aboutOpen = true)}
 			onAccount={() => { openMessage = null; phase = 'account'; }}
@@ -596,7 +623,7 @@
 
 	{#if leader === 'g' && phase === 'list'}
 		<div class="mb-leader">
-			<span class="key">g</span> — i inbox · a archive · s sent · d drafts · f folder · A account · g top
+			<span class="key">g</span> — i inbox · a archive · s sent · d drafts · f folder · A account · g top · h prev-page · l next-page
 		</div>
 	{/if}
 

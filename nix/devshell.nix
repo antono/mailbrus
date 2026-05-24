@@ -2,9 +2,12 @@
 let
   gtk3 = pkgs.gtk3;
   gschema = pkgs.gsettings-desktop-schemas;
+  dev = pkgs.writeShellScriptBin "dev" ''
+    exec ${pkgs.deno}/bin/deno task watch "$@"
+  '';
 in
 pkgs.mkShell {
-  buildInputs = tauri-deps ++ dev-deps ++ [ gtk3 pkgs.gtk4 gschema pkgs.adwaita-icon-theme pkgs.glib ];
+  buildInputs = tauri-deps ++ dev-deps ++ [ gtk3 pkgs.gtk4 gschema pkgs.adwaita-icon-theme pkgs.glib dev ];
 
   shellHook = ''
     echo "mailbrus dev environment"

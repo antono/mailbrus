@@ -8,7 +8,6 @@ export function cn(...inputs: ClassValue[]) {
 
 // ── Time formatting ──────────────────────────────────────────────────────────
 
-const _NOW = new Date('2026-05-20T15:30:00');
 const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const _WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -17,37 +16,37 @@ function _fmtISO(d: Date): string {
 	return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function expandTime(short: string): { label: string; iso: string } {
+export function expandTime(short: string, now = new Date()): { label: string; iso: string } {
 	if (!short) return { label: '', iso: '' };
 	const s = short.trim();
 	let m: RegExpMatchArray | null;
 	if ((m = s.match(/^(\d+)m$/))) {
 		const n = +m[1];
-		const d = new Date(_NOW);
+		const d = new Date(now);
 		d.setMinutes(d.getMinutes() - n);
 		return { label: `${n} min${n === 1 ? '' : 's'} ago`, iso: _fmtISO(d) };
 	}
 	if ((m = s.match(/^(\d+)h$/))) {
 		const n = +m[1];
-		const d = new Date(_NOW);
+		const d = new Date(now);
 		d.setHours(d.getHours() - n);
 		return { label: `${n} hour${n === 1 ? '' : 's'} ago`, iso: _fmtISO(d) };
 	}
-	if (s === 'now') return { label: 'just now', iso: _fmtISO(_NOW) };
+	if (s === 'now') return { label: 'just now', iso: _fmtISO(now) };
 	if (s === 'today') {
-		const d = new Date(_NOW);
+		const d = new Date(now);
 		d.setHours(9, 30, 0, 0);
 		return { label: 'today', iso: _fmtISO(d) };
 	}
 	if (s === 'yesterday') {
-		const d = new Date(_NOW);
+		const d = new Date(now);
 		d.setDate(d.getDate() - 1);
 		d.setHours(16, 22, 0, 0);
 		return { label: 'yesterday', iso: _fmtISO(d) };
 	}
 	if (_WEEKDAYS.includes(s)) {
 		const target = _WEEKDAYS.indexOf(s);
-		const d = new Date(_NOW);
+		const d = new Date(now);
 		do {
 			d.setDate(d.getDate() - 1);
 		} while (d.getDay() !== target);
@@ -57,7 +56,7 @@ export function expandTime(short: string): { label: string; iso: string } {
 	if ((m = s.match(/^(\w{3})\s+(\d{1,2})$/))) {
 		const mo = _MONTHS.indexOf(m[1]);
 		if (mo >= 0) {
-			const year = mo > _NOW.getMonth() ? _NOW.getFullYear() - 1 : _NOW.getFullYear();
+			const year = mo > now.getMonth() ? now.getFullYear() - 1 : now.getFullYear();
 			const d = new Date(year, mo, +m[2], 10, 30);
 			return { label: s, iso: _fmtISO(d) };
 		}

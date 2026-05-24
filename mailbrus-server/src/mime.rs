@@ -131,7 +131,12 @@ pub fn extract_message(raw: &[u8]) -> Option<ParsedMessage> {
                 .and_then(|cd| cd.attribute("filename"))
                 .or_else(|| part.content_type().and_then(|ct| ct.attribute("name")))
                 .unwrap_or("unnamed");
-            attachments.push(json!({"name": name, "size": 0, "mime": mime}));
+            let size = match &part.body {
+                PartType::Binary(b) | PartType::InlineBinary(b) => b.len(),
+                PartType::Text(t) => t.len(),
+                _ => 0,
+            };
+            attachments.push(json!({"name": name, "size": size, "mime": mime}));
         }
     }
 

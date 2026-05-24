@@ -22,7 +22,9 @@
 				{ keys: [['j'], ['↓']], desc: 'Next message' },
 				{ keys: [['k'], ['↑']], desc: 'Previous message' },
 				{ keys: [['g', 'g']], desc: 'Top of list' },
-				{ keys: [['G']], desc: 'Bottom of list' }
+				{ keys: [['G']], desc: 'Bottom of list' },
+				{ keys: [['h']], desc: 'Previous page' },
+				{ keys: [['l']], desc: 'Next page' }
 			]
 		},
 		{
@@ -66,6 +68,8 @@
 			label: 'Reader',
 			items: [
 				{ keys: [['j'], ['k']], desc: 'Next / previous message' },
+				{ keys: [['g', 'g']], desc: 'Scroll to top' },
+				{ keys: [['G']], desc: 'Scroll to bottom' },
 				{ keys: [['Esc']], desc: 'Close reader' }
 			]
 		},

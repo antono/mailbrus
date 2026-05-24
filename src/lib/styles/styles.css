@@ -670,8 +670,8 @@ body {
   gap: 6px;
 }
 .mb-reader-head .sub {
-  font-size: var(--text-xl);
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: bold;
   letter-spacing: -0.02em;
   line-height: var(--leading-snug);
   color: var(--foreground);

@@ -4,6 +4,7 @@
 	import Paperclip from './Paperclip.svelte';
 	import type { Account, Folder, Message } from '$lib/data.js';
 	import type { OutboxEntry } from '$lib/outbox.js';
+	import { expandTime } from '$lib/utils.js';
 
 	interface OutboxMessage extends Message {
 		outbox_status: OutboxEntry['status'];
@@ -29,7 +30,8 @@
 		page = 1,
 		perPage = 25,
 		count = 0,
-		onPageChange
+		onPageChange,
+		listEl = $bindable<HTMLDivElement | null>(null)
 	}: {
 		account: Account;
 		folder: Folder;
@@ -51,6 +53,7 @@
 		perPage?: number;
 		count?: number;
 		onPageChange?: (page: number) => void;
+		listEl?: HTMLDivElement | null;
 	} = $props();
 
 	// Convert outbox entries to displayable messages for Outbox/Sent folders
@@ -70,7 +73,6 @@
 			}))
 	);
 
-	let listEl = $state<HTMLDivElement | null>(null);
 	let searchInputEl = $state<HTMLInputElement | null>(null);
 
 	$effect(() => {
@@ -141,6 +143,8 @@
 			</div>
 		{:else}
 			{#each filtered as m, i}
+				{@const timeInfo = expandTime(m.time)}
+				{@const isRelativeTime = timeInfo.label !== m.time.trim()}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
@@ -161,9 +165,13 @@
 							<span class="from">{m.from}</span>
 							<span class="time">
 								{#if m.attachments && m.attachments.length > 0}<Paperclip />{/if}
-								{'outbox_status' in m && (m.outbox_status === 'queued' || m.outbox_status === 'failed' || m.outbox_status === 'sending')
-									? ''
-									: m.time}
+								{#if !('outbox_status' in m && (m.outbox_status === 'queued' || m.outbox_status === 'failed' || m.outbox_status === 'sending'))}
+									{#if isRelativeTime}
+										<time datetime={timeInfo.iso} title={timeInfo.iso}>{timeInfo.label}</time>
+									{:else}
+										{timeInfo.label}
+									{/if}
+								{/if}
 								{#if 'outbox_status' in m}
 									<span class="mb-not-sent-badge" data-status={m.outbox_status}>
 										{m.outbox_status === 'failed' ? 'Failed' : m.outbox_status === 'sending' ? 'Sending…' : 'Not sent'}
@@ -181,14 +189,22 @@
 						<div class="preview">{m.preview}</div>
 						<div class="time">
 							{#if m.attachments && m.attachments.length > 0}<Paperclip />{/if}
-							{m.time}
+							{#if isRelativeTime}
+								<time datetime={timeInfo.iso} title={timeInfo.iso}>{timeInfo.label}</time>
+							{:else}
+								{timeInfo.label}
+							{/if}
 						</div>
 					{:else}
 						<div class="from">{m.from}</div>
 						<div class="subject">{m.subject}</div>
 						<div class="time">
 							{#if m.attachments && m.attachments.length > 0}<Paperclip />{/if}
-							{m.time}
+							{#if isRelativeTime}
+								<time datetime={timeInfo.iso} title={timeInfo.iso}>{timeInfo.label}</time>
+							{:else}
+								{timeInfo.label}
+							{/if}
 						</div>
 					{/if}
 				</div>

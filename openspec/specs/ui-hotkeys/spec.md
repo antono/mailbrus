@@ -65,15 +65,32 @@ Pressing `Enter` on the message list SHALL open the currently selected message i
 ---
 
 ### Requirement: Jump to list extremes
-`G` (shift-g) SHALL move the selection to the last message. The `g g` leader sequence SHALL move it to the first.
+`G` (shift-g) SHALL move the selection to the last message and scroll the list viewport to the bottom. The `g g` leader sequence SHALL move it to the first and scroll the list viewport to the top.
 
 #### Scenario: Jump to bottom
 - **WHEN** the user presses `G` on the list
-- **THEN** the selected index is set to the last message index
+- **THEN** the selected index is set to the last message index and the list scrolls to the bottom
 
 #### Scenario: Jump to top via leader
 - **WHEN** the user presses `g` then `g` within 1.2 s on the list
-- **THEN** the selected index is set to 0
+- **THEN** the selected index is set to 0 and the list scrolls to the top
+
+---
+
+### Requirement: Pagination keys
+`h` (previous page) and `l` (next page) SHALL change the current folder page when not in leader mode. `h` SHALL be a no-op on page 1. `l` SHALL be a no-op when the current page has fewer messages than `perPage`.
+
+#### Scenario: Previous page with h
+- **WHEN** the user presses `h` on the list and the current page is greater than 1
+- **THEN** the list loads the previous page
+
+#### Scenario: Next page with l
+- **WHEN** the user presses `l` on the list and the message count equals `perPage`
+- **THEN** the list loads the next page
+
+#### Scenario: h no-op at page 1
+- **WHEN** the user presses `h` on page 1
+- **THEN** no page change occurs
 
 ---
 
@@ -133,7 +150,7 @@ An unrecognized key or timeout SHALL cancel the leader with no action.
 ---
 
 ### Requirement: Reader navigation keys
-Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous message in the current list. `Escape` SHALL close the reader and return to the list at the same cursor position.
+Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous message in the current list. `Escape` SHALL close the reader and return to the list at the same cursor position. `g g` (leader sequence) SHALL scroll the reader body to the top. `G` SHALL scroll the reader body to the bottom.
 
 #### Scenario: Next message in reader
 - **WHEN** the reader is open and the user presses `j` or `↓`
@@ -146,6 +163,14 @@ Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous mess
 #### Scenario: Escape closes reader
 - **WHEN** the reader is open and the user presses `Escape`
 - **THEN** the reader closes and the list is visible with the cursor on the same message
+
+#### Scenario: gg scrolls reader to top
+- **WHEN** the reader is open and the user presses `g` then `g` within 1.2 s
+- **THEN** the reader body scrolls to the top
+
+#### Scenario: G scrolls reader to bottom
+- **WHEN** the reader is open and the user presses `G`
+- **THEN** the reader body scrolls to the bottom
 
 ---
 
