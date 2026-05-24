@@ -39,7 +39,7 @@
 ## 6. Frontend — Mode preference persistence
 
 - [x] 6.1 Add a global default-mode setting (`text` default) to the settings store
-- [ ] 6.2 (Optional) per-sender mode override map; resolve sender override before global default
+- [x] 6.2 (Optional) per-sender mode override map; resolve sender override before global default
 - [x] 6.3 Restore the resolved mode when a message opens; update on toggle
 
 ## 7. Tauri hardening (src-tauri)

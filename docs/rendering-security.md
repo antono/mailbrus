@@ -2,8 +2,8 @@
 
 **Date:** 2026-05-25  
 **Status:** ✅ **COMPLETE** — All components implemented and regression-tested  
-**Research:** [RESEARCH.md](../openspec/changes/email-rendering-security/RESEARCH.md) (threat model, crate survey, architecture)  
-**Spec:** [spec.md](../openspec/changes/email-rendering-security/spec.md) (requirements, acceptance criteria)
+**Research:** [RESEARCH.md](../openspec/changes/archive/2026-05-25-email-rendering-security/RESEARCH.md) (threat model, crate survey, architecture)  
+**Spec:** [spec.md](../openspec/changes/archive/2026-05-25-email-rendering-security/specs/email-rendering/spec.md) (requirements, acceptance criteria)
 
 ---
 
@@ -377,9 +377,10 @@ flowchart TB
 
 ## References
 
-- **Spec:** `openspec/changes/email-rendering-security/spec.md`
-- **Research:** `openspec/changes/email-rendering-security/RESEARCH.md` (threat model, crate survey, Gmail/Proton comparison)
-- **Design:** `openspec/changes/email-rendering-security/design.md` (architectural decisions)
+- **Spec:** `openspec/changes/archive/2026-05-25-email-rendering-security/specs/email-rendering/spec.md`
+- **Research:** `openspec/changes/archive/2026-05-25-email-rendering-security/RESEARCH.md` (threat model, crate survey, Gmail/Proton comparison)
+- **Design:** `openspec/changes/archive/2026-05-25-email-rendering-security/design.md` (architectural decisions)
+- **Change archive:** `openspec/changes/archive/2026-05-25-email-rendering-security/`
 - **E2E Tests:** `e2e/specs/email-rendering-security.spec.ts`
 - **Backend:** `mailbrus-server/src/sanitize.rs`
 - **Frontend:** `src/lib/components/Reader.svelte`

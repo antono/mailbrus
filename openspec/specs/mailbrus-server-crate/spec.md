@@ -94,7 +94,7 @@ The server SHALL serve files from the directory specified by `--frontend-dist <P
 - **THEN** server responds 400 with a JSON error body
 
 ### Requirement: GET /api/messages/:id — read message
-`GET /api/messages/:id` SHALL return the full parsed message as JSON including headers, body, and attachments.
+`GET /api/messages/:id` SHALL return the full parsed message as JSON including headers, body, and attachments. Each entry in the `attachments` array SHALL include a `size` field reflecting the actual byte length of the decoded attachment body. A hardcoded `size: 0` is not acceptable.
 
 #### Scenario: Message returned
 - **WHEN** client sends `GET /api/messages/abc123`
@@ -103,6 +103,10 @@ The server SHALL serve files from the directory specified by `--frontend-dist <P
 #### Scenario: Unknown message id
 - **WHEN** the message id does not exist in the notmuch database
 - **THEN** server responds 404 with a JSON error body
+
+#### Scenario: Attachment size reflects actual bytes
+- **WHEN** a message has an attachment whose decoded body is N bytes
+- **THEN** the corresponding `attachments[i].size` field equals N (not 0)
 
 ### Requirement: Blocking core calls wrapped in spawn_blocking
 All calls to `mailbrus-core` (which is synchronous) SHALL be executed inside `tokio::task::spawn_blocking` to avoid blocking the async executor.

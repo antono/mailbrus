@@ -6,21 +6,23 @@ TBD - created by archiving change sveltekit-ui-design. Update Purpose after arch
 ### Requirement: App shell and phase state machine
 The app SHALL implement a four-phase state machine: `account` → `folder` → `list` → (`reader` | `compose`). The current phase SHALL be stored as reactive state in `+page.svelte`. Only one overlay (reader, compose, or palette modal) SHALL be active at a time.
 
-#### Scenario: First load shows account picker
-- **WHEN** the app loads with no prior state
+Routable phase transitions (selecting a folder, opening a message, running a search) SHALL be reflected in the browser URL, and the initial phase SHALL be derived from the URL on load rather than always starting at `account` (see the `ui-path-routing` capability). Compose remains an overlay and is not encoded in the URL.
+
+#### Scenario: First load at root shows account picker
+- **WHEN** the app loads with URL path `/` and no prior view
 - **THEN** the AccountPicker palette is shown fullscreen over a blank background
 
 #### Scenario: Selecting account advances to folder picker
 - **WHEN** user selects an account in AccountPicker
 - **THEN** phase advances to `folder` and FolderPicker is shown
 
-#### Scenario: Selecting folder shows mail list
+#### Scenario: Selecting folder shows mail list and updates the URL
 - **WHEN** user selects a folder in FolderPicker
-- **THEN** phase advances to `list` and MailList is shown for that account/folder
+- **THEN** phase advances to `list`, MailList is shown for that account/folder, and the URL becomes `/folder/<folderId>`
 
-#### Scenario: Esc on list returns to folder picker
+#### Scenario: Esc on list returns to folder picker and updates the URL
 - **WHEN** phase is `list` and user presses Esc (no modal open)
-- **THEN** FolderPicker opens
+- **THEN** FolderPicker opens and the URL returns to `/`
 
 ---
 
@@ -50,7 +52,7 @@ The Palette component SHALL display a centered card with an eyebrow, title, sear
 ---
 
 ### Requirement: Mail list with three density modes
-The MailList screen SHALL render messages in one of three density modes: `dense` (one line), `twoline` (default), or `spacious`. The active density SHALL be read from Tweaks state.
+The MailList screen SHALL render messages in one of three density modes: `dense` (one line), `twoline` (default), or `spacious`. The active density SHALL be read from Tweaks state. In every density mode the message date SHALL be displayed in human-readable form using `expandTime()`: tokens representing recent messages (minutes, hours, today, yesterday, weekday names) SHALL produce a relative label; tokens representing older messages (month+day format) SHALL produce an absolute `YYYY-MM-DD` string.
 
 #### Scenario: Dense mode — one line per message
 - **WHEN** density is `dense`
@@ -75,6 +77,14 @@ The MailList screen SHALL render messages in one of three density modes: `dense`
 #### Scenario: Mouse hover moves cursor
 - **WHEN** user hovers a row with the mouse
 - **THEN** the keyboard cursor moves to that row
+
+#### Scenario: Recent date shown as relative label
+- **WHEN** a message time token is `5m`, `2h`, `today`, `yesterday`, or a weekday name
+- **THEN** the date column shows the expanded human-readable label (e.g. "5 mins ago", "today")
+
+#### Scenario: Older date shown as absolute ISO date
+- **WHEN** a message time token is in `Mon DD` or `MMM DD` format
+- **THEN** the date column shows the date as `YYYY-MM-DD`
 
 ---
 
@@ -117,11 +127,23 @@ Pressing `/` on the list SHALL open an inline search bar above the message list.
 ---
 
 ### Requirement: Reader screen
-Opening a message (Enter or click) SHALL show the Reader fullscreen over the list. Reader SHALL display: breadcrumb status line (reading mode), subject row with relative-time tag and icon row (padlock, unsubscribe, headers), From/To meta block, optional attachment pills, and the message body with signature dimming.
+Opening a message (Enter or click) SHALL show the Reader fullscreen over the list. Reader SHALL display: breadcrumb status line (reading mode), subject row (bold, reduced font size) with icon row (padlock, unsubscribe, headers), From / To / Date meta block, optional attachment pills, and the message body with signature dimming. The date SHALL appear as a dedicated meta row below the To row — not inline with the subject.
 
-#### Scenario: Subject shows relative time with ISO tooltip
-- **WHEN** reader opens a message
-- **THEN** the subject line ends with `[N mins ago]` in muted text with a dotted underline; hovering shows the full ISO timestamp
+#### Scenario: Subject is bold at reduced size with no inline date
+- **WHEN** the reader opens a message
+- **THEN** the subject is displayed in bold at a font size smaller than a full heading (e.g. 0.9 rem) and no date is appended inline after the subject text
+
+#### Scenario: Date meta row shows relative label with ISO tooltip for recent messages
+- **WHEN** the reader opens a message whose time token is recent (minutes, hours, today, yesterday, or weekday)
+- **THEN** a Date row appears below the To row, showing a relative label (e.g. "3 hours ago") wrapped in a `<time>` element whose `title` attribute is the full `YYYY-MM-DD HH:MM` ISO string
+
+#### Scenario: Date meta row shows absolute date for older messages
+- **WHEN** the reader opens a message whose time token is in `Mon DD` or `MMM DD` format
+- **THEN** the Date row shows an absolute `YYYY-MM-DD` string with no tooltip
+
+#### Scenario: From field shows name and address without duplication
+- **WHEN** the sender has no display name and `message.from` equals `message.addr`
+- **THEN** the From row shows the address once, not as `email <email>`
 
 #### Scenario: Signature dimming
 - **WHEN** message body contains a `-- ` line (RFC 3676 separator)
@@ -155,7 +177,7 @@ Clicking the headers icon (three-line icon) in the reader SHALL open a popover a
 ---
 
 ### Requirement: Attachment pills row
-If a message has `attachments`, the reader SHALL show a horizontally-scrollable row of pill buttons between the meta block and body. Each pill shows: extension badge (PDF, PNG, ZIP), filename (truncated), file size.
+If a message has `attachments`, the reader SHALL show a horizontally-scrollable row of pill buttons between the meta block and body. Each pill shows: extension badge (PDF, PNG, ZIP), filename (truncated), file size. The `attachments` array SHALL be sourced from the `GET /api/messages/:id` response and forwarded from `+page.svelte` to `<Reader>` as an explicit prop, then from `<Reader>` to `<Attachments>`.
 
 #### Scenario: Attachment row renders for messages with attachments
 - **WHEN** message has at least one attachment
@@ -164,6 +186,10 @@ If a message has `attachments`, the reader SHALL show a horizontally-scrollable 
 #### Scenario: Empty attachment list hides row
 - **WHEN** message has no attachments
 - **THEN** no attachment row is rendered
+
+#### Scenario: Attachment data reaches the component
+- **WHEN** `GET /api/messages/:id` returns a non-empty `attachments` array
+- **THEN** the pill row is visible in the reader and each pill shows the correct filename and size
 
 ---
 

@@ -65,32 +65,40 @@ Pressing `Enter` on the message list SHALL open the currently selected message i
 ---
 
 ### Requirement: Jump to list extremes
-`G` (shift-g) SHALL move the selection to the last message and scroll the list viewport to the bottom. The `g g` leader sequence SHALL move it to the first and scroll the list viewport to the top.
+`G` (shift-g) SHALL move the selection to the last message AND scroll the list viewport to the bottom. The `g g` leader sequence SHALL move the selection to the first message AND scroll the list viewport to the top.
 
 #### Scenario: Jump to bottom
 - **WHEN** the user presses `G` on the list
-- **THEN** the selected index is set to the last message index and the list scrolls to the bottom
+- **THEN** the selected index is set to the last message index and the list scroll container scrolls to the bottom
 
 #### Scenario: Jump to top via leader
 - **WHEN** the user presses `g` then `g` within 1.2 s on the list
-- **THEN** the selected index is set to 0 and the list scrolls to the top
+- **THEN** the selected index is set to 0 and the list scroll container scrolls to the top
 
 ---
 
-### Requirement: Pagination keys
-`h` (previous page) and `l` (next page) SHALL change the current folder page when not in leader mode. `h` SHALL be a no-op on page 1. `l` SHALL be a no-op when the current page has fewer messages than `perPage`.
+### Requirement: List pagination hotkeys
+Pressing `h` on the message list SHALL navigate to the previous page. Pressing `l` SHALL navigate to the next page. Both keys SHALL be active only when the list is the active phase, no modal is open, no leader key is active, and focus is not in a text input. At the boundary pages the keys SHALL be no-ops.
 
-#### Scenario: Previous page with h
-- **WHEN** the user presses `h` on the list and the current page is greater than 1
-- **THEN** the list loads the previous page
+#### Scenario: l advances to next page
+- **WHEN** the user is on the message list (not the last page) and presses `l`
+- **THEN** the next page of messages loads
 
-#### Scenario: Next page with l
-- **WHEN** the user presses `l` on the list and the message count equals `perPage`
-- **THEN** the list loads the next page
+#### Scenario: h goes to previous page
+- **WHEN** the user is on the message list (not the first page) and presses `h`
+- **THEN** the previous page of messages loads
 
-#### Scenario: h no-op at page 1
-- **WHEN** the user presses `h` on page 1
-- **THEN** no page change occurs
+#### Scenario: h is no-op on first page
+- **WHEN** the user is on page 0 and presses `h`
+- **THEN** nothing happens
+
+#### Scenario: l is no-op on last page
+- **WHEN** the user is on the last page and presses `l`
+- **THEN** nothing happens
+
+#### Scenario: Keys suppressed when leader active
+- **WHEN** the g-leader is active and the user presses `h` or `l`
+- **THEN** the leader clears (unrecognized follow-up) and no page change occurs
 
 ---
 
@@ -127,9 +135,9 @@ Pressing `c` on the message list (not inside a text input, no modifier) SHALL op
 | `d` | Go to Drafts |
 | `f` | Open folder picker |
 | `A` | Open account picker |
-| `g` | Top of list |
+| `g` | Top of list (and scroll viewport to top) |
 
-An unrecognized key or timeout SHALL cancel the leader with no action.
+An unrecognized key or timeout SHALL cancel the leader with no action. The indicator SHALL also display `h prev-page · l next-page` as standalone (non-leader) hints.
 
 #### Scenario: Indicator visible while leader active
 - **WHEN** the user presses `g` on the list
@@ -150,7 +158,7 @@ An unrecognized key or timeout SHALL cancel the leader with no action.
 ---
 
 ### Requirement: Reader navigation keys
-Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous message in the current list. `Escape` SHALL close the reader and return to the list at the same cursor position. `g g` (leader sequence) SHALL scroll the reader body to the top. `G` SHALL scroll the reader body to the bottom.
+Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous message in the current list. `Escape` SHALL close the reader and return to the list at the same cursor position. `g g` (g pressed twice within 1.2 s) SHALL scroll the reader message body to the top. `G` SHALL scroll the reader message body to the bottom.
 
 #### Scenario: Next message in reader
 - **WHEN** the reader is open and the user presses `j` or `↓`
@@ -164,13 +172,13 @@ Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous mess
 - **WHEN** the reader is open and the user presses `Escape`
 - **THEN** the reader closes and the list is visible with the cursor on the same message
 
-#### Scenario: gg scrolls reader to top
+#### Scenario: gg scrolls reader body to top
 - **WHEN** the reader is open and the user presses `g` then `g` within 1.2 s
-- **THEN** the reader body scrolls to the top
+- **THEN** the reader message body scroll container scrolls to the top
 
-#### Scenario: G scrolls reader to bottom
+#### Scenario: G scrolls reader body to bottom
 - **WHEN** the reader is open and the user presses `G`
-- **THEN** the reader body scrolls to the bottom
+- **THEN** the reader message body scroll container scrolls to the bottom
 
 ---
 
