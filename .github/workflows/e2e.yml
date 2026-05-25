@@ -27,14 +27,19 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
 
-      - name: Build + run the E2E suite
+      - name: Build SPA + server sidecar
         run: |
           nix develop --command bash -euo pipefail -c '
             deno install
             deno task build
             cargo build --release -p mailbrus-server
+          '
+
+      - name: Run the E2E suite
+        run: |
+          nix develop --command bash -euo pipefail -c '
             deno task e2e:generate
-            deno task test:e2e
+            deno task e2e:headless
           '
 
       - name: Upload Playwright report
