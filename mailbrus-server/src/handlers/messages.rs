@@ -286,7 +286,8 @@ pub async fn open_message_html(Path(id): Path<String>) -> Response {
 
             info!("[render] saved html for {} → {:?}", id, path);
 
-            match open::that_detached(&path) {
+            let file_url = format!("file://{}", path.display());
+            match open::that_detached(&file_url) {
                 Ok(()) => {
                     debug!("[render] opened {:?} in system browser", path);
                     Json(json!({"ok": true, "path": path.to_string_lossy()})).into_response()
