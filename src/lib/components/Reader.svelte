@@ -55,6 +55,42 @@
 	let sentMatch = $derived((message.from || '').match(/^To:\s*(.+)$/));
 	let isDraft = $derived(message.from === 'Draft' || message.from === 'Drafts');
 
+	let scrolled = $state(false);
+	let scrollEl: HTMLElement;
+
+	const SCROLL_LINE_PX = 20;
+
+	$effect(() => {
+		function onKeyDown(e: KeyboardEvent) {
+			if (!scrollEl) return;
+			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+			if (e.key === 'J' || e.key === 'K') {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				scrollEl.scrollBy({ top: (e.key === 'J' ? 1 : -1) * 20 * SCROLL_LINE_PX, behavior: 'smooth' });
+			}
+		}
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	});
+
+	let compactMeta = $derived.by(() => {
+		const from = sentMatch ? account.address : (isDraft ? account.address : (message.from || message.addr));
+		const to = sentMatch
+			? (sentMatch[1] === message.addr ? message.addr : `${sentMatch[1]} <${message.addr}>`)
+			: (isDraft ? '(no recipient)' : account.address);
+		return `${from} → ${to} · ${ago.label}`;
+	});
+
+	$effect(() => {
+		void message.id;
+		scrolled = false;
+	});
+
+	function handleScroll(e: Event) {
+		scrolled = (e.target as HTMLElement).scrollTop > 4;
+	}
+
 	// Task 4.5: iframe srcdoc with injected meta CSP.
 	// sandbox="allow-popups allow-popups-to-escape-sandbox" → null origin, no scripts, no
 	// forms, but links open in a real browser tab (not sandboxed). <base target="_blank">
@@ -126,8 +162,8 @@
 		{/snippet}
 	</Breadcrumbs>
 
-	<div class="mb-reader-scroll mb-scroll">
-		<div class="mb-reader-head">
+	<div class="mb-reader-scroll mb-scroll" onscroll={handleScroll} bind:this={scrollEl}>
+		<div class="mb-reader-head" class:is-compact={scrolled}>
 			<div class="sub">
 				<div class="sub-line">
 					<span class="sub-text">
@@ -234,6 +270,9 @@
 				</div>
 				{#if showHeaders}
 					<HeadersPopover {headers} onClose={() => (showHeaders = false)} />
+				{/if}
+				{#if scrolled}
+					<div class="meta-compact">{compactMeta}</div>
 				{/if}
 			</div>
 			<div class="meta">

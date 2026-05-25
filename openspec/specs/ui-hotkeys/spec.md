@@ -158,7 +158,7 @@ An unrecognized key or timeout SHALL cancel the leader with no action. The indic
 ---
 
 ### Requirement: Reader navigation keys
-Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous message in the current list. `Escape` SHALL close the reader and return to the list at the same cursor position. `g g` (g pressed twice within 1.2 s) SHALL scroll the reader message body to the top. `G` SHALL scroll the reader message body to the bottom.
+Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous message in the current list. `Escape` SHALL close the reader and return to the list at the same cursor position. `g g` (g pressed twice within 1.2 s) SHALL scroll the reader message body to the top. `G` SHALL scroll the reader message body to the bottom. `J` SHALL scroll the reader body down by 20 lines (400 px) and `K` SHALL scroll it up by 20 lines; these keys SHALL stop propagation so they do not trigger next/previous message navigation.
 
 #### Scenario: Next message in reader
 - **WHEN** the reader is open and the user presses `j` or `↓`
@@ -179,6 +179,14 @@ Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous mess
 #### Scenario: G scrolls reader body to bottom
 - **WHEN** the reader is open and the user presses `G`
 - **THEN** the reader message body scroll container scrolls to the bottom
+
+#### Scenario: J scrolls reader body down
+- **WHEN** the reader is open and the user presses `J`
+- **THEN** the reader message body scroll container scrolls down 400 px (smooth); next-message navigation does not trigger
+
+#### Scenario: K scrolls reader body up
+- **WHEN** the reader is open and the user presses `K`
+- **THEN** the reader message body scroll container scrolls up 400 px (smooth); previous-message navigation does not trigger
 
 ---
 

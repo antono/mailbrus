@@ -297,6 +297,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 14px 24px;
+  background: var(--muted);
   border-bottom: 1px solid var(--border);
   font-size: var(--text-sm);
   color: var(--muted-foreground);
@@ -668,6 +669,28 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  z-index: 10;
+}
+.mb-reader-head.is-compact {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.mb-reader-head.is-compact .meta {
+  display: none;
+}
+.mb-reader-head .meta-compact {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: normal;
+  color: var(--muted-foreground);
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0;
 }
 .mb-reader-head .sub {
   font-size: 0.9rem;
@@ -679,18 +702,20 @@ body {
 }
 .mb-reader-head .sub-line {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
 }
 .mb-reader-head .sub-text {
   flex: 1;
   min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .mb-reader-head .sub-icons {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  align-self: center;
   color: var(--muted-foreground);
   flex-shrink: 0;
 }

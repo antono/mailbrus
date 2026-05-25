@@ -68,6 +68,7 @@
 			label: 'Reader',
 			items: [
 				{ keys: [['j'], ['k']], desc: 'Next / previous message' },
+				{ keys: [['J'], ['K']], desc: 'Scroll down / up' },
 				{ keys: [['g', 'g']], desc: 'Scroll to top' },
 				{ keys: [['G']], desc: 'Scroll to bottom' },
 				{ keys: [['Esc']], desc: 'Close reader' }
