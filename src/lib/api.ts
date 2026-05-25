@@ -50,9 +50,6 @@ export async function searchMessages(
 	return apiFetch(url) as Promise<{ messages: Message[]; page: number; per_page: number; count: number }>;
 }
 
-export async function openMessageHtml(id: string): Promise<{ ok: boolean; path: string }> {
-	return apiFetch(`/api/messages/${encodeURIComponent(id)}/open-html`, { method: 'POST' }) as Promise<{ ok: boolean; path: string }>;
-}
 
 export async function fetchMessage(id: string, mode?: RenderMode): Promise<MessageBody> {
 	const url = mode

@@ -5,11 +5,15 @@
 	let {
 		open = $bindable(false),
 		uiPrefs,
-		onPrefChange
+		onPrefChange,
+		attachmentAction = 'open',
+		onAttachmentActionChange
 	}: {
 		open: boolean;
 		uiPrefs: UiPrefs;
 		onPrefChange: <K extends keyof UiPrefs>(key: K, val: UiPrefs[K]) => void;
+		attachmentAction?: 'open' | 'download';
+		onAttachmentActionChange?: (v: 'open' | 'download') => void;
 	} = $props();
 
 	function set<K extends keyof UiPrefs>(key: K, val: UiPrefs[K]) {
@@ -200,6 +204,25 @@
 					>
 						<Switch.Thumb class="sp-switch-thumb" />
 					</Switch.Root>
+				</div>
+
+				<Separator.Root class="sp-sep" />
+
+				<!-- ── Attachments ───────────────────────────────── -->
+				<p class="sp-section-label">Attachments</p>
+
+				<div class="sp-row sp-row-col">
+					<Label.Root class="sp-label">Click action</Label.Root>
+					<ToggleGroup.Root
+						type="single"
+						value={attachmentAction}
+						onValueChange={(v) => v && onAttachmentActionChange?.(v as 'open' | 'download')}
+						class="sp-toggle-group"
+						data-testid="settings.attachment-action-seg"
+					>
+						<ToggleGroup.Item value="open" class="sp-toggle-item" data-testid="settings.att-open">open</ToggleGroup.Item>
+						<ToggleGroup.Item value="download" class="sp-toggle-item" data-testid="settings.att-download">download</ToggleGroup.Item>
+					</ToggleGroup.Root>
 				</div>
 
 				{#if pushSupported}

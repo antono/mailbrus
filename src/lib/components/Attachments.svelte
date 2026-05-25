@@ -1,8 +1,23 @@
 <script lang="ts">
 	import { fmtBytes, attExt } from '$lib/utils.js';
 	import type { Attachment } from '$lib/data.js';
+	import { getSettings } from '$lib/settings.js';
 
-	let { items }: { items?: Attachment[] } = $props();
+	let { messageId, items }: { messageId: string; items?: Attachment[] } = $props();
+
+	function handleClick(a: Attachment) {
+		const url = `/api/messages/${encodeURIComponent(messageId)}/attachments/${a.part_index}`;
+		if (getSettings().attachment_action === 'download') {
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = a.name;
+			document.body.appendChild(anchor);
+			anchor.click();
+			document.body.removeChild(anchor);
+		} else {
+			fetch(`${url}/open`, { method: 'POST' });
+		}
+	}
 </script>
 
 {#if items && items.length > 0}
@@ -12,7 +27,7 @@
 				type="button"
 				class="mb-att"
 				title="{a.name} — {fmtBytes(a.size)}"
-				onclick={(e) => e.preventDefault()}
+				onclick={() => handleClick(a)}
 			>
 				<span class="mb-att-ext">{attExt(a.name)}</span>
 				<span class="mb-att-name">{a.name}</span>

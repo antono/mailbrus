@@ -245,7 +245,65 @@ pub async fn get_cid(Path((id, cid)): Path<(String, String)>) -> Response {
     }
 }
 
-pub async fn open_message_html(Path(id): Path<String>) -> Response {
+/// Extract (mime, name, bytes) for the MIME part at `part_index`.
+fn extract_part(raw: &[u8], part_index: usize) -> Option<(String, String, Vec<u8>)> {
+    let msg = MessageParser::new().parse(raw)?;
+    let part = msg.parts.get(part_index)?;
+    let mime = part
+        .content_type()
+        .map(|ct| format!("{}/{}", ct.c_type, ct.c_subtype.as_deref().unwrap_or("octet-stream")))
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    let name = part
+        .content_disposition()
+        .and_then(|cd| cd.attribute("filename"))
+        .or_else(|| part.content_type().and_then(|ct| ct.attribute("name")))
+        .unwrap_or("attachment")
+        .to_string();
+    let bytes: Vec<u8> = match &part.body {
+        PartType::Binary(b) | PartType::InlineBinary(b) => b.as_ref().to_vec(),
+        PartType::Html(h) => h.as_bytes().to_vec(),
+        PartType::Text(t) => t.as_bytes().to_vec(),
+        _ => return None,
+    };
+    Some((mime, name, bytes))
+}
+
+pub async fn get_attachment(Path((id, part_index)): Path<(String, usize)>) -> Response {
+    match tokio::task::spawn_blocking(move || {
+        let reader = MaildirReader::open()?;
+        let raw = reader.get_message_body(&id)?;
+        Ok::<_, MailboxError>(raw)
+    })
+    .await
+    {
+        Ok(Ok(raw)) => match extract_part(&raw, part_index) {
+            Some((mime, name, bytes)) => {
+                let safe_name: String = name
+                    .chars()
+                    .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+                    .collect();
+                let disposition = format!("attachment; filename=\"{safe_name}\"");
+                (
+                    StatusCode::OK,
+                    [
+                        (header::CONTENT_TYPE, mime),
+                        (header::CONTENT_DISPOSITION, disposition),
+                    ],
+                    bytes,
+                )
+                    .into_response()
+            }
+            None => json_error(StatusCode::NOT_FOUND, "part not found"),
+        },
+        Ok(Err(MailboxError::MessageNotFound { id })) => {
+            json_error(StatusCode::NOT_FOUND, &format!("message not found: {id}"))
+        }
+        Ok(Err(e)) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+        Err(e) => json_error(StatusCode::INTERNAL_SERVER_ERROR, &e.to_string()),
+    }
+}
+
+pub async fn open_attachment(Path((id, part_index)): Path<(String, usize)>) -> Response {
     match tokio::task::spawn_blocking(move || {
         let reader = MaildirReader::open()?;
         let raw = reader.get_message_body(&id)?;
@@ -253,51 +311,33 @@ pub async fn open_message_html(Path(id): Path<String>) -> Response {
     })
     .await
     {
-        Ok(Ok((id, raw))) => {
-            let html = match extract_message(&raw) {
-                Some(p) if !p.html_body.is_empty() => p.html_body,
-                Some(p) => format!("<pre>{}</pre>", p.text_body),
-                None => return json_error(StatusCode::NOT_FOUND, "message not found"),
-            };
-
-            let cache_dir = std::env::var("XDG_CACHE_HOME")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|_| {
-                    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-                    std::path::PathBuf::from(home).join(".cache")
-                })
-                .join("mailbrus/html");
-
-            if let Err(e) = std::fs::create_dir_all(&cache_dir) {
-                warn!("[render] failed to create cache dir {:?}: {}", cache_dir, e);
-                return json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot create cache dir");
-            }
-
-            let safe_id: String = id
-                .chars()
-                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
-                .collect();
-            let path = cache_dir.join(format!("{safe_id}.html"));
-
-            if let Err(e) = std::fs::write(&path, html.as_bytes()) {
-                warn!("[render] failed to write html cache {:?}: {}", path, e);
-                return json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot write html file");
-            }
-
-            info!("[render] saved html for {} → {:?}", id, path);
-
-            let file_url = format!("file://{}", path.display());
-            match open::that_detached(&file_url) {
-                Ok(()) => {
-                    debug!("[render] opened {:?} in system browser", path);
-                    Json(json!({"ok": true, "path": path.to_string_lossy()})).into_response()
+        Ok(Ok((id, raw))) => match extract_part(&raw, part_index) {
+            Some((_mime, name, bytes)) => {
+                let safe_id: String = id
+                    .chars()
+                    .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+                    .collect();
+                let safe_name: String = name
+                    .chars()
+                    .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+                    .collect();
+                let tmp_dir = std::env::temp_dir();
+                let path = tmp_dir.join(format!("{safe_id}_{safe_name}"));
+                if let Err(e) = std::fs::write(&path, &bytes) {
+                    warn!("[attach] failed to write tmp file {:?}: {}", path, e);
+                    return json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot write tmp file");
                 }
-                Err(e) => {
-                    warn!("[render] could not open {:?}: {}", path, e);
-                    json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot open browser")
+                info!("[attach] saved {} → {:?}", id, path);
+                match open::that_detached(&path) {
+                    Ok(()) => Json(json!({"ok": true, "path": path.to_string_lossy()})).into_response(),
+                    Err(e) => {
+                        warn!("[attach] could not open {:?}: {}", path, e);
+                        json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot open attachment")
+                    }
                 }
             }
-        }
+            None => json_error(StatusCode::NOT_FOUND, "part not found"),
+        },
         Ok(Err(MailboxError::MessageNotFound { id })) => {
             json_error(StatusCode::NOT_FOUND, &format!("message not found: {id}"))
         }

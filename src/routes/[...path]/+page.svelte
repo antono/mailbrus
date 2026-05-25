@@ -48,6 +48,7 @@
 	let uiPrefs = $state<UiPrefs>({
 		dark: false, accent: 'indigo', font: 'sans', fontSize: 'md', density: 'twoline', hintBar: true
 	});
+	let attachmentAction = $state<'open' | 'download'>('open');
 	let settingsOpen = $state(false);
 
 	// Apply CSS vars whenever any ui pref changes (deep $state tracks property mutations)
@@ -280,6 +281,7 @@
 		// Settings
 		loadSettings().then((s) => {
 			if (s.ui_prefs) Object.assign(uiPrefs, s.ui_prefs);
+			if (s.attachment_action) attachmentAction = s.attachment_action;
 			_prefsLoaded = true;
 			if (s.last_folder) { /* restored on folder navigation */ }
 		});
@@ -820,5 +822,7 @@
 		bind:open={settingsOpen}
 		{uiPrefs}
 		onPrefChange={(k, v) => { uiPrefs[k] = v; }}
+		{attachmentAction}
+		onAttachmentActionChange={(v) => { attachmentAction = v; writeSetting('attachment_action', v); }}
 	/>
 </div>

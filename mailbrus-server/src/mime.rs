@@ -136,7 +136,14 @@ pub fn extract_message(raw: &[u8]) -> Option<ParsedMessage> {
                 PartType::Text(t) => t.len(),
                 _ => 0,
             };
-            attachments.push(json!({"name": name, "size": size, "mime": mime}));
+            attachments.push(json!({"name": name, "size": size, "mime": mime, "part_index": pid as usize}));
+        }
+    }
+    for &pid in &msg.html_body {
+        if let Some(part) = msg.parts.get(pid as usize) {
+            if let PartType::Html(h) = &part.body {
+                attachments.push(json!({"name": "message.html", "size": h.len(), "mime": "text/html", "part_index": pid as usize}));
+            }
         }
     }
 
@@ -225,6 +232,11 @@ Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\
         assert!(parsed.has_html, "html-only message must set has_html=true");
         assert!(!parsed.has_plain, "html-only message must have has_plain=false");
         assert!(parsed.html_body.contains("<p>Hello</p>"));
+        let html_att = parsed.attachments.iter().find(|a| a["mime"] == "text/html")
+            .expect("html body must appear as attachment");
+        assert_eq!(html_att["name"], "message.html");
+        assert!(html_att["part_index"].is_number(), "part_index must be present");
+        assert!(html_att["size"].as_u64().unwrap_or(0) > 0, "size must be > 0");
     }
 
     #[test]
@@ -238,6 +250,23 @@ Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\
         let parsed = extract_message(&raw).expect("should parse fixture");
         assert!(parsed.has_html, "html-only fixture must set has_html=true, got has_html={} has_plain={}", parsed.has_html, parsed.has_plain);
         assert!(!parsed.has_plain, "html-only fixture must have has_plain=false, got has_plain={}", parsed.has_plain);
+    }
+
+    #[test]
+    fn attachment_entries_carry_part_index() {
+        let boundary = "=_att_=";
+        let raw = format!(
+            "From: Test <t@x.com>\r\nTo: me@x.com\r\nSubject: S\r\n\
+Date: Sat, 22 May 2026 09:00:00 +0000\r\nMessage-ID: <att@x.com>\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"{boundary}\"\r\n\r\n\
+--{boundary}\r\nContent-Type: text/plain\r\n\r\nHello\r\n\
+--{boundary}\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"doc.pdf\"\r\n\r\nPDF\r\n\
+--{boundary}--\r\n"
+        );
+        let parsed = extract_message(raw.as_bytes()).expect("should parse");
+        let pdf = parsed.attachments.iter().find(|a| a["mime"] == "application/pdf")
+            .expect("pdf attachment must be present");
+        assert!(pdf["part_index"].is_number(), "part_index must be present on regular attachment");
     }
 
     #[test]
@@ -258,5 +287,21 @@ Plain text\r\n\
         assert!(parsed.has_plain, "multipart/alt must set has_plain=true");
         assert!(parsed.html_body.contains("<p>HTML</p>"));
         assert!(parsed.text_body.contains("Plain text"));
+        let html_att = parsed.attachments.iter().find(|a| a["mime"] == "text/html")
+            .expect("html body part must appear as attachment in multipart/alt");
+        assert_eq!(html_att["name"], "message.html");
+        assert!(html_att["part_index"].is_number());
+    }
+
+    #[test]
+    fn plain_text_message_has_no_html_attachment() {
+        // mail_parser may include text/plain parts in html_body for single-part messages;
+        // extract_message must not turn them into message.html attachment pills.
+        let raw = b"From: Test <t@x.com>\r\nTo: me@x.com\r\nSubject: S\r\n\
+Date: Mon, 18 May 2026 09:15:00 +0000\r\nMessage-ID: <t@x.com>\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n\
+Hi Alice,\r\n\r\nPlanning notes.\r\n\r\nThanks,\r\nMallory\r\n\r\n-- \r\nMallory Admin\r\n";
+        let parsed = extract_message(raw).expect("extract");
+        assert!(parsed.attachments.is_empty(), "plain text must have no attachments: {:?}", parsed.attachments);
     }
 }

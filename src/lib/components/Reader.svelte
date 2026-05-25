@@ -4,7 +4,7 @@
 	import HeadersPopover from './HeadersPopover.svelte';
 	import { expandTime, splitSignature, buildHeaders } from '$lib/utils.js';
 	import type { Account, Folder, Message } from '$lib/data.js';
-	import { openMessageHtml, type RenderMode } from '$lib/api.js';
+	import { type RenderMode } from '$lib/api.js';
 	import { getSettings, writeSetting } from '$lib/settings.js';
 
 	let {
@@ -200,24 +200,7 @@
 							>&lt;/&gt;</button>
 						</span>
 
-						{#if mode === 'html' && has_html}
-							<button
-								type="button"
-								class="sub-icon sub-icon-btn"
-								onclick={() => openMessageHtml(message.id)}
-								title="Open original HTML in system browser (~/.cache/mailbrus/html/)"
-								aria-label="Open original HTML in system browser"
-								data-testid="reader.open-html-btn"
-							>
-								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-									<polyline points="15 3 21 3 21 9" />
-									<line x1="10" y1="14" x2="21" y2="3" />
-								</svg>
-							</button>
-						{/if}
-
-						<span
+<span
 							class="sub-icon sub-icon-static{parts.sig ? '' : ' is-unsigned'}"
 							title={parts.sig ? 'Signed message (has signature block)' : 'Unsigned'}
 							aria-label={parts.sig ? 'Signed message' : 'Unsigned'}
@@ -302,7 +285,7 @@
 			</div>
 		</div>
 
-		<Attachments items={attachments} />
+		<Attachments messageId={message.id} items={attachments} />
 
 		<!-- Task 5.1: remote content banner in HTML mode -->
 		{#if mode === 'html' && has_remote > 0 && !remoteLoaded}

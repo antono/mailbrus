@@ -36,6 +36,8 @@ export interface Settings {
 	remote_loaded_messages: string[];
 	/** Per-sender rendering mode overrides. Key is the raw message.from string. */
 	sender_mode_overrides: Record<string, EmailMode>;
+	/** What happens when the user clicks an attachment pill. */
+	attachment_action: 'open' | 'download';
 }
 
 const DEFAULTS: Settings = {
@@ -48,6 +50,7 @@ const DEFAULTS: Settings = {
 	email_mode: 'text',
 	remote_loaded_messages: [],
 	sender_mode_overrides: {},
+	attachment_action: 'open',
 };
 
 let _settings: Settings = { ...DEFAULTS };

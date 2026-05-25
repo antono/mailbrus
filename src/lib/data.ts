@@ -18,6 +18,7 @@ export interface Attachment {
 	name: string;
 	size: number;
 	mime: string;
+	part_index: number;
 }
 
 export interface Message {

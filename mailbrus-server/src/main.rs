@@ -15,8 +15,8 @@ use cli::{browser_url, Cli, LogLevel};
 use handlers::{
     maildirs::{list_folders, list_maildirs},
     messages::{
-        delete_message, get_cid, get_message, list_messages, open_message_html, patch_message,
-        search_messages,
+        delete_message, get_attachment, get_cid, get_message, list_messages, open_attachment,
+        patch_message, search_messages,
     },
     push::{push_subscribe, push_unsubscribe, push_vapid_key, send_message},
 };
@@ -73,7 +73,8 @@ async fn main() {
         .route("/messages/{id}", patch(patch_message))
         .route("/messages/{id}", delete(delete_message))
         .route("/messages/{id}/cid/{cid}", get(get_cid))
-        .route("/messages/{id}/open-html", post(open_message_html))
+        .route("/messages/{id}/attachments/{index}", get(get_attachment))
+        .route("/messages/{id}/attachments/{index}/open", post(open_attachment))
         .route("/send", post(send_message))
         .route("/push/vapid-key", get(push_vapid_key))
         .route("/push/subscribe", post(push_subscribe))
