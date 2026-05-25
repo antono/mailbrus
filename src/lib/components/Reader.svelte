@@ -372,7 +372,7 @@
 		display: block;
 	}
 
-	.mb-link {
+	:global(.mb-link) {
 		color: var(--mb-accent, #6366f1);
 		text-decoration: underline;
 		cursor: pointer;
@@ -381,14 +381,14 @@
 		gap: 2px;
 		word-break: break-all;
 	}
-	.mb-link:visited {
+	:global(.mb-link:visited) {
 		color: color-mix(in srgb, var(--mb-accent, #6366f1) 60%, #666);
 	}
-	.mb-link:hover {
+	:global(.mb-link:hover) {
 		color: color-mix(in srgb, var(--mb-accent, #6366f1) 80%, #000);
 		text-decoration: underline dotted;
 	}
-	.mb-link-icon {
+	:global(.mb-link-icon) {
 		display: inline-block;
 		font-size: 0.75em;
 		opacity: 0.7;
