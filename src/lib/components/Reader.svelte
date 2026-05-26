@@ -70,6 +70,13 @@
 				e.preventDefault();
 				e.stopImmediatePropagation();
 				scrollEl.scrollBy({ top: (e.key === 'J' ? 1 : -1) * 20 * SCROLL_LINE_PX, behavior: 'smooth' });
+				return;
+			}
+			if (e.key === 'PageDown' || e.key === 'PageUp') {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				const step = Math.round(scrollEl.clientHeight * 0.75);
+				scrollEl.scrollBy({ top: e.key === 'PageDown' ? step : -step, behavior: 'smooth' });
 			}
 		}
 		window.addEventListener('keydown', onKeyDown);

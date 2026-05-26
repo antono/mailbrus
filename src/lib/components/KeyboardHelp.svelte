@@ -70,6 +70,7 @@
 			items: [
 				{ keys: [['j'], ['k']], desc: 'Next / previous message' },
 				{ keys: [['J'], ['K']], desc: 'Scroll down / up' },
+				{ keys: [['PgDn'], ['PgUp']], desc: 'Scroll 3/4 page down / up' },
 				{ keys: [['g', 'g']], desc: 'Scroll to top' },
 				{ keys: [['G']], desc: 'Scroll to bottom' },
 				{ keys: [['f']], desc: 'Follow link / attachment by hint' },
