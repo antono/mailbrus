@@ -11,8 +11,6 @@
 		onPageChange: (page: number) => void;
 	} = $props();
 
-	const start = $derived((page - 1) * perPage + 1);
-	const end = $derived(Math.min(page * perPage, count));
 	const lastPage = $derived(Math.ceil(count / perPage));
 </script>
 
@@ -25,7 +23,9 @@
 			onclick={() => onPageChange(page - 1)}
 			aria-label="Previous page"
 		>‹ Prev</button>
-		<span class="mb-pagination-info">{start}–{end} of {count}</span>
+		{#key page}
+			<span class="mb-pagination-info pg-counter" data-testid="pagination.counter">{page} / {lastPage}</span>
+		{/key}
 		<button
 			type="button"
 			class="mb-pagination-btn"

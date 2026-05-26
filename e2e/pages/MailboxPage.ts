@@ -68,9 +68,9 @@ export class MailboxPage {
 
 	// ── Pagination ──────────────────────────────────────────────────────────────
 
-	/** The breadcrumb pagination indicator, e.g. "page 2: 26–27 of 27". */
+	/** The breadcrumb pagination indicator, e.g. "2 / 4". */
 	paginationInfo(): Locator {
-		return this.page.locator('.mb-list-screen .count').filter({ hasText: /page \d+:/ });
+		return this.page.getByTestId('mail-list.pagination-counter');
 	}
 
 	async nextPage(): Promise<void> {

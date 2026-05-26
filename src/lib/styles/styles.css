@@ -679,7 +679,9 @@ body {
   padding-bottom: 8px;
 }
 .mb-reader-head.is-compact .meta {
-  display: none;
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
 }
 .mb-reader-head .meta-compact {
   font-family: var(--font-mono);
@@ -847,6 +849,10 @@ body {
   flex-direction: column;
   gap: 2px;
   margin-top: 4px;
+  max-height: 120px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 200ms ease, opacity 180ms ease, margin-top 200ms ease;
 }
 .mb-reader-head .meta .meta-label {
   display: inline-block;
@@ -892,14 +898,13 @@ body {
 
 .mb-about-logo {
   display: flex;
-  align-items: center;
   justify-content: center;
-  margin-bottom: 18px;
+  margin-bottom: 0.75rem;
 }
 .mb-about-logo-img {
-  width: 100%;
-  max-width: 220px;
-  height: auto;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
   display: block;
 }
 
@@ -1365,4 +1370,23 @@ body {
   z-index: 100;
   max-width: 32rem;
   text-align: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pagination counter highlight (works in both Pagination & MailList) */
+/* ------------------------------------------------------------------ */
+.pg-counter {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  animation: pg-flash 400ms ease forwards;
+}
+
+@keyframes pg-flash {
+  0% {
+    background-color: color-mix(in srgb, currentColor 18%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
 }

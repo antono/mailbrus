@@ -9,7 +9,9 @@
 	import About from '$lib/components/About.svelte';
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import HintBar from '$lib/components/HintBar.svelte';
+	import HintOverlay from '$lib/components/HintOverlay.svelte';
 	import SettingsPanel from '$lib/components/SettingsPanel.svelte';
+	import { assignLabels, type HintTarget } from '$lib/hints.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
@@ -86,8 +88,13 @@
 	let leaderTimer: ReturnType<typeof setTimeout> | null = null;
 	let installPromptEvent = $state<Event | null>(null);
 	let listEl = $state<HTMLDivElement | null>(null);
+	let readerBodyEl = $state<HTMLDivElement | null>(null);
 	let showInstallButton = $state(false);
 	let conflictNotice = $state(false);
+
+	// Vimium-style hint mode (list and reader)
+	let hintMode = $state(false);
+	let hintTargets = $state<HintTarget[]>([]);
 
 	// ── API data ──────────────────────────────────────────────────────────────
 	let accounts = $state<Account[]>([]);
@@ -367,6 +374,21 @@
 				messageHasRemote = data.has_remote;
 				messageFormatFlowed = data.format_flowed;
 				messageAttachments = data.attachments ?? [];
+				// Plain-text-first default: no per-sender or global preference and the
+				// message has a text/plain part → prefer text mode over server default.
+				if (data.has_plain && data.mode !== 'text' && !senderOverride && !globalMode) {
+					fetchMessage(id, 'text')
+						.then((d2) => {
+							messageBody = d2.body;
+							messageMode = d2.mode;
+							messageHasPlain = d2.has_plain;
+							messageHasHtml = d2.has_html;
+							messageHasRemote = d2.has_remote;
+							messageFormatFlowed = d2.format_flowed;
+							messageAttachments = d2.attachments ?? [];
+						})
+						.catch(() => {});
+				}
 			})
 			.catch(() => { messageBody = ''; messageMode = 'text'; });
 	});
@@ -462,6 +484,9 @@
 		};
 
 		const onKey = (e: KeyboardEvent) => {
+			// Hint mode owns the keyboard while active — HintOverlay's capture-phase
+			// listener stops propagation, but this is a defensive early-return.
+			if (hintMode) return;
 			// ⌘K / Ctrl+K
 			if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
 				e.preventDefault();
@@ -484,6 +509,29 @@
 			if (phase !== 'list' || cmdOpen || composeOpen || helpOpen || aboutOpen) return;
 			// reader open
 			if (openMessage) {
+				// f — enter hint mode over links + attachment chips (text/simple modes only)
+				if (e.key === 'f' && !isTyping(e) && messageMode !== 'html' && readerBodyEl) {
+					e.preventDefault();
+					const links = Array.from(
+						readerBodyEl.querySelectorAll<HTMLAnchorElement>('a.mb-link')
+					);
+					const chips = Array.from(
+						document.querySelectorAll<HTMLButtonElement>('[data-testid="attachment-chip"]')
+					);
+					const raw = [
+						...links.map((el) => ({
+							el: el as HTMLElement,
+							onActivate: () => window.open(el.href, '_blank', 'noopener,noreferrer')
+						})),
+						...chips.map((el) => ({
+							el: el as HTMLElement,
+							onActivate: () => el.click()
+						}))
+					];
+					hintTargets = assignLabels(raw);
+					if (hintTargets.length > 0) hintMode = true;
+					return;
+				}
 				if (e.key === 'Escape') {
 					e.preventDefault();
 					if (folder) closeReaderRoute(folder.id); else goBack();
@@ -522,6 +570,20 @@
 				return;
 			}
 			if (isTyping(e)) return;
+			// f — enter hint mode over visible message rows
+			if (e.key === 'f' && !leader && !e.metaKey && !e.ctrlKey && listEl) {
+				e.preventDefault();
+				const rows = Array.from(
+					listEl.querySelectorAll<HTMLElement>('[data-testid="mail-list.message-row"]')
+				);
+				// Activating clicks the row — MailList already wires onclick to onOpen,
+				// which routes through the page's handler. This avoids having to map
+				// DOM index back to the right (possibly outbox-mixed/filtered) entry.
+				const raw = rows.map((el) => ({ el, onActivate: () => el.click() }));
+				hintTargets = assignLabels(raw);
+				if (hintTargets.length > 0) hintMode = true;
+				return;
+			}
 			// g-leader
 			if (leader === 'g') {
 				if (e.key === 'i') { e.preventDefault(); clearLeader(); goToFolder('inbox'); return; }
@@ -729,7 +791,12 @@
 			onAccount={() => (phase = 'account')}
 			onFolder={() => { openMessage = null; phase = 'folder'; }}
 			onModeChange={handleModeChange}
+			bind:bodyEl={readerBodyEl}
 		/>
+	{/if}
+
+	{#if hintMode}
+		<HintOverlay targets={hintTargets} onCancel={() => (hintMode = false)} />
 	{/if}
 
 	{#if aboutOpen}

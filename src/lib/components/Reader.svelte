@@ -23,6 +23,7 @@
 		onAccount,
 		onFolder,
 		onModeChange,
+		bodyEl = $bindable<HTMLDivElement | null>(null)
 	}: {
 		message: Message;
 		account: Account;
@@ -39,6 +40,7 @@
 		onAccount: () => void;
 		onFolder: () => void;
 		onModeChange: (m: RenderMode) => void;
+		bodyEl?: HTMLDivElement | null;
 	} = $props();
 
 	let showHeaders = $state(false);
@@ -300,7 +302,7 @@
 			</div>
 		{/if}
 
-		<div class="mb-reader-body" data-testid="reader-body-scroll">
+		<div class="mb-reader-body" data-testid="reader-body-scroll" bind:this={bodyEl}>
 			{#if mode === 'html'}
 				<!-- Task 4.5: sandboxed srcdoc iframe, null origin, no scripts.
 				     allow-popups + allow-popups-to-escape-sandbox lets links open in a real

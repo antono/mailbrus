@@ -105,10 +105,10 @@
 			<span>·</span>
 			{#if count > perPage && onPageChange}
 				{@const lastPage = Math.ceil(count / perPage)}
-				{@const start = (page - 1) * perPage + 1}
-				{@const end = Math.min(page * perPage, count)}
 				<button class="pg-btn" disabled={page <= 1} onclick={() => onPageChange!(page - 1)} aria-label="Previous page" data-testid="mail-list.prev-btn">‹</button>
-				<span class="count">page {page}: {start}–{end} of {count}</span>
+				{#key page}
+					<span class="count pg-counter" data-testid="mail-list.pagination-counter">{page} / {lastPage}</span>
+				{/key}
 				<button class="pg-btn" disabled={page >= lastPage} onclick={() => onPageChange!(page + 1)} aria-label="Next page" data-testid="mail-list.next-btn">›</button>
 			{:else}
 				<span class="count"><strong>{filtered.length}</strong> / {messages.length}</span>

@@ -31,6 +31,7 @@
 			label: 'Actions',
 			items: [
 				{ keys: [['↵']], desc: 'Open selected message' },
+				{ keys: [['f']], desc: 'Open message by hint' },
 				{ keys: [['/']], desc: 'Search this folder' },
 				{ keys: [['c']], desc: 'Compose new message' },
 				{ keys: [['Esc']], desc: 'Go back / close' }
@@ -71,6 +72,7 @@
 				{ keys: [['J'], ['K']], desc: 'Scroll down / up' },
 				{ keys: [['g', 'g']], desc: 'Scroll to top' },
 				{ keys: [['G']], desc: 'Scroll to bottom' },
+				{ keys: [['f']], desc: 'Follow link / attachment by hint' },
 				{ keys: [['Esc']], desc: 'Close reader' }
 			]
 		},

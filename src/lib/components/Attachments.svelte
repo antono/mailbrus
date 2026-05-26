@@ -26,6 +26,7 @@
 			<button
 				type="button"
 				class="mb-att"
+				data-testid="attachment-chip"
 				title="{a.name} — {fmtBytes(a.size)}"
 				onclick={() => handleClick(a)}
 			>
