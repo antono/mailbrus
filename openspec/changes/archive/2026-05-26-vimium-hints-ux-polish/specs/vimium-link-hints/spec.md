@@ -1,8 +1,4 @@
-## Purpose
-
-Define the behaviour of the vimium-style `f`-key hint overlay for message list and reader contexts.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: f key activates hint overlay in list mode
 When the message list is the active view (no reader, no modal, focus not in a text input), pressing `f` SHALL render a single-letter badge overlaid on each visible message row. The app SHALL wait for one more keypress; pressing a letter matching a badge SHALL open the corresponding message; pressing `Escape` or any unrecognised key SHALL cancel hint mode without opening a message.

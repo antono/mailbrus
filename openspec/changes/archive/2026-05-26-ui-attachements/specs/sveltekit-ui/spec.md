@@ -23,16 +23,6 @@ If a message has `attachments`, the reader SHALL show a horizontally-scrollable 
 - **WHEN** `attachmentAction` setting is `open` and user clicks a pill
 - **THEN** frontend POSTs to `/api/messages/:id/attachments/:index/open`
 
-## REMOVED Requirements
-
-### Requirement: Open original HTML in system browser
-**Reason**: Superseded by the HTML body part appearing as a `message.html` attachment pill. Clicking that pill with `attachmentAction=open` provides the same capability through the unified attachment flow. The dedicated button, its server route (`POST /messages/:id/open-html`), handler, and API client function are all removed.
-**Migration**: Use the `message.html` pill in the attachment row instead.
-
-#### Scenario: Original HTML opens in system browser
-- **WHEN** message has an HTML body
-- **THEN** no "Open original HTML" button is rendered in the Reader
-
 ## ADDED Requirements
 
 ### Requirement: `attachmentAction` setting in Tweaks panel

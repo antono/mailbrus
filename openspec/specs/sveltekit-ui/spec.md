@@ -177,21 +177,27 @@ Clicking the headers icon (three-line icon) in the reader SHALL open a popover a
 ---
 
 ### Requirement: Attachment pills row
-If a message has `attachments`, the reader SHALL show a horizontally-scrollable row of pill buttons between the meta block and body. Each pill shows: extension badge (PDF, PNG, ZIP), filename (truncated), file size. The `attachments` array SHALL be sourced from the `GET /api/messages/:id` response and forwarded from `+page.svelte` to `<Reader>` as an explicit prop, then from `<Reader>` to `<Attachments>`.
+If a message has `attachments`, the reader SHALL show a horizontally-scrollable row of pill buttons between the meta block and body. Each pill shows: extension badge (PDF, PNG, ZIP, HTML), filename (truncated), file size. The `attachments` array SHALL be sourced from the `GET /api/messages/:id` response (which now includes HTML body parts) and forwarded from `+page.svelte` to `<Reader>` as an explicit prop, then from `<Reader>` to `<Attachments>`. Clicking a pill SHALL trigger the action configured by `attachmentAction` in Settings: `'download'` navigates to the download endpoint; `'open'` POSTs to the open endpoint.
 
 #### Scenario: Attachment row renders for messages with attachments
-- **WHEN** message has at least one attachment
-- **THEN** a pill row appears between From/To and body
+- **WHEN** message has at least one attachment (including HTML body parts)
+- **THEN** a pill row is rendered with one pill per attachment
 
 #### Scenario: Empty attachment list hides row
-- **WHEN** message has no attachments
+- **WHEN** message has no attachments and no HTML body parts
 - **THEN** no attachment row is rendered
 
 #### Scenario: Attachment data reaches the component
 - **WHEN** `GET /api/messages/:id` returns a non-empty `attachments` array
-- **THEN** the pill row is visible in the reader and each pill shows the correct filename and size
+- **THEN** `<Attachments>` receives and renders all entries including HTML parts
 
----
+#### Scenario: Click with action=download triggers file save
+- **WHEN** `attachmentAction` setting is `download` and user clicks a pill
+- **THEN** browser initiates a file download from `GET /api/messages/:id/attachments/:index`
+
+#### Scenario: Click with action=open triggers system open
+- **WHEN** `attachmentAction` setting is `open` and user clicks a pill
+- **THEN** frontend POSTs to `/api/messages/:id/attachments/:index/open`
 
 ### Requirement: Compose screen
 Pressing `c` on the list SHALL open the Compose screen fullscreen. Fields: static From (account address), To (recipient autocomplete), optional Cc/Bcc, Subject. Body textarea fills the rest. Breadcrumb right shows live word/char count and send/discard hints.
@@ -340,4 +346,64 @@ When the user presses `g` on the list, a small indicator SHALL appear (bottom-ce
 #### Scenario: Leader indicator disappears after timeout
 - **WHEN** no follow-up key is pressed within 1.2 s
 - **THEN** indicator disappears and leader state is cleared
+
+### Requirement: `attachmentAction` setting in Tweaks panel
+The Tweaks panel SHALL expose an `attachmentAction` toggle (`open` | `download`). The value SHALL be persisted via `writeSetting('attachmentAction', …)` and default to `'open'`. The Settings type SHALL include `attachmentAction: 'open' | 'download'`.
+
+#### Scenario: Default action is open
+- **WHEN** no prior setting exists
+- **THEN** `getSettings().attachmentAction` returns `'open'`
+
+#### Scenario: Toggle persists across reload
+- **WHEN** user changes `attachmentAction` to `download` and reloads the page
+- **THEN** `getSettings().attachmentAction` returns `'download'`
+
+### Requirement: Reader sticky header animates on collapse and expand
+When the reader scroll position crosses the threshold that triggers the `is-compact` state, the `.meta` section (From / To / Date rows) SHALL animate out with a smooth transition rather than disappearing instantly. The animation SHALL use CSS transitions on `max-height` and `opacity`. Expanding (scrolling back to top) SHALL animate in with the same transitions.
+
+#### Scenario: Header collapses with animation on scroll
+- **WHEN** the user scrolls the reader body past the threshold (scrollTop > 4 px)
+- **THEN** the meta rows fade out and slide up over ~200 ms instead of disappearing instantly
+
+#### Scenario: Header expands with animation on scroll back to top
+- **WHEN** the user scrolls the reader body back above the threshold
+- **THEN** the meta rows fade in and slide down over ~200 ms
+
+#### Scenario: Animation does not cause layout reflow on subsequent messages
+- **WHEN** the user opens a new message (scrollTop resets to 0)
+- **THEN** the meta section is immediately visible with no lingering transition artifact
+
+---
+
+### Requirement: Plain-text part is preferred on first open
+When a message is opened for the first time (no per-sender override and no global mode preference set), and the message has a `text/plain` part (`has_plain = true`), the app SHALL display the message in `text` mode regardless of the server's default render mode. If the message does NOT have a plain part, the existing fallback (server default → `simple`) SHALL apply unchanged.
+
+#### Scenario: Plain part present, no preference set — shows text mode
+- **WHEN** a message with `has_plain = true` is opened and no sender override or global mode preference exists
+- **THEN** the reader displays the message in text mode (mode toggle shows "Aa" as active)
+
+#### Scenario: No plain part — falls back to server default
+- **WHEN** a message with `has_plain = false` is opened and no preference exists
+- **THEN** the server's returned mode is used (typically `simple`)
+
+#### Scenario: Sender override still respected
+- **WHEN** a message is opened and a per-sender mode override exists
+- **THEN** the override takes precedence over the plain-text-first default
+
+#### Scenario: Global mode preference still respected
+- **WHEN** a message with `has_plain = true` is opened and a global `email_mode` of `simple` is set
+- **THEN** `simple` mode is used (explicit global preference overrides the default)
+
+---
+
+### Requirement: About dialog displays logo
+The About dialog (`About.svelte`) SHALL display the Mailbrus logo image above the wordmark. The logo SHALL be rendered at a fixed size (64 × 64 px) with `object-fit: contain`, centered horizontally, with appropriate spacing between the logo and the wordmark below it.
+
+#### Scenario: Logo visible in about dialog
+- **WHEN** the user opens the About dialog
+- **THEN** the `mailbrus.svg` logo is displayed at 64 × 64 px above the wordmark text
+
+#### Scenario: Logo centered
+- **WHEN** the about dialog is open
+- **THEN** the logo is horizontally centered within the dialog card
 
