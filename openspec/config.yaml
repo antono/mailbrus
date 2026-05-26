@@ -1,8 +1,4 @@
 schema: spec-driven
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
 context: |
   Tech stack: Rust, SvelteKit, Tauri, Pimalaya libs for email
   Modules:
@@ -13,16 +9,13 @@ context: |
     - 'mailbrus-desktop' - runs server and ui in tauri shell
   Domain: email client cli tui and gui
   Testing: E2E testing implemented via playwring
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
 rules:
   proposal:
     - Keep proposals under 500 words
     - Always include a "Non-goals" section
   design:
     - Use mermaid skill to draw diagrams (when needed)
-    - Ensure e2e / unit test exist for each feature
+    - Ensure e2e / unit test exist for each feature  (use mailbrus-e2e-author skill)
   tasks:
     - At the end of task list add e2e test validation and fixes cycle
     - At the end of task list ensure all compilation warnings are fixed

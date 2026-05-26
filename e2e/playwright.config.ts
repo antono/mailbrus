@@ -27,5 +27,23 @@ export default defineConfig({
 		navigationTimeout: 20_000,
 		trace: 'retain-on-failure'
 	},
-	projects: [{ name: 'chromium', use: { browserName: 'chromium' } }]
+	projects: [
+		{
+			name: 'chromium',
+			use: { browserName: 'chromium' },
+			// Screenshots are on-demand only — exclude from the default run.
+			testIgnore: ['**/screenshots.spec.ts']
+		},
+		{
+			name: 'screenshots',
+			testMatch: ['**/screenshots.spec.ts'],
+			use: {
+				browserName: 'chromium',
+				viewport: { width: 1280, height: 800 },
+				colorScheme: 'light',
+				locale: 'en-US',
+				deviceScaleFactor: 2
+			}
+		}
+	]
 });

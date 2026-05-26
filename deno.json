@@ -9,6 +9,7 @@
     "test:e2e": "node_modules/.bin/playwright test --config=e2e/playwright.config.ts",
     "e2e:ui": "node_modules/.bin/playwright test --config=e2e/playwright.config.ts --ui",
     "e2e:headless": "node_modules/.bin/playwright test --config=e2e/playwright.config.ts",
-    "e2e:debug": "node_modules/.bin/playwright show-trace $(ls -t e2e/test-results/*/trace.zip 2>/dev/null | head -1)"
+    "e2e:debug": "node_modules/.bin/playwright show-trace $(ls -t e2e/test-results/*/trace.zip 2>/dev/null | head -1)",
+    "screenshots": "node_modules/.bin/playwright test --config=e2e/playwright.config.ts --project=screenshots"
   }
 }

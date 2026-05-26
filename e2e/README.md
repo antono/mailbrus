@@ -67,6 +67,24 @@ and a per-test server via `page`), drive the UI through the page objects in
 `pages/`, and derive every expected value from `fixtures/manifest.ts`. Specs
 must contain no inline setup and no hard-coded DOM selectors.
 
+## Screenshots (on-demand only)
+
+`specs/screenshots.spec.ts` is a dedicated Playwright project that captures
+five canonical documentation PNGs into `docs/screenshots/`. It is **not** part
+of the default `test:e2e` run and is **never** invoked in CI.
+
+```sh
+deno task screenshots   # generates docs/screenshots/*.png
+```
+
+The five captures are: `message-list.png`, `reader.png`, `accounts.png`,
+`compose.png`, and `about-over-list.png`. Re-run to regenerate after UI
+changes; commit the updated PNGs alongside any visual change.
+
+The spec reuses the same harness fixtures as functional tests (one cloned
+mailbox + live server per test) and pins viewport, colour scheme, locale, and
+device scale via the `screenshots` Playwright project in `playwright.config.ts`.
+
 ## Known UI gaps (tests marked `test.fixme`)
 
 These document real product limitations; the corpus + backend already support
