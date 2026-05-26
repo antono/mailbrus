@@ -303,6 +303,16 @@ pub async fn get_attachment(Path((id, part_index)): Path<(String, usize)>) -> Re
     }
 }
 
+fn html_cache_dir() -> std::path::PathBuf {
+    std::env::var("XDG_CACHE_HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+            std::path::PathBuf::from(home).join(".cache")
+        })
+        .join("mailbrus/html")
+}
+
 pub async fn open_attachment(Path((id, part_index)): Path<(String, usize)>) -> Response {
     match tokio::task::spawn_blocking(move || {
         let reader = MaildirReader::open()?;
@@ -312,23 +322,50 @@ pub async fn open_attachment(Path((id, part_index)): Path<(String, usize)>) -> R
     .await
     {
         Ok(Ok((id, raw))) => match extract_part(&raw, part_index) {
-            Some((_mime, name, bytes)) => {
+            Some((mime, name, bytes)) => {
                 let safe_id: String = id
                     .chars()
                     .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
                     .collect();
-                let safe_name: String = name
-                    .chars()
-                    .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
-                    .collect();
-                let tmp_dir = std::env::temp_dir();
-                let path = tmp_dir.join(format!("{safe_id}_{safe_name}"));
+                let is_html = mime.eq_ignore_ascii_case("text/html");
+                // HTML attachments get a stable per-message cache path
+                // ~/.cache/mailbrus/html/<id>.html so the browser opens them
+                // as HTML — a `/tmp/<id>_<name>` path can be sniffed as text
+                // by browsers when the leading bytes don't look like a doc.
+                let path = if is_html {
+                    let dir = html_cache_dir();
+                    if let Err(e) = std::fs::create_dir_all(&dir) {
+                        warn!("[attach] failed to create cache dir {:?}: {}", dir, e);
+                        return json_error(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "cannot create cache dir",
+                        );
+                    }
+                    dir.join(format!("{safe_id}.html"))
+                } else {
+                    let safe_name: String = name
+                        .chars()
+                        .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+                        .collect();
+                    std::env::temp_dir().join(format!("{safe_id}_{safe_name}"))
+                };
                 if let Err(e) = std::fs::write(&path, &bytes) {
-                    warn!("[attach] failed to write tmp file {:?}: {}", path, e);
-                    return json_error(StatusCode::INTERNAL_SERVER_ERROR, "cannot write tmp file");
+                    warn!("[attach] failed to write file {:?}: {}", path, e);
+                    return json_error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "cannot write attachment file",
+                    );
                 }
                 info!("[attach] saved {} → {:?}", id, path);
-                match open::that_detached(&path) {
+                // HTML opens via file:// URL so the OS routes it through the
+                // browser junction (see commit b41854a).
+                let open_result = if is_html {
+                    let file_url = format!("file://{}", path.display());
+                    open::that_detached(&file_url)
+                } else {
+                    open::that_detached(&path)
+                };
+                match open_result {
                     Ok(()) => Json(json!({"ok": true, "path": path.to_string_lossy()})).into_response(),
                     Err(e) => {
                         warn!("[attach] could not open {:?}: {}", path, e);
