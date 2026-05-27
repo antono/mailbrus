@@ -20,9 +20,9 @@
 
 ## 3. Generate, commit, document
 
-- [ ] 3.1 Run `deno task screenshots` locally; verify all five PNGs land in `docs/screenshots/` and look correct (visual review).
-- [ ] 3.2 Re-run `deno task screenshots` a second time and confirm `git diff docs/screenshots/` is empty or near-empty (only font-hinting noise acceptable).
-- [ ] 3.3 Commit the five PNGs alongside the spec and config changes.
+- [x] 3.1 Run `deno task screenshots` locally; verify all five PNGs land in `docs/screenshots/` and look correct (visual review).
+- [x] 3.2 Re-run `deno task screenshots` a second time and confirm `git diff docs/screenshots/` is empty or near-empty (only font-hinting noise acceptable).
+- [x] 3.3 Commit the five PNGs alongside the spec and config changes.
 - [x] 3.4 Reference the screenshots from `README.md` (or `docs/` page) with relative image paths.
 - [x] 3.5 Add a short section to `e2e/README.md` explaining the screenshots project, the `deno task screenshots` task, and that it is on-demand only (never run in default `test:e2e` or CI).
 
