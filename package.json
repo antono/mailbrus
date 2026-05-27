@@ -7,7 +7,7 @@
     "dev": "deno task dev",
     "build": "deno task build",
     "preview": "deno task preview",
-    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts --project=chromium",
     "e2e:ui": "playwright test --config=e2e/playwright.config.ts --ui",
     "e2e:headless": "playwright test --config=e2e/playwright.config.ts",
     "e2e:debug": "playwright show-trace $(ls -t e2e/test-results/*/trace.zip 2>/dev/null | head -1)",

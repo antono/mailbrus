@@ -28,12 +28,12 @@
 
 ## 4. Validation cycle
 
-- [ ] 4.1 Run `deno task test:e2e` and verify the screenshot spec was **not** executed (check Playwright report: only functional specs ran, total file count matches prior baseline).
-- [ ] 4.2 Run `deno task screenshots` from a clean tree and verify the dedicated project runs only `e2e/specs/screenshots.spec.ts`.
-- [ ] 4.3 Run `deno task lint` and `deno task check` (or repo equivalents) to confirm no type or lint regressions in the new spec file.
-- [ ] 4.4 If any e2e validation fails, fix and re-run 4.1–4.3 until clean.
+- [x] 4.1 Run `deno task test:e2e` and verify the screenshot spec was **not** executed (check Playwright report: only functional specs ran, total file count matches prior baseline).
+- [x] 4.2 Run `deno task screenshots` from a clean tree and verify the dedicated project runs only `e2e/specs/screenshots.spec.ts`.
+- [x] 4.3 Run `deno task lint` and `deno task check` (or repo equivalents) to confirm no type or lint regressions in the new spec file.
+- [x] 4.4 If any e2e validation fails, fix and re-run 4.1–4.3 until clean.
 
 ## 5. Cleanup
 
-- [ ] 5.1 Resolve any TypeScript / Playwright deprecation warnings emitted by the new spec or config additions.
-- [ ] 5.2 Confirm no compilation warnings appear in `cargo check --workspace` (sanity check that the unrelated Rust workspace is unaffected by this frontend-only change).
+- [x] 5.1 Resolve any TypeScript / Playwright deprecation warnings emitted by the new spec or config additions.
+- [x] 5.2 Confirm no compilation warnings appear in `cargo check --workspace` (sanity check that the unrelated Rust workspace is unaffected by this frontend-only change).
