@@ -33,6 +33,10 @@
 	import { enqueueMutation, initMutationsFlusher } from '$lib/mutations.js';
 	import { recordVisit, getRanked } from '$lib/frecency.js';
 	import { setBadge, clearBadge } from '$lib/badge.js';
+	import { ui } from '$lib/ui-state.svelte.ts';
+	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { createListKeymap } from '$lib/hotkeys/keymaps/list.ts';
+	import { leaderKey } from '$lib/hotkeys/dispatcher.svelte.ts';
 
 	interface BeforeInstallPromptEvent extends Event {
 		prompt(): Promise<void>;
@@ -51,7 +55,6 @@
 		dark: false, accent: 'indigo', font: 'sans', fontSize: 'md', density: 'twoline', hintBar: true
 	});
 	let attachmentAction = $state<'open' | 'download'>('open');
-	let settingsOpen = $state(false);
 
 	// Apply CSS vars whenever any ui pref changes (deep $state tracks property mutations)
 	$effect(() => {
@@ -78,14 +81,8 @@
 	let folder = $state<Folder | null>(null);
 	let selectedIdx = $state(0);
 	let openMessage = $state<Message | null>(null);
-	let cmdOpen = $state(false);
-	let composeOpen = $state(false);
-	let helpOpen = $state(false);
-	let aboutOpen = $state(false);
 	let searchOpen = $state(false);
 	let searchQuery = $state('');
-	let leader = $state<string | null>(null);
-	let leaderTimer: ReturnType<typeof setTimeout> | null = null;
 	let installPromptEvent = $state<Event | null>(null);
 	let listEl = $state<HTMLDivElement | null>(null);
 	let readerBodyEl = $state<HTMLDivElement | null>(null);
@@ -423,6 +420,24 @@
 		navigateToFolder(fId);
 	}
 
+	/** Resolve a canonical name (e.g. "inbox") to whatever the server actually
+	 * returned for the folder ID. Real folder IDs come from the maildir directory
+	 * names, which are commonly capitalized ("Inbox", "Archive", …); doing a case-
+	 * insensitive match against `folderList` keeps the `g i` / `g a` / `g s` / `g d`
+	 * shortcuts working regardless of casing. Returns null if no folder matches. */
+	function resolveFolderId(canonical: string): string | null {
+		const needle = canonical.toLowerCase();
+		const hit = folderList.find(
+			(f) => f.id.toLowerCase() === needle || f.name.toLowerCase() === needle
+		);
+		return hit ? hit.id : null;
+	}
+
+	function goCanonical(canonical: string) {
+		const id = resolveFolderId(canonical);
+		if (id) goToFolder(id);
+	}
+
 	async function loadMessages(
 		accountId: string,
 		folderId: string,
@@ -448,214 +463,128 @@
 			.catch((e: Error) => { if (!local.length) error = e.message; loading = false; });
 	}
 
-	function startLeader(key: string) {
-		leader = key;
-		if (leaderTimer) clearTimeout(leaderTimer);
-		leaderTimer = setTimeout(() => (leader = null), 1200);
-	}
-
-	function clearLeader() {
-		leader = null;
-		if (leaderTimer) clearTimeout(leaderTimer);
-	}
-
 	// ── Command palette ───────────────────────────────────────────────────────
 	function handleCommand(cmd: string) {
-		cmdOpen = false;
+		ui.cmdOpen = false;
 		switch (cmd) {
 			case 'switch-account': phase = 'account'; break;
 			case 'switch-folder': phase = 'folder'; break;
-			case 'go-inbox': goToFolder('inbox'); break;
-			case 'go-archive': goToFolder('archive'); break;
-			case 'compose': composeOpen = true; break;
-			case 'keyboard-help': helpOpen = true; break;
-			case 'about': aboutOpen = true; break;
+			case 'go-inbox': goCanonical('inbox'); break;
+			case 'go-archive': goCanonical('archive'); break;
+			case 'compose': ui.composeOpen = true; break;
+			case 'keyboard-help': ui.helpOpen = true; break;
+			case 'about': ui.aboutOpen = true; break;
 			case 'search': searchOpen = true; break;
 			case 'toggle-dark': { uiPrefs.dark = !uiPrefs.dark; break; }
-			case 'open-settings': settingsOpen = true; break;
+			case 'open-settings': ui.settingsOpen = true; break;
 		}
 	}
 
-	// ── Keyboard handler ──────────────────────────────────────────────────────
-	$effect(() => {
-		const isTyping = (e: KeyboardEvent) => {
-			const tag = ((e.target as HTMLElement).tagName || '').toLowerCase();
-			return tag === 'input' || tag === 'textarea' || (e.target as HTMLElement).isContentEditable;
-		};
+	// Gate Global Ctrl+K behind having an active account+folder.
+	$effect(() => { ui.canTogglePalette = !!(account && folder); });
 
-		const onKey = (e: KeyboardEvent) => {
-			// Hint mode owns the keyboard while active — HintOverlay's capture-phase
-			// listener stops propagation, but this is a defensive early-return.
-			if (hintMode) return;
-			// ⌘K / Ctrl+K
-			if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-				e.preventDefault();
-				if (account && folder) { clearLeader(); cmdOpen = !cmdOpen; }
-				return;
-			}
-			// ⌘, / Ctrl+, — open settings
-			if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-				e.preventDefault();
-				settingsOpen = true;
-				return;
-			}
-			// ? keyboard help
-			if (e.key === '?' && !isTyping(e) && !cmdOpen && !composeOpen && phase === 'list') {
-				e.preventDefault();
-				helpOpen = !helpOpen;
-				return;
-			}
-			// modals own keyboard
-			if (phase !== 'list' || cmdOpen || composeOpen || helpOpen || aboutOpen) return;
-			// reader open
-			if (openMessage) {
-				// f — enter hint mode over links + attachment chips (text/simple modes only)
-				if (e.key === 'f' && !isTyping(e) && messageMode !== 'html' && readerBodyEl) {
-					e.preventDefault();
-					const links = Array.from(
-						readerBodyEl.querySelectorAll<HTMLAnchorElement>('a.mb-link')
-					);
-					const chips = Array.from(
-						document.querySelectorAll<HTMLButtonElement>('[data-testid="attachment-chip"]')
-					);
-					const raw = [
-						...links.map((el) => ({
-							el: el as HTMLElement,
-							onActivate: () => window.open(el.href, '_blank', 'noopener,noreferrer')
-						})),
-						...chips.map((el) => ({
-							el: el as HTMLElement,
-							onActivate: () => el.click()
-						}))
-					];
-					hintTargets = assignLabels(raw);
-					if (hintTargets.length > 0) hintMode = true;
-					return;
-				}
-				if (e.key === 'Escape') {
-					e.preventDefault();
-					if (folder) closeReaderRoute(folder.id); else goBack();
-					return;
-				}
-				if (e.key === 'j' || e.key === 'ArrowDown') {
-					e.preventDefault();
-					const next = Math.min(selectedIdx + 1, currentMessages.length - 1);
-					selectedIdx = next;
-					const nextMsg = currentMessages[next];
-					if (nextMsg && folder) openMessageRoute(folder.id, nextMsg.id);
-					return;
-				}
-				if (e.key === 'k' || e.key === 'ArrowUp') {
-					e.preventDefault();
-					const next = Math.max(selectedIdx - 1, 0);
-					selectedIdx = next;
-					const prevMsg = currentMessages[next];
-					if (prevMsg && folder) openMessageRoute(folder.id, prevMsg.id);
-					return;
-				}
-				if (leader === 'g' && e.key === 'g') {
-					e.preventDefault();
-					clearLeader();
-					document.querySelector('[data-testid="reader-body-scroll"]')?.scrollTo({ top: 0 });
-					return;
-				}
-				if (e.key === 'g' && !leader) { e.preventDefault(); startLeader('g'); return; }
-				if (e.key === 'G') {
-					e.preventDefault();
-					const el = document.querySelector<HTMLElement>('[data-testid="reader-body-scroll"]');
-					el?.scrollTo({ top: el.scrollHeight });
-					return;
-				}
-				if (leader) clearLeader();
-				return;
-			}
-			if (isTyping(e)) return;
-			// f — enter hint mode over visible message rows
-			if (e.key === 'f' && !leader && !e.metaKey && !e.ctrlKey && listEl) {
-				e.preventDefault();
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md — list keymap registration.
+	// The list keymap registers only while the list view is the genuinely active surface;
+	// when the reader / a modal / compose / hint mode is open, the corresponding scope
+	// owns the keyboard and the list keymap stands down (no fall-through).
+	$effect(() => {
+		const listActive =
+			phase === 'list' &&
+			!openMessage &&
+			!ui.cmdOpen &&
+			!ui.composeOpen &&
+			!ui.helpOpen &&
+			!ui.aboutOpen &&
+			!ui.settingsOpen &&
+			!hintMode;
+		if (!listActive) return;
+		const km = createListKeymap({
+			selectNext: () => {
+				selectedIdx = Math.min(selectedIdx + 1, currentMessages.length - 1);
+			},
+			selectPrev: () => {
+				selectedIdx = Math.max(selectedIdx - 1, 0);
+			},
+			openSelected: () => {
+				const msg = currentMessages[selectedIdx];
+				if (msg && folder) openMessageRoute(folder.id, msg.id);
+			},
+			jumpTop: () => {
+				selectedIdx = 0;
+				listEl?.scrollTo({ top: 0 });
+			},
+			jumpBottom: () => {
+				selectedIdx = currentMessages.length - 1;
+				if (listEl) listEl.scrollTo({ top: listEl.scrollHeight });
+			},
+			prevPage: () => handleListPageChange(currentPage - 1),
+			nextPage: () => handleListPageChange(currentPage + 1),
+			canPrevPage: () => currentPage > 1,
+			canNextPage: () => currentMessages.length >= currentPerPage,
+			openSearch: () => {
+				searchOpen = true;
+			},
+			openCompose: () => {
+				ui.composeOpen = true;
+			},
+			markRead: () => {
+				if (!folder) return;
+				const msg = currentMessages[selectedIdx];
+				if (!msg) return;
+				enqueueMutation('mark_read', msg.id, folder.id).catch(() => {});
+				currentMessages = currentMessages.map((m, i) =>
+					i === selectedIdx ? { ...m, unread: false } : m
+				);
+			},
+			markUnread: () => {
+				if (!folder) return;
+				const msg = currentMessages[selectedIdx];
+				if (!msg) return;
+				enqueueMutation('mark_unread', msg.id, folder.id).catch(() => {});
+				currentMessages = currentMessages.map((m, i) =>
+					i === selectedIdx ? { ...m, unread: true } : m
+				);
+			},
+			deleteSelected: () => {
+				if (!folder) return;
+				const msg = currentMessages[selectedIdx];
+				if (!msg) return;
+				enqueueMutation('delete', msg.id, folder.id).catch(() => {});
+				currentMessages = currentMessages.filter((_, i) => i !== selectedIdx);
+				selectedIdx = Math.min(selectedIdx, currentMessages.length - 1);
+			},
+			goInbox: () => goCanonical('inbox'),
+			goArchive: () => goCanonical('archive'),
+			goSent: () => goCanonical('sent'),
+			goDrafts: () => goCanonical('drafts'),
+			goFolderPicker: () => {
+				phase = 'folder';
+			},
+			goAccountPicker: () => {
+				phase = 'account';
+			},
+			activateHints: () => {
+				if (!listEl) return;
 				const rows = Array.from(
 					listEl.querySelectorAll<HTMLElement>('[data-testid="mail-list.message-row"]')
 				);
-				// Activating clicks the row — MailList already wires onclick to onOpen,
-				// which routes through the page's handler. This avoids having to map
-				// DOM index back to the right (possibly outbox-mixed/filtered) entry.
 				const raw = rows.map((el) => ({ el, onActivate: () => el.click() }));
 				hintTargets = assignLabels(raw);
 				if (hintTargets.length > 0) hintMode = true;
-				return;
-			}
-			// g-leader
-			if (leader === 'g') {
-				if (e.key === 'i') { e.preventDefault(); clearLeader(); goToFolder('inbox'); return; }
-				if (e.key === 'a') { e.preventDefault(); clearLeader(); goToFolder('archive'); return; }
-				if (e.key === 'A') { e.preventDefault(); clearLeader(); phase = 'account'; return; }
-				if (e.key === 'f') { e.preventDefault(); clearLeader(); phase = 'folder'; return; }
-				if (e.key === 'd') { e.preventDefault(); clearLeader(); goToFolder('drafts'); return; }
-				if (e.key === 's') { e.preventDefault(); clearLeader(); goToFolder('sent'); return; }
-				if (e.key === 'g') { e.preventDefault(); clearLeader(); selectedIdx = 0; listEl?.scrollTo({ top: 0 }); return; }
-				clearLeader();
-				return;
-			}
-			if (e.key === 'g') { e.preventDefault(); startLeader('g'); return; }
-			if (e.key === 'G') { e.preventDefault(); selectedIdx = currentMessages.length - 1; listEl?.scrollTo({ top: listEl.scrollHeight }); return; }
-			if (e.key === 'h' && !leader && currentPage > 1) { e.preventDefault(); handleListPageChange(currentPage - 1); return; }
-			if (e.key === 'l' && !leader && currentMessages.length >= currentPerPage) { e.preventDefault(); handleListPageChange(currentPage + 1); return; }
-			if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !leader) {
-				e.preventDefault(); clearLeader(); composeOpen = true; return;
-			}
-			if (e.key === 'j' || e.key === 'ArrowDown') {
-				e.preventDefault();
-				selectedIdx = Math.min(selectedIdx + 1, currentMessages.length - 1);
-				return;
-			}
-			if (e.key === 'k' || e.key === 'ArrowUp') {
-				e.preventDefault();
-				selectedIdx = Math.max(selectedIdx - 1, 0);
-				return;
-			}
-			if (e.key === 'Enter') {
-				e.preventDefault();
-				const msg = currentMessages[selectedIdx];
-				if (msg && folder) openMessageRoute(folder.id, msg.id);
-				return;
-			}
-			// task 8.2: mark read (r), mark unread (u), delete (d/#)
-			if ((e.key === 'r' || e.key === 'u') && folder) {
-				e.preventDefault();
-				const msg = currentMessages[selectedIdx];
-				if (msg) {
-					const op = e.key === 'u' ? 'mark_unread' : 'mark_read';
-					enqueueMutation(op, msg.id, folder.id).catch(() => {});
-					// optimistic local update
-					currentMessages = currentMessages.map((m, i) =>
-						i === selectedIdx ? { ...m, unread: op === 'mark_unread' } : m
-					);
+			},
+			escape: () => {
+				if (searchOpen) {
+					handleSearchClose();
+					return;
 				}
-				return;
-			}
-			if ((e.key === 'd' || e.key === '#') && folder) {
-				e.preventDefault();
-				const msg = currentMessages[selectedIdx];
-				if (msg) {
-					enqueueMutation('delete', msg.id, folder.id).catch(() => {});
-					currentMessages = currentMessages.filter((_, i) => i !== selectedIdx);
-					selectedIdx = Math.min(selectedIdx, currentMessages.length - 1);
-				}
-				return;
-			}
-			if (e.key === '/') { e.preventDefault(); searchOpen = true; return; }
-			if (e.key === 'Escape') {
-				e.preventDefault();
-				if (searchOpen) { handleSearchClose(); return; }
-				clearLeader();
 				phase = 'folder';
-				return;
 			}
-		};
-
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
+		});
+		return registerKeymap(km);
 	});
+
+	// The dispatcher-owned leader prefix drives the existing on-screen `g` indicator.
+	let leader = $derived(leaderKey());
 
 	function onAccountPick(a: Account) {
 		account = a;
@@ -744,7 +673,7 @@
 			onSearchSubmit={handleSearchSubmit}
 			onSearchClose={handleSearchClose}
 			onOpen={(m) => { if (folder) openMessageRoute(folder.id, m.id); }}
-			onHome={() => (aboutOpen = true)}
+			onHome={() => (ui.aboutOpen = true)}
 			onAccount={() => (phase = 'account')}
 			onFolder={() => (phase = 'folder')}
 			page={searchOpen ? searchPage : currentPage}
@@ -756,7 +685,7 @@
 	{/if}
 
 	{#if phase === 'list' && uiPrefs.hintBar && !openMessage}
-		<HintBar onShowHelp={() => (helpOpen = true)}>
+		<HintBar onShowHelp={() => (ui.helpOpen = true)}>
 			<span class="hint"><span class="kbd">j</span><span class="kbd">k</span> move</span>
 			<span class="hint"><span class="kbd">↵</span> open</span>
 			<span class="hint"><span class="kbd">esc</span> back</span>
@@ -787,10 +716,43 @@
 			format_flowed={messageFormatFlowed}
 			attachments={messageAttachments}
 			onClose={() => { if (folder) closeReaderRoute(folder.id); else goBack(); }}
-			onHome={() => (aboutOpen = true)}
+			onHome={() => (ui.aboutOpen = true)}
 			onAccount={() => (phase = 'account')}
 			onFolder={() => { openMessage = null; phase = 'folder'; }}
 			onModeChange={handleModeChange}
+			onNext={() => {
+				const next = Math.min(selectedIdx + 1, currentMessages.length - 1);
+				selectedIdx = next;
+				const nextMsg = currentMessages[next];
+				if (nextMsg && folder) openMessageRoute(folder.id, nextMsg.id);
+			}}
+			onPrev={() => {
+				const next = Math.max(selectedIdx - 1, 0);
+				selectedIdx = next;
+				const prevMsg = currentMessages[next];
+				if (prevMsg && folder) openMessageRoute(folder.id, prevMsg.id);
+			}}
+			onActivateHints={() => {
+				if (messageMode === 'html' || !readerBodyEl) return;
+				const links = Array.from(
+					readerBodyEl.querySelectorAll<HTMLAnchorElement>('a.mb-link')
+				);
+				const chips = Array.from(
+					document.querySelectorAll<HTMLButtonElement>('[data-testid="attachment-chip"]')
+				);
+				const raw = [
+					...links.map((el) => ({
+						el: el as HTMLElement,
+						onActivate: () => window.open(el.href, '_blank', 'noopener,noreferrer')
+					})),
+					...chips.map((el) => ({
+						el: el as HTMLElement,
+						onActivate: () => el.click()
+					}))
+				];
+				hintTargets = assignLabels(raw);
+				if (hintTargets.length > 0) hintMode = true;
+			}}
 			bind:bodyEl={readerBodyEl}
 		/>
 	{/if}
@@ -799,19 +761,19 @@
 		<HintOverlay targets={hintTargets} onCancel={() => (hintMode = false)} />
 	{/if}
 
-	{#if aboutOpen}
-		<About onClose={() => (aboutOpen = false)} />
+	{#if ui.aboutOpen}
+		<About onClose={() => (ui.aboutOpen = false)} />
 	{/if}
 
-	{#if helpOpen}
-		<KeyboardHelp onClose={() => (helpOpen = false)} />
+	{#if ui.helpOpen}
+		<KeyboardHelp onClose={() => (ui.helpOpen = false)} />
 	{/if}
 
-	{#if composeOpen && account && folder}
+	{#if ui.composeOpen && account && folder}
 		<Compose
 			{account}
 			{folder}
-			onClose={() => (composeOpen = false)}
+			onClose={() => (ui.composeOpen = false)}
 			onSent={async (draft) => {
 				// task 7.2: try network, fall back to outbox on failure
 				try {
@@ -821,15 +783,15 @@
 						body: JSON.stringify(draft)
 					});
 					if (!res.ok) throw new Error(`HTTP ${res.status}`);
-					composeOpen = false;
+					ui.composeOpen = false;
 				} catch {
 					await outboxEnqueue(draft as Record<string, unknown>);
-					composeOpen = false;
+					ui.composeOpen = false;
 				}
 			}}
-			onHome={() => (aboutOpen = true)}
-			onAccount={() => { composeOpen = false; phase = 'account'; }}
-			onFolder={() => { composeOpen = false; phase = 'folder'; }}
+			onHome={() => (ui.aboutOpen = true)}
+			onAccount={() => { ui.composeOpen = false; phase = 'account'; }}
+			onFolder={() => { ui.composeOpen = false; phase = 'folder'; }}
 		/>
 	{/if}
 
@@ -852,12 +814,12 @@
 		/>
 	{/if}
 
-	{#if cmdOpen && account && folder}
+	{#if ui.cmdOpen && account && folder}
 		<CommandPalette
 			{account}
 			{folder}
 			onAction={handleCommand}
-			onCancel={() => (cmdOpen = false)}
+			onCancel={() => (ui.cmdOpen = false)}
 		/>
 	{/if}
 
@@ -886,7 +848,7 @@
 	{/if}
 
 	<SettingsPanel
-		bind:open={settingsOpen}
+		bind:open={ui.settingsOpen}
 		{uiPrefs}
 		onPrefChange={(k, v) => { uiPrefs[k] = v; }}
 		{attachmentAction}

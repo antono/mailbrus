@@ -1,6 +1,10 @@
 <script lang="ts">
 	import type { HintTarget } from '$lib/hints.js';
 	import { onMount } from 'svelte';
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
+	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { createHintKeymap } from '$lib/hotkeys/keymaps/hint.ts';
 
 	let {
 		targets,
@@ -17,7 +21,6 @@
 		return targets
 			.map((t) => {
 				const r = t.el.getBoundingClientRect();
-				// Skip targets that aren't visible in the viewport.
 				if (r.width === 0 && r.height === 0) return null;
 				return { left: r.left, top: r.top, label: t.label };
 			})
@@ -26,30 +29,25 @@
 
 	onMount(() => {
 		positions = computePositions();
+	});
 
-		const onKey = (e: KeyboardEvent) => {
-			e.preventDefault();
-			e.stopImmediatePropagation();
-			if (e.key === 'Escape') {
-				onCancel();
-				return;
-			}
-			if (e.key.length !== 1) {
-				onCancel();
-				return;
-			}
-			const letter = e.key.toLowerCase();
-			const match = targets.find((t) => t.label === letter);
-			if (match) {
-				match.onActivate();
-			}
-			onCancel();
+	$effect(() => {
+		pushScope('hint');
+		const dispose = registerKeymap(
+			createHintKeymap({
+				labels: () => targets.map((t) => t.label),
+				activate: (label) => {
+					const match = targets.find((t) => t.label === label);
+					match?.onActivate();
+					onCancel();
+				},
+				cancel: onCancel
+			})
+		);
+		return () => {
+			dispose();
+			popScope('hint');
 		};
-
-		// `capture: true` so we receive the key before any other window listener
-		// (e.g. KeyboardHelp's capture-phase Esc handler, the list/reader handlers).
-		window.addEventListener('keydown', onKey, true);
-		return () => window.removeEventListener('keydown', onKey, true);
 	});
 </script>
 

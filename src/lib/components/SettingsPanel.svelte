@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { Dialog, Label, Separator, Switch, Select, ToggleGroup } from 'bits-ui';
 	import type { UiPrefs } from '$lib/settings.js';
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
+	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { createModalKeymap } from '$lib/hotkeys/keymaps/modal.ts';
 
 	let {
 		open = $bindable(false),
@@ -28,6 +32,16 @@
 		if (!open) return;
 		pushSupported = 'Notification' in window && 'serviceWorker' in navigator;
 		if (pushSupported) pushEnabled = Notification.permission === 'granted';
+	});
+
+	$effect(() => {
+		if (!open) return;
+		pushScope('modal');
+		const dispose = registerKeymap(createModalKeymap({ close: () => (open = false) }));
+		return () => {
+			dispose();
+			popScope('modal');
+		};
 	});
 
 	async function togglePush() {

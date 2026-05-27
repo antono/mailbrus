@@ -1,91 +1,81 @@
 <script lang="ts">
 	import Wordmark from './Wordmark.svelte';
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	// — Keymaps are the single source of help content
+	// — Keyboard help toggle (Global + active scope only)
+	import { pushScope, popScope, scopeStack } from '$lib/hotkeys/scope.svelte.ts';
+	import { registerKeymap, globalBindings, scopeBindings } from '$lib/hotkeys/registry.svelte.ts';
+	import { createModalKeymap } from '$lib/hotkeys/keymaps/modal.ts';
+	import type { Binding, Scope } from '$lib/hotkeys/types.ts';
 
 	let { onClose }: { onClose: () => void } = $props();
 
 	$effect(() => {
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape' || e.key === '?') {
-				e.preventDefault();
-				e.stopPropagation();
-				onClose();
-			}
+		pushScope('modal');
+		const dispose = registerKeymap(createModalKeymap({ close: onClose }));
+		return () => {
+			dispose();
+			popScope('modal');
 		};
-		window.addEventListener('keydown', onKey, true);
-		return () => window.removeEventListener('keydown', onKey, true);
 	});
 
-	const sections = [
-		{
-			label: 'Navigation',
-			items: [
-				{ keys: [['j'], ['↓']], desc: 'Next message' },
-				{ keys: [['k'], ['↑']], desc: 'Previous message' },
-				{ keys: [['g', 'g']], desc: 'Top of list' },
-				{ keys: [['G']], desc: 'Bottom of list' },
-				{ keys: [['h']], desc: 'Previous page' },
-				{ keys: [['l']], desc: 'Next page' }
-			]
-		},
-		{
-			label: 'Actions',
-			items: [
-				{ keys: [['↵']], desc: 'Open selected message' },
-				{ keys: [['f']], desc: 'Open message by hint' },
-				{ keys: [['/']], desc: 'Search this folder' },
-				{ keys: [['c']], desc: 'Compose new message' },
-				{ keys: [['Esc']], desc: 'Go back / close' }
-			]
-		},
-		{
-			label: 'Go to',
-			items: [
-				{ keys: [['g', 'i']], desc: 'Inbox' },
-				{ keys: [['g', 'a']], desc: 'Archive' },
-				{ keys: [['g', 's']], desc: 'Sent' },
-				{ keys: [['g', 'd']], desc: 'Drafts' },
-				{ keys: [['g', 'f']], desc: 'Folder picker' },
-				{ keys: [['g', 'A']], desc: 'Account picker' }
-			]
-		},
-		{
-			label: 'App',
-			items: [
-				{ keys: [['⌘', 'K']], desc: 'Command palette' },
-				{ keys: [['?']], desc: 'This help' }
-			]
-		},
-		{
-			label: 'Inside palettes',
-			items: [
-				{ keys: [['1'], ['–'], ['9']], desc: 'Jump to row' },
-				{ keys: [['↑'], ['Ctrl', 'P']], desc: 'Move up' },
-				{ keys: [['↓'], ['Ctrl', 'N']], desc: 'Move down' },
-				{ keys: [['↵']], desc: 'Confirm' },
-				{ keys: [['Esc']], desc: 'Cancel' }
-			]
-		},
-		{
-			label: 'Reader',
-			items: [
-				{ keys: [['j'], ['k']], desc: 'Next / previous message' },
-				{ keys: [['J'], ['K']], desc: 'Scroll down / up' },
-				{ keys: [['PgDn'], ['PgUp']], desc: 'Scroll 3/4 page down / up' },
-				{ keys: [['g', 'g']], desc: 'Scroll to top' },
-				{ keys: [['G']], desc: 'Scroll to bottom' },
-				{ keys: [['f']], desc: 'Follow link / attachment by hint' },
-				{ keys: [['Esc']], desc: 'Close reader' }
-			]
-		},
-		{
-			label: 'Compose',
-			items: [
-				{ keys: [['⌘', '↵']], desc: 'Send' },
-				{ keys: [['⌘', 'S']], desc: 'Save draft' },
-				{ keys: [['Esc']], desc: 'Discard' }
-			]
+	const SCOPE_LABEL: Record<Scope, string> = {
+		list: 'List',
+		reader: 'Reader',
+		compose: 'Compose',
+		palette: 'Palette',
+		modal: 'Modal',
+		hint: 'Hint'
+	};
+
+	// The scope underneath this modal — that's the "view" the user was in when they pressed `?`.
+	const hostScope = $derived.by(() => {
+		const stack = scopeStack();
+		for (let i = stack.length - 1; i >= 0; i--) {
+			if (stack[i] !== 'modal') return stack[i];
 		}
-	];
+		return 'list' as Scope;
+	});
+
+	type Row = { keys: string[][]; description: string };
+	type Section = { label: string; rows: Row[] };
+
+	function asKeyParts(spec: string): string[] {
+		// Split modifier combos like 'Ctrl+K' into ['Ctrl', 'K']; leave single keys as ['j'].
+		return spec.includes('+') ? spec.split('+') : [spec];
+	}
+
+	function bucket(bindings: Binding[]): Section[] {
+		// Skip fallback / wildcard bindings — they are dispatch-only, not user-facing help rows.
+		const visible = bindings.filter((b) => !b.fallback && !b.keys.includes('*'));
+		const byGroup = new Map<string, Map<string, Row>>();
+		for (const b of visible) {
+			let groupMap = byGroup.get(b.group);
+			if (!groupMap) {
+				groupMap = new Map();
+				byGroup.set(b.group, groupMap);
+			}
+			const existing = groupMap.get(b.description);
+			const keyParts = b.keys.map(asKeyParts);
+			if (existing) {
+				// Merge alternative keys for bindings sharing a description (e.g. j and ArrowDown).
+				existing.keys.push(...keyParts);
+			} else {
+				groupMap.set(b.description, { keys: keyParts, description: b.description });
+			}
+		}
+		return Array.from(byGroup.entries()).map(([label, m]) => ({
+			label,
+			rows: Array.from(m.values())
+		}));
+	}
+
+	const globalSection = $derived<Section>({
+		label: 'Global',
+		rows: bucket(globalBindings()).flatMap((s) => s.rows)
+	});
+
+	const scopeSections = $derived<Section[]>(bucket(scopeBindings(hostScope)));
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -100,17 +90,36 @@
 				<span>keyboard shortcuts</span>
 				<Wordmark size={11} />
 			</div>
-			<div class="title">All hotkeys</div>
+			<div class="title" data-testid="keyboard-help.scope-title">{SCOPE_LABEL[hostScope]}</div>
 		</div>
 		<div class="mb-help-grid mb-scroll">
-			{#each sections as section}
-				<div class="mb-help-sect">
+			<div class="mb-help-sect" data-testid="keyboard-help.section-global">
+				<div class="mb-help-sect-label">{globalSection.label}</div>
+				<div class="mb-help-rows">
+					{#each globalSection.rows as row}
+						<div class="mb-help-row">
+							<div class="mb-help-keys">
+								{#each row.keys as grp}
+									<span class="mb-help-keygroup">
+										{#each grp as k}
+											<span class="kbd">{k}</span>
+										{/each}
+									</span>
+								{/each}
+							</div>
+							<div class="mb-help-desc">{row.description}</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+			{#each scopeSections as section}
+				<div class="mb-help-sect" data-testid="keyboard-help.section-scope">
 					<div class="mb-help-sect-label">{section.label}</div>
 					<div class="mb-help-rows">
-						{#each section.items as it}
+						{#each section.rows as row}
 							<div class="mb-help-row">
 								<div class="mb-help-keys">
-									{#each it.keys as grp}
+									{#each row.keys as grp}
 										<span class="mb-help-keygroup">
 											{#each grp as k}
 												<span class="kbd">{k}</span>
@@ -118,7 +127,7 @@
 										</span>
 									{/each}
 								</div>
-								<div class="mb-help-desc">{it.desc}</div>
+								<div class="mb-help-desc">{row.description}</div>
 							</div>
 						{/each}
 					</div>

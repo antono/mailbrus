@@ -1,15 +1,20 @@
 <script lang="ts">
 	import Wordmark from './Wordmark.svelte';
 	import logoUrl from '$lib/assets/mailbrus.svg';
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
+	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { createModalKeymap } from '$lib/hotkeys/keymaps/modal.ts';
 
 	let { onClose }: { onClose: () => void } = $props();
 
 	$effect(() => {
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+		pushScope('modal');
+		const dispose = registerKeymap(createModalKeymap({ close: onClose }));
+		return () => {
+			dispose();
+			popScope('modal');
 		};
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
 	});
 </script>
 

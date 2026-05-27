@@ -6,6 +6,10 @@
 	import type { Account, Folder, Message } from '$lib/data.js';
 	import { type RenderMode } from '$lib/api.js';
 	import { getSettings, writeSetting } from '$lib/settings.js';
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
+	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { createReaderKeymap } from '$lib/hotkeys/keymaps/reader.ts';
 
 	let {
 		message,
@@ -23,6 +27,9 @@
 		onAccount,
 		onFolder,
 		onModeChange,
+		onNext,
+		onPrev,
+		onActivateHints,
 		bodyEl = $bindable<HTMLDivElement | null>(null)
 	}: {
 		message: Message;
@@ -40,6 +47,9 @@
 		onAccount: () => void;
 		onFolder: () => void;
 		onModeChange: (m: RenderMode) => void;
+		onNext: () => void;
+		onPrev: () => void;
+		onActivateHints: () => void;
 		bodyEl?: HTMLDivElement | null;
 	} = $props();
 
@@ -62,25 +72,46 @@
 
 	const SCROLL_LINE_PX = 20;
 
+	function scrollLines(dir: 1 | -1) {
+		if (!scrollEl) return;
+		scrollEl.scrollBy({ top: dir * 20 * SCROLL_LINE_PX, behavior: 'smooth' });
+	}
+
+	function scrollByPage(dir: 1 | -1) {
+		if (!scrollEl) return;
+		const step = Math.round(scrollEl.clientHeight * 0.75);
+		scrollEl.scrollBy({ top: dir * step, behavior: 'smooth' });
+	}
+
+	function scrollBodyTop() {
+		scrollEl?.scrollTo({ top: 0 });
+	}
+
+	function scrollBodyBottom() {
+		if (scrollEl) scrollEl.scrollTo({ top: scrollEl.scrollHeight });
+	}
+
 	$effect(() => {
-		function onKeyDown(e: KeyboardEvent) {
-			if (!scrollEl) return;
-			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-			if (e.key === 'J' || e.key === 'K') {
-				e.preventDefault();
-				e.stopImmediatePropagation();
-				scrollEl.scrollBy({ top: (e.key === 'J' ? 1 : -1) * 20 * SCROLL_LINE_PX, behavior: 'smooth' });
-				return;
-			}
-			if (e.key === 'PageDown' || e.key === 'PageUp') {
-				e.preventDefault();
-				e.stopImmediatePropagation();
-				const step = Math.round(scrollEl.clientHeight * 0.75);
-				scrollEl.scrollBy({ top: e.key === 'PageDown' ? step : -step, behavior: 'smooth' });
-			}
-		}
-		window.addEventListener('keydown', onKeyDown);
-		return () => window.removeEventListener('keydown', onKeyDown);
+		pushScope('reader');
+		const dispose = registerKeymap(
+			createReaderKeymap({
+				next: onNext,
+				prev: onPrev,
+				open: onNext,
+				scrollLineDown: () => scrollLines(1),
+				scrollLineUp: () => scrollLines(-1),
+				pageDown: () => scrollByPage(1),
+				pageUp: () => scrollByPage(-1),
+				jumpTop: scrollBodyTop,
+				jumpBottom: scrollBodyBottom,
+				activateHints: onActivateHints,
+				close: onClose
+			})
+		);
+		return () => {
+			dispose();
+			popScope('reader');
+		};
 	});
 
 	let compactMeta = $derived.by(() => {

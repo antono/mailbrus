@@ -1,5 +1,9 @@
 <script lang="ts">
 	import Wordmark from './Wordmark.svelte';
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
+	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { createPaletteKeymap } from '$lib/hotkeys/keymaps/palette.ts';
 
 	export interface PaletteItem {
 		key: string;
@@ -64,41 +68,29 @@
 		if (it) onSelect(it);
 	}
 
-	function onKey(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			e.preventDefault();
-			e.stopPropagation();
-			onCancel?.();
-			return;
-		}
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			e.stopPropagation();
-			select(idx);
-			return;
-		}
-		if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
-			e.preventDefault();
-			idx = Math.min(idx + 1, filtered.length - 1);
-			return;
-		}
-		if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
-			e.preventDefault();
-			idx = Math.max(idx - 1, 0);
-			return;
-		}
-		if (q === '' && (e.key === 'j' || e.key === 'k')) {
-			e.preventDefault();
-			idx = Math.max(0, Math.min(e.key === 'j' ? idx + 1 : idx - 1, filtered.length - 1));
-			return;
-		}
-		if (q === '' && /^[1-9]$/.test(e.key)) {
-			e.preventDefault();
-			const n = parseInt(e.key, 10) - 1;
-			if (n < filtered.length) select(n);
-			return;
-		}
-	}
+	$effect(() => {
+		pushScope('palette');
+		const dispose = registerKeymap(
+			createPaletteKeymap({
+				moveDown: () => {
+					idx = Math.min(idx + 1, filtered.length - 1);
+				},
+				moveUp: () => {
+					idx = Math.max(idx - 1, 0);
+				},
+				confirm: () => select(idx),
+				cancel: () => onCancel?.(),
+				jumpTo: (n) => {
+					if (n < filtered.length) select(n);
+				},
+				isQueryEmpty: () => q === ''
+			})
+		);
+		return () => {
+			dispose();
+			popScope('palette');
+		};
+	});
 
 	function onCurtainClick(e: MouseEvent) {
 		if ((e.target as HTMLElement).classList.contains('mb-curtain')) onCancel?.();
@@ -121,7 +113,6 @@
 				class="input"
 				{placeholder}
 				bind:value={q}
-				onkeydown={onKey}
 				spellcheck={false}
 				autocomplete="off"
 			/>

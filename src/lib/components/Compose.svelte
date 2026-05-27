@@ -2,6 +2,10 @@
 	import Breadcrumbs from './Breadcrumbs.svelte';
 	import RecipientInput from './RecipientInput.svelte';
 	import type { Account, Folder } from '$lib/data.js';
+	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
+	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { createComposeKeymap } from '$lib/hotkeys/keymaps/compose.ts';
 
 	let {
 		account,
@@ -34,28 +38,24 @@
 	let charCount = $derived(body.length);
 
 	$effect(() => {
-		const onKey = (e: KeyboardEvent) => {
-			if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-				e.preventDefault();
-				onSent({ to, cc, bcc, subject, body });
-				return;
-			}
-			if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
-				e.preventDefault();
-				onSent({ to, cc, bcc, subject, body, draft: true });
-				return;
-			}
-			if (e.key === 'Escape') {
-				e.preventDefault();
-				if (isDirty) {
-					if (window.confirm('Discard this draft?')) onClose();
-				} else {
-					onClose();
+		pushScope('compose');
+		const dispose = registerKeymap(
+			createComposeKeymap({
+				send: () => onSent({ to, cc, bcc, subject, body }),
+				saveDraft: () => onSent({ to, cc, bcc, subject, body, draft: true }),
+				escape: () => {
+					if (isDirty) {
+						if (window.confirm('Discard this draft?')) onClose();
+					} else {
+						onClose();
+					}
 				}
-			}
+			})
+		);
+		return () => {
+			dispose();
+			popScope('compose');
 		};
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
 	});
 </script>
 
