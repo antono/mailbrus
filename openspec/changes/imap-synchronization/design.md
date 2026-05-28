@@ -54,7 +54,7 @@ mailbrus-core/src/
 ### D2 — Config file: TOML at XDG config path
 
 ```toml
-# ~/.config/mailbrus/config.toml
+# ~/.config/mailbrus/accounts.toml
 
 [accounts.work]
 protocol = "imap"
@@ -65,11 +65,16 @@ imap_port = 993
 imap_tls = true
 credential_backend = "keyring"    # or "pass"
 credential_ref = "work-imap"      # keyring service name OR pass path
-maildir_root = "~/.mail/work"
+# maildir_root omitted → defaults to $XDG_DATA_HOME/mailbrus/mail/work
 ```
 
-Resolved via `$XDG_CONFIG_HOME/mailbrus/config.toml`, fallback `~/.config/mailbrus/config.toml`.
+Resolved via `$XDG_CONFIG_HOME/mailbrus/accounts.toml`, fallback `~/.config/mailbrus/accounts.toml`.
 `mailbrus-server` gains a `--config` CLI flag; defaults to XDG path.
+
+`maildir_root` is optional. When omitted, the default is
+`$XDG_DATA_HOME/mailbrus/mail/<account-id>/` (typically `~/.local/share/mailbrus/mail/<account-id>/`).
+This keeps all mailbrus data under the standard XDG data home, avoids cluttering `~`,
+and makes the whole state relocatable by setting `$XDG_DATA_HOME`.
 
 **Why TOML over JSON/YAML**: consistent with Cargo ecosystem, human-editable, no
 indentation footguns.
@@ -78,18 +83,32 @@ indentation footguns.
 
 ```rust
 enum CredentialBackend {
-    Keyring,   // via keyring-lib (pimalaya)
-    Pass,      // via prs-lib, backend-gnupg-bin feature
+    Keyring,                     // via keyring-lib (pimalaya)
+    Pass { gpg: PassGpgBackend}, // via prs-lib
+}
+
+enum PassGpgBackend {
+    GnupgBin,   // shells out to `gpg` binary — requires gpg-agent running
+    Gpgme,      // links libgpgme (C), no agent required
+    Rpgpie,     // pure-Rust GPG via rpgpie — no system gpg needed
 }
 ```
 
-Both implement a `resolve() -> Result<String>` trait. The `credential_ref` field is
-interpreted differently per backend:
+Both `Keyring` and `Pass` implement `resolve() -> Result<String>`. The `credential_ref`
+field is interpreted differently per backend:
 - `keyring`: service name looked up in the OS keyring
 - `pass`: path under `$PASSWORD_STORE_DIR` (default `~/.password-store`), e.g. `mail/work`
 
-`prs-lib` with `backend-gnupg-bin` shells out to the user's existing `gpg` — no extra
-system libraries, works wherever `pass` works.
+The `pass_gpg_backend` config key selects the GPG driver; default is `"gnupg-bin"`.
+Users without a running gpg-agent (e.g. headless servers, CI) should use `"gpgme"` or
+`"rpgpie"`:
+
+```toml
+[accounts.work]
+credential_backend = "pass"
+credential_ref = "mail/work"
+pass_gpg_backend = "gpgme"   # options: gnupg-bin (default), gpgme, rpgpie
+```
 
 **Alternative considered**: shell out to `pass show <path>` directly without a crate.
 Rejected because `prs-lib` handles store discovery, `.gpg-id` lookup, and edge cases
@@ -115,6 +134,76 @@ via `BackendBuilder` with the `imap-client` connector. Delta sync flow per mailb
 
 **Fallback for servers without CONDSTORE**: full UID scan (slower, detected by capability
 advertisement).
+
+**Sync progress logging** must be both machine-readable and human-readable:
+
+- All sync events are emitted via `tracing` spans and events with structured fields
+  (`account_id`, `mailbox`, `fetched`, `indexed`, `deleted`, `modseq`).
+- `tracing-subscriber` is configured at startup:
+  - **JSON formatter** when `MAILBRUS_LOG_FORMAT=json` (or in production/CI) — produces
+    newline-delimited JSON, consumable by log aggregators and scripts.
+  - **Pretty formatter** otherwise — human-readable console output with colour and
+    indentation.
+- `SyncEvent` (the SSE payload) is a serialisable struct mirroring the tracing fields:
+  ```rust
+  #[derive(Serialize)]
+  struct SyncEvent {
+      account_id: String,
+      mailbox: Option<String>,
+      status: SyncStatus,   // Running | Done | Error
+      fetched: u32,
+      indexed: u32,
+      error: Option<String>,
+  }
+  ```
+  This doubles as the machine-readable API response and the human-readable SSE line
+  displayed in the UI.
+
+```mermaid
+sequenceDiagram
+    participant UI as SvelteKit UI
+    participant Server as mailbrus-server
+    participant Engine as SyncEngine
+    participant Worker as ImapWorker
+    participant IMAP as IMAP Server
+    participant FS as Maildir
+    participant DB as sync.db
+
+    UI->>Server: POST /api/sync/:account
+    Server->>Engine: sync_account(id)
+    Engine-->>Server: 202 Accepted
+    Server-->>UI: 202 Accepted
+
+    Engine->>Worker: spawn tokio task
+
+    Worker->>DB: load mailbox state
+    Worker->>IMAP: CAPABILITY
+    IMAP-->>Worker: capabilities
+
+    alt CONDSTORE + valid UIDVALIDITY
+        Worker->>IMAP: UID FETCH CHANGEDSINCE highestModSeq
+        IMAP-->>Worker: changed messages
+    else UIDVALIDITY changed
+        Worker->>DB: reset mailbox state
+        Worker->>IMAP: UID FETCH ALL (full resync)
+        IMAP-->>Worker: all messages
+    else no CONDSTORE
+        Worker->>IMAP: UID SEARCH ALL
+        IMAP-->>Worker: full UID list
+    end
+
+    Worker->>FS: write RFC822 to maildir cur/
+    Worker->>FS: notmuch index_file, tag account
+    Worker->>DB: persist highestModSeq + uidvalidity
+
+    loop SSE progress events
+        Worker--)Server: SyncEvent status + count
+        Server--)UI: SSE account status count
+    end
+
+    Worker--)Server: SyncEvent status=done
+    Server--)UI: SSE status=done
+```
 
 ### D5 — Sync state in SQLite, not notmuch
 
@@ -155,6 +244,48 @@ GET  /api/sync/stream    → SSE stream of SyncEvent { account, status, count }
 Sync runs in a `tokio::task::spawn` per account. `AppState` gains an
 `Arc<SyncEngine>` constructed from the config at startup.
 
+```mermaid
+flowchart TD
+    subgraph server["mailbrus-server"]
+        API["Axum HTTP handlers"]
+        SSE["SSE /api/sync/stream"]
+        State["AppState\nSyncEngine + accounts"]
+    end
+
+    subgraph core["mailbrus-core"]
+        Engine["SyncEngine\nsync_all / sync_account"]
+        Worker["ImapWorker\nemail-lib + imap-client"]
+        Creds["Credentials\nkeyring-lib / prs-lib"]
+        Config["Config loader\nAccountConfig"]
+        SyncDB["SyncStateDb\nrusqlite"]
+    end
+
+    subgraph storage["Storage"]
+        TOML["accounts.toml\nXDG config"]
+        Keyring["OS Keyring"]
+        PassStore["password-store\ngpg encrypted"]
+        Maildir["maildir\nXDG data"]
+        Notmuch[("notmuch index")]
+        SQLite[("sync.db")]
+        IMAPSrv[("IMAP Server")]
+    end
+
+    TOML --> Config
+    Config --> State
+    State --> API
+    API -->|"POST /api/sync"| Engine
+    Engine -->|"spawn task"| Worker
+    Worker --> Creds
+    Creds -->|"keyring"| Keyring
+    Creds -->|"pass + gpg"| PassStore
+    Worker -->|"IMAP FETCH"| IMAPSrv
+    Worker -->|"write RFC822"| Maildir
+    Worker -->|"index + tag"| Notmuch
+    Worker --> SyncDB
+    SyncDB --> SQLite
+    Worker -->|"SyncEvent"| SSE
+```
+
 ## Risks / Trade-offs
 
 | Risk | Mitigation |
@@ -162,7 +293,7 @@ Sync runs in a `tokio::task::spawn` per account. `AppState` gains an
 | `email-lib` pre-1.0 API churn | Pin to a specific git rev; update deliberately |
 | CONDSTORE not universally supported | Detect via CAPABILITY, fall back to full UID scan |
 | notmuch write contention (reader + sync writing simultaneously) | Open notmuch DB in ReadWrite only during sync; use a `tokio::sync::Mutex<Database>` in AppState |
-| `prs-lib` `backend-gnupg-bin` spawns `gpg` subprocess | Acceptable for credential fetch (once per sync session); document that gpg-agent must be running |
+| `prs-lib` GPG subprocess (gnupg-bin backend) requires gpg-agent running | Configurable via `pass_gpg_backend`; use `gpgme` or `rpgpie` for headless/agentless environments |
 | Large initial sync blocking the server | Full sync runs in background task; SSE progress lets UI show state; server API stays responsive |
 | Config file not found at startup | Server logs a warning and falls back to current behavior (notmuch default config, no sync capability); does not crash |
 
@@ -170,7 +301,7 @@ Sync runs in a `tokio::task::spawn` per account. `AppState` gains an
 
 1. Config file is opt-in — server starts fine without it (backwards compatible)
 2. Existing users with a pre-populated notmuch index continue to work unchanged
-3. New users: create `~/.config/mailbrus/config.toml`, run `POST /api/sync`
+3. New users: create `~/.config/mailbrus/accounts.toml`, run `POST /api/sync`
 4. No database migrations needed (SQLite is created fresh on first sync)
 
 ## Open Questions
