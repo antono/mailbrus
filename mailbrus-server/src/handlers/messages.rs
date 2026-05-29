@@ -48,7 +48,7 @@ pub async fn list_messages(
     .await
     {
         Ok(Ok((messages, total))) => {
-            let total_pages = (total as u64 + per_page - 1) / per_page;
+            let total_pages = (total as u64).div_ceil(per_page);
             let body = json!({
                 "messages": messages.iter().map(message_to_json).collect::<Vec<_>>(),
                 "count": total,

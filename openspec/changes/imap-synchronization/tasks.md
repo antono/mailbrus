@@ -68,6 +68,6 @@
 
 ## 9. Compilation warnings
 
-- [ ] 9.1 Run `cargo clippy --all-features` and fix all warnings
-- [ ] 9.2 Run `cargo clippy` without `sync` feature and fix all warnings
-- [ ] 9.3 Verify `cargo test --all-features` passes with zero failures
+- [x] 9.1 Run `cargo clippy --all-features` and fix all warnings
+- [x] 9.2 Run `cargo clippy` without `sync` feature and fix all warnings
+- [x] 9.3 Verify `cargo test --all-features` passes with zero failures
