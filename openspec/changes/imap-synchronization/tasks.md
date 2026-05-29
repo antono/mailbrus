@@ -51,13 +51,13 @@
 
 ## 7. Server integration
 
-- [ ] 7.1 Add `--config <path>` flag to `mailbrus-server` CLI (`cli.rs`)
-- [ ] 7.2 Load `AccountConfig` list at server startup; construct `Arc<SyncEngine>` and add to `AppState`
-- [ ] 7.3 Add `POST /api/sync` handler → call `sync_engine.sync_all()`, return `202`
-- [ ] 7.4 Add `POST /api/sync/:account` handler → call `sync_engine.sync_account(id)`, handle `404` / `409`
-- [ ] 7.5 Add `GET /api/sync/stream` SSE handler → subscribe to broadcast channel, stream `SyncEvent` as JSON
-- [ ] 7.6 Update `GET /api/maildirs` to derive account list from `AppState` config rather than notmuch root filesystem scan
-- [ ] 7.7 Handle no-config startup: server starts with empty account registry, `GET /api/maildirs` returns `[]`
+- [x] 7.1 Add `--config <path>` flag to `mailbrus-server` CLI (`cli.rs`)
+- [x] 7.2 Load `AccountConfig` list at server startup; construct `Arc<SyncEngine>` and add to `AppState`
+- [x] 7.3 Add `POST /api/sync` handler → call `sync_engine.sync_all()`, return `202`
+- [x] 7.4 Add `POST /api/sync/:account` handler → call `sync_engine.sync_account(id)`, handle `404` / `409`
+- [x] 7.5 Add `GET /api/sync/stream` SSE handler → subscribe to broadcast channel, stream `SyncEvent` as JSON
+- [x] 7.6 Update `GET /api/maildirs` to derive account list from `AppState` config rather than notmuch root filesystem scan
+- [x] 7.7 Handle no-config startup: server starts with empty account registry, `GET /api/maildirs` returns `[]`
 
 ## 8. E2E test validation and fixes
 

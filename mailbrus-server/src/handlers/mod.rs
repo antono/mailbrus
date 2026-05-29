@@ -1,6 +1,7 @@
 pub mod maildirs;
 pub mod messages;
 pub mod push;
+pub mod sync;
 
 use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
 use serde_json::json;

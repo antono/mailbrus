@@ -19,11 +19,15 @@ use handlers::{
         patch_message, search_messages,
     },
     push::{push_subscribe, push_unsubscribe, push_vapid_key, send_message},
+    sync::{sync_account, sync_all, sync_stream},
 };
+use mailbrus_core::config::load_config;
+use mailbrus_core::sync::SyncEngine;
 use middleware::log_middleware;
 use push_poller::spawn_push_poller;
 use state::AppState;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing::{info, warn};
 
@@ -45,7 +49,44 @@ async fn main() {
 
     info!("[startup] mailbrus-server starting");
     info!("[startup] log-level: {:?}", cli.log_level);
-    let state = AppState::new(cli.log_level);
+
+    let accounts = match load_config(cli.config.as_deref()) {
+        Ok(a) => {
+            info!("[startup] loaded {} account(s) from config", a.len());
+            a
+        }
+        Err(e) => {
+            warn!("[startup] failed to load config: {} — continuing without accounts", e);
+            Vec::new()
+        }
+    };
+
+    let sync_engine = if accounts.is_empty() {
+        warn!("[startup] no accounts configured; sync engine disabled");
+        None
+    } else {
+        let notmuch_db_path = cli
+            .notmuch_db
+            .clone()
+            .unwrap_or_else(|| std::path::PathBuf::from(""));
+        match SyncEngine::new(&accounts, notmuch_db_path, None) {
+            Ok(engine) => {
+                info!("[startup] sync engine initialized");
+                Some(Arc::new(engine))
+            }
+            Err(e) => {
+                warn!("[startup] failed to init sync engine: {}", e);
+                None
+            }
+        }
+    };
+
+    let state = AppState::new(
+        cli.log_level,
+        accounts,
+        sync_engine,
+        cli.notmuch_db.clone(),
+    );
     spawn_push_poller(state.clone());
 
     let bind_addr: SocketAddr = cli.bind.parse().unwrap_or_else(|e| {
@@ -79,6 +120,9 @@ async fn main() {
         .route("/push/vapid-key", get(push_vapid_key))
         .route("/push/subscribe", post(push_subscribe))
         .route("/push/subscribe", delete(push_unsubscribe))
+        .route("/sync", post(sync_all))
+        .route("/sync/{account}", post(sync_account))
+        .route("/sync/stream", get(sync_stream))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             log_middleware,

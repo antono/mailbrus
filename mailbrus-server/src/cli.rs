@@ -29,6 +29,12 @@ pub struct Cli {
     /// Log level: debug (full responses), info (metadata only), warn (key events)
     #[arg(long, default_value = "info", value_enum)]
     pub log_level: LogLevel,
+    /// Path to mailbrus config file (TOML). Defaults to $XDG_CONFIG_HOME/mailbrus/config.toml.
+    #[arg(long)]
+    pub config: Option<std::path::PathBuf>,
+    /// Path to notmuch database root. Defaults to ~/.notmuch-config resolution at runtime.
+    #[arg(long)]
+    pub notmuch_db: Option<std::path::PathBuf>,
 }
 
 pub fn browser_url(addr: SocketAddr) -> String {

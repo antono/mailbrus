@@ -3680,6 +3680,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "clap",
+ "futures",
  "html2text",
  "lol_html",
  "mail-parser 0.11.3",
