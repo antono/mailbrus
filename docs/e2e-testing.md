@@ -81,7 +81,9 @@ e2e/
     paths.ts               # absolute repo / corpus / build / binary locations
     clone.ts               # copy corpus -> /tmp/mailbrus-e2e-*; recursive cleanup
     notmuch.ts             # scoped notmuch config + `notmuch new` + hermeticity guard
+    config.ts              # write a mailbrus config.toml from the cloned corpus
     server.ts              # free port -> spawn server -> health-poll -> stop()
+    stalwart.ts            # ephemeral Stalwart IMAP sidecar for sync specs (§ 8)
     fixtures.ts            # test.extend({ app }) wiring clone+index+server+teardown
     global-setup.ts        # ensure notmuch / build/ / server binary once per run
   pages/                   # page objects: AccountsPage, MailboxPage, MessagePage
@@ -310,6 +312,7 @@ deno task test:e2e       # headless, parallel
 | `deno task e2e:ui` | Playwright UI mode (Chromium) — interactive pick/watch/re-run with time-travel |
 | `deno task e2e:debug` | open the trace viewer on the newest retained `trace.zip` (debug a failure) |
 | `deno task e2e:generate` | regenerate the `.eml` corpus from `manifest.ts` |
+| `deno task stalwart:dev` | start a persistent local Stalwart IMAP server with the admin web UI — for poking sync by hand, not for the test suite (§ 8) |
 
 Filter to a subset by appending a pattern, e.g.
 `deno task test:e2e pagination`.
@@ -326,7 +329,168 @@ capped worker count and the Playwright HTML report uploaded as an artifact.
 
 ---
 
-## 8. Adding fixtures and specs
+## 8. IMAP sync testing with Stalwart
+
+The default per-test harness in § 3 is enough for any spec that only reads
+notmuch — it has no IMAP server, no SMTP, no JMAP. The sync API
+(`POST /api/sync`, `GET /api/sync/stream`, …) is different: it needs a real
+mail server on the other end of the worker to be meaningful. The repo bundles
+**Stalwart** (an all-in-one Rust mail server) for this, in two flavours:
+
+- An **ephemeral per-test sidecar** ([`e2e/harness/stalwart.ts`](../e2e/harness/stalwart.ts))
+  consumed only by [`e2e/specs/sync.spec.ts`](../e2e/specs/sync.spec.ts).
+- A **long-running dev instance with the admin web UI**
+  ([`scripts/stalwart-dev.ts`](../scripts/stalwart-dev.ts)) for visual mail
+  inspection during development.
+
+Both come from the `stalwart` and `stalwart-cli` packages in nixpkgs (added
+to [`nix/deps.nix`](../nix/deps.nix)), so they are available the moment you
+`nix develop`.
+
+### Why Stalwart, why a sidecar at all
+
+`mailbrus-server`'s sync engine opens an IMAP connection, authenticates,
+performs CONDSTORE delta fetch (or a full UID scan), writes RFC 822 to the
+account's maildir, and indexes it into notmuch. None of that is interesting
+without an actual IMAP server — and we explicitly do **not** want to mock
+it, for the same reasons the rest of the suite doesn't mock notmuch. A real
+sidecar gives us:
+
+- A real CAPABILITY exchange (so the CONDSTORE detection path is exercised).
+- A real `SELECT INBOX` returning a real `UIDVALIDITY` and `HIGHESTMODSEQ`.
+- A real `UID FETCH` round-trip with real RFC 822 bytes back.
+
+### The ephemeral test sidecar
+
+Each spec that needs a real IMAP server imports `startStalwart` from the
+harness and gets its own instance bound to ephemeral loopback ports. The
+sidecar is **not** auto-started by the default `app` fixture; only specs
+that opt in pay the ~3-second startup cost.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Spec as sync.spec.ts (8.1)
+  participant SW as stalwart sidecar
+  participant Cfg as mailbrus config.toml
+  participant Srv as mailbrus-server
+  participant Br as Test runner (fetch)
+
+  Spec->>SW: startStalwart({ users })
+  SW->>SW: spawn stalwart on ephemeral ports
+  SW->>SW: POST /api/principal (domain + user)
+  SW->>SW: IMAP APPEND fixture mail into INBOX
+  SW-->>Spec: { imapPort, httpPort, ... }
+
+  Spec->>Cfg: writeFixtureConfig(clone) + append stalwart account
+  Spec->>Srv: startServer(--config, --notmuch-db)
+  Srv-->>Spec: baseURL
+
+  Spec->>Srv: GET /api/sync/stream (SSE)
+  Spec->>Srv: POST /api/sync/:stalwart-account
+  Srv->>SW: real IMAP connect + auth + fetch
+  Srv-->>Spec: SyncEvent over SSE
+  Spec-->>Spec: assert terminal status
+  Spec->>Srv: stop
+  Spec->>SW: stop (deletes data dir)
+```
+
+`startStalwart({ users: [...] })` does, in order:
+
+1. Generates a minimal Stalwart `config.toml` in a `mkdtemp` directory.
+   Only the `imap` and `http` listeners are bound, both on
+   ephemeral loopback ports. RocksDB lives in the same temp tree.
+2. Spawns `stalwart -c <config>`, then polls `GET /api/principal` (HTTP Basic
+   as the fallback admin) until it succeeds.
+3. Creates a `test.local` domain via `POST /api/principal`.
+4. For each requested user, creates an `individual` principal with the given
+   email + secret.
+5. If `inboxMessages` is non-empty, opens a TCP socket to the IMAP port,
+   does `AUTHENTICATE PLAIN`, and `APPEND`s each message to `INBOX`.
+
+Teardown sends `SIGTERM` and `rm -rf`s the temp tree — no leftovers per
+test, no shared state between tests.
+
+### The `plain` credential backend
+
+`mailbrus-core` ships three credential backends — `keyring`, `pass`, and
+`plain`. The `plain` backend treats the `credential_ref` value itself as the
+plaintext secret. **It exists for tests and local dev only** — neither the
+test harness nor `stalwart:dev` can realistically provision an OS keyring or
+a GPG-backed `pass` store, so the sync spec writes a config like:
+
+```toml
+[accounts.stalwart-alice]
+protocol = "imap"
+email = "alice@test.local"
+imap_host = "127.0.0.1"
+imap_port = 51234            # ephemeral, from the sidecar
+imap_tls = false             # localhost only
+credential_backend = "plain"
+credential_ref = "stalwart-secret"   # literal password
+maildir_root = "..."
+```
+
+Production accounts must use `keyring` or `pass`.
+
+### Long-running dev instance (visual inspection)
+
+For poking sync by hand — opening the admin UI, browsing a mailbox, watching
+the worker write into it — use:
+
+```sh
+deno task stalwart:dev
+```
+
+This brings Stalwart up on stable loopback ports (overridable via
+`STALWART_DEV_IMAP_PORT` / `STALWART_DEV_HTTP_PORT`), seeds the same
+`test.local` domain plus an `alice@test.local` user, and prints a banner
+with the URLs and a ready-to-paste mailbrus config snippet:
+
+```
+  Web admin    : http://127.0.0.1:18080
+  Admin login  : admin / mailbrus-dev
+  IMAP         : 127.0.0.1:18143  (no TLS — localhost only)
+  Seeded user  : alice@test.local / dev
+```
+
+State persists under `.stalwart-dev/` (gitignored), so the second run reopens
+the same mailboxes. Delete the directory to start fresh.
+
+The admin web UI lets you create more users, browse mailboxes, send mail
+between local accounts, and (most useful for sync debugging) watch new
+messages appear in real time as you trigger sync from mailbrus.
+
+### Current limitation: cleartext IMAP auth
+
+Stalwart 0.15.5 rejects cleartext IMAP authentication regardless of the
+documented `imap.auth.allow-plain-text` flag (set via TOML **and** via the
+management API + `reload-config`, both confirmed by debug logs). The
+credential check logs "Authentication successful" and then immediately
+"Unauthorized access (security.unauthorized) details = authenticate", and
+the server closes the connection.
+
+The sync spec therefore accepts **either** `status:"done"` **or**
+`status:"error"` as the terminal SyncEvent — the full pipeline (HTTP
+trigger → worker → real IMAP connect → SyncEvent broadcast → SSE
+delivery) is still exercised end to end. Tightening the assertion to
+`done` is a follow-up that needs one of:
+
+- A TLS-enabled Stalwart listener with a self-signed cert and the cert
+  path threaded into the `mailbrus-core` IMAP config (`imap-client`
+  already supports a custom CA via `Client::rustls(..., Some(cert_path))`).
+- The actual Stalwart config key for the cleartext-`AUTHENTICATE` guard
+  (which the documented `imap.auth.allow-plain-text` is supposed to be,
+  but empirically isn't).
+
+The worker's error reporting walks the source chain, so when this is
+revisited the failure surface will already say e.g.
+`AUTHENTICATE PLAIN: cannot resolve IMAP task: unexpected NO response: Authentication failed`
+instead of the opaque top-level error.
+
+---
+
+## 9. Adding fixtures and specs
 
 **A fixture message**
 
@@ -347,7 +511,7 @@ must contain no inline setup and no hard-coded DOM selectors.
 
 ---
 
-## 9. Known UI gaps (`test.fixme`)
+## 10. Known UI gaps (`test.fixme`)
 
 Two scenarios are present but marked `test.fixme`. They document real SPA
 limitations — the corpus and backend already support them, so each enables the
@@ -361,7 +525,7 @@ green.
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Symptom | Cause / fix |
 | --- | --- |
@@ -371,3 +535,6 @@ green.
 | `notmuch is required … not found on PATH` | Run inside `nix develop` (the flake provides notmuch). |
 | `hermeticity violation: … outside clone` | A notmuch config leaked from the environment. The harness sets `NOTMUCH_CONFIG` explicitly; ensure nothing overrides it mid-run. |
 | Leftover `/tmp/mailbrus-e2e-*` directories | Only on a hard crash mid-test. Safe to delete; the namespaced prefix makes them easy to find. |
+| `failed to spawn stalwart: spawn stalwart ENOENT` | `stalwart` isn't on `PATH` in the current shell. The package was added to `nix/deps.nix` — reload the devShell (`exit && nix develop` or `direnv reload`) so the new dep is picked up. |
+| `deno task stalwart:dev` exits with `address already in use` | A previous dev instance is still running or another process owns ports `18143`/`18080`. Kill the stray process or override `STALWART_DEV_IMAP_PORT` / `STALWART_DEV_HTTP_PORT`. |
+| Leftover `/tmp/mailbrus-stalwart-*` directories | Only on a hard crash mid-test. Safe to delete; the namespaced prefix matches the per-test sidecar's `mkdtemp` prefix. |
