@@ -2,6 +2,15 @@ pub mod error;
 pub mod maildir_reader;
 pub use error::MailboxError;
 
+#[cfg(feature = "sync")]
+pub mod config;
+
+#[cfg(feature = "sync")]
+pub mod credentials;
+
+#[cfg(feature = "sync")]
+pub mod sync;
+
 /// Returns the mailbrus version string.
 ///
 /// ```

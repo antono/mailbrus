@@ -5,7 +5,43 @@ edition = "2021"
 description = "Shared core library for mailbrus"
 license = "LGPL-3.0-or-later"
 
+[features]
+default = []
+sync = [
+    "dep:email-lib",
+    "dep:imap-client",
+    "dep:keyring",
+    "dep:prs-lib",
+    "dep:rusqlite",
+    "dep:toml",
+    "dep:serde",
+    "dep:tokio",
+    "dep:tracing",
+    "dep:thiserror",
+    "dep:dirs",
+    "dep:async-trait",
+    "dep:chrono",
+]
+
 [dependencies]
 io-email = { git = "https://github.com/pimalaya/io-email" }
 io-maildir = { git = "https://github.com/pimalaya/io-maildir" }
 notmuch = "0.8"
+
+# sync feature deps
+email-lib = { git = "https://github.com/pimalaya/core", package = "email-lib", default-features = false, features = ["tokio", "rustls", "imap", "maildir", "notmuch", "keyring"], optional = true }
+imap-client = { git = "https://github.com/pimalaya/imap-client", optional = true }
+keyring = { git = "https://github.com/pimalaya/core", package = "keyring-lib", default-features = false, features = ["tokio", "rustls"], optional = true }
+prs-lib = { version = "0.5.7", default-features = false, features = ["backend-gnupg-bin"], optional = true }
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+toml = { version = "0.8", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs"], optional = true }
+tracing = { version = "0.1", optional = true }
+thiserror = { version = "2", optional = true }
+dirs = { version = "5", optional = true }
+async-trait = { version = "0.1", optional = true }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"], optional = true }
+
+[dev-dependencies]
+tempfile = "3"
