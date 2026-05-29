@@ -33,5 +33,10 @@
     # (currently 1.59.1) to avoid the "browser/runner version mismatch" error.
     nodejs
     playwright-driver.browsers
+    # Stalwart mail server: used both as a per-test IMAP sidecar (see
+    # e2e/harness/stalwart.ts) and as a long-running dev instance with the
+    # admin dashboard (see `deno task stalwart:dev`).
+    stalwart
+    stalwart-cli
   ];
 }

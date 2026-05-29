@@ -282,9 +282,20 @@ impl ImapWorker {
                 })?
         };
 
-        client.authenticate_plain(&self.imap.email, password).await.map_err(|e| {
-            ImapSyncError::Auth { login: self.imap.email.clone(), message: e.to_string() }
-        })?;
+        // Prefer SASL PLAIN; some servers (e.g. Stalwart) only allow LOGIN on a
+        // non-TLS port after an explicit opt-in. Fall back to LOGIN on failure.
+        let auth_result = client.authenticate_plain(&self.imap.email, password).await;
+        if let Err(auth_err) = auth_result {
+            let login_result = client.login(self.imap.email.as_str(), password).await;
+            login_result.map_err(|login_err| ImapSyncError::Auth {
+                login: self.imap.email.clone(),
+                message: format!(
+                    "AUTHENTICATE PLAIN: {}; LOGIN: {}",
+                    error_chain(&auth_err),
+                    error_chain(&login_err)
+                ),
+            })?;
+        }
 
         Ok(client)
     }
@@ -453,6 +464,18 @@ impl ImapWorker {
 
         Ok(())
     }
+}
+
+/// Walk an error's `source()` chain and join the messages with `: `.
+fn error_chain(err: &(dyn std::error::Error)) -> String {
+    let mut out = err.to_string();
+    let mut next = err.source();
+    while let Some(src) = next {
+        out.push_str(": ");
+        out.push_str(&src.to_string());
+        next = src.source();
+    }
+    out
 }
 
 fn extract_uid_from_items(key: NonZeroU32, items: &[MessageDataItem<'_>]) -> u32 {

@@ -21,3 +21,6 @@ result-*
 
 # lean-ctx cache
 .lean-ctx/
+
+# Stalwart dev data (deno task stalwart:dev)
+.stalwart-dev/

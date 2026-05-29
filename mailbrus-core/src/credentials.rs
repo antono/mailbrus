@@ -40,6 +40,7 @@ pub async fn resolve(config: &AccountConfig) -> Result<String, CredentialError> 
     match imap.credential_backend {
         CredentialBackend::Keyring => resolve_keyring(&config.id, imap).await,
         CredentialBackend::Pass => resolve_pass(&config.id, imap),
+        CredentialBackend::Plain => Ok(imap.credential_ref.clone()),
     }
 }
 

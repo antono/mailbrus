@@ -42,6 +42,10 @@ pub struct ImapConfig {
 pub enum CredentialBackend {
     Keyring,
     Pass,
+    /// Test/local backend: the `credential_ref` itself is treated as the
+    /// plaintext secret. Convenient for fixtures and offline development,
+    /// NEVER for production accounts.
+    Plain,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
