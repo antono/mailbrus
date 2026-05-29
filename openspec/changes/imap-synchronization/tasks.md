@@ -61,10 +61,10 @@
 
 ## 8. E2E test validation and fixes
 
-- [ ] 8.1 Author E2E test: start server with a fixture config pointing at a pre-populated maildir, call `POST /api/sync`, verify `GET /api/sync/stream` emits a `done` event
-- [ ] 8.2 Author E2E test: `GET /api/maildirs` returns accounts from config file (not filesystem scan)
-- [ ] 8.3 Author E2E test: `POST /api/sync/:unknown` returns `404`
-- [ ] 8.4 Run full E2E suite; fix any regressions in existing tests (maildirs, messages, pagination)
+- [x] 8.1 Author E2E test: start server with a fixture config pointing at a pre-populated maildir, call `POST /api/sync`, verify `GET /api/sync/stream` emits a `done` event
+- [x] 8.2 Author E2E test: `GET /api/maildirs` returns accounts from config file (not filesystem scan)
+- [x] 8.3 Author E2E test: `POST /api/sync/:unknown` returns `404`
+- [x] 8.4 Run full E2E suite; fix any regressions in existing tests (maildirs, messages, pagination)
 
 ## 9. Compilation warnings
 

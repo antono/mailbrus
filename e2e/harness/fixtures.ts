@@ -9,23 +9,27 @@
  */
 import { test as base, expect } from '@playwright/test';
 import { cloneCorpus, removeClone, type Clone } from './clone.ts';
+import { writeFixtureConfig, type ConfigHandle } from './config.ts';
 import { indexClone } from './notmuch.ts';
 import { startServer, type ServerHandle } from './server.ts';
 
 export interface AppFixture {
 	/** Base URL of this test's dedicated, freshly indexed server instance. */
 	baseURL: string;
+	/** Account list materialised into the test's mailbrus config.toml. */
+	config: ConfigHandle;
 }
 
-export const test = base.extend<{ app: AppFixture }>({
+export const test = base.extend<{ app: AppFixture; config: ConfigHandle }>({
 	app: async ({}, use) => {
 		let clone: Clone | undefined;
 		let server: ServerHandle | undefined;
 		try {
 			clone = await cloneCorpus();
 			const scope = await indexClone(clone);
-			server = await startServer(scope);
-			await use({ baseURL: server.baseURL });
+			const config = await writeFixtureConfig(clone);
+			server = await startServer({ scope, clone, config });
+			await use({ baseURL: server.baseURL, config });
 		} finally {
 			if (server) await server.stop();
 			await removeClone(clone);
@@ -34,6 +38,10 @@ export const test = base.extend<{ app: AppFixture }>({
 	// Point Playwright's page/context at this test's server.
 	baseURL: async ({ app }, use) => {
 		await use(app.baseURL);
+	},
+	// Expose the generated mailbrus config to specs that need it.
+	config: async ({ app }, use) => {
+		await use(app.config);
 	}
 });
 

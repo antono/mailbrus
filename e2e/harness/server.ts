@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { BUILD_DIR, SERVER_BIN } from './paths.ts';
 import type { NotmuchScope } from './notmuch.ts';
+import type { ConfigHandle } from './config.ts';
+import type { Clone } from './clone.ts';
 
 export interface ServerHandle {
 	/** `http://127.0.0.1:<port>` for the browser and API. */
@@ -40,16 +42,33 @@ async function waitForHealth(baseURL: string, timeoutMs = 20_000): Promise<void>
 	throw new Error(`server never became healthy at ${baseURL}: ${String(lastErr)}`);
 }
 
+export interface ServerOptions {
+	scope: NotmuchScope;
+	clone: Clone;
+	/** Mailbrus config TOML; the server reads accounts from this file. */
+	config: ConfigHandle;
+}
+
 /** Start a server scoped to `scope`'s notmuch config and wait until it answers. */
-export async function startServer(scope: NotmuchScope): Promise<ServerHandle> {
+export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
 	const port = await reserveFreePort();
 	const baseURL = `http://127.0.0.1:${port}`;
 
-	const child = spawn(
-		SERVER_BIN,
-		['--bind', `127.0.0.1:${port}`, '--frontend-dist', BUILD_DIR],
-		{ env: { ...process.env, NOTMUCH_CONFIG: scope.configPath }, stdio: 'pipe' }
-	);
+	const args = [
+		'--bind',
+		`127.0.0.1:${port}`,
+		'--frontend-dist',
+		BUILD_DIR,
+		'--config',
+		opts.config.path,
+		'--notmuch-db',
+		opts.clone.maildir
+	];
+
+	const child = spawn(SERVER_BIN, args, {
+		env: { ...process.env, NOTMUCH_CONFIG: opts.scope.configPath },
+		stdio: 'pipe'
+	});
 
 	const exited = new Promise<void>((resolve) => child.on('exit', () => resolve()));
 
