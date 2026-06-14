@@ -71,6 +71,7 @@ function buildConfig(opts: {
 		'fts = "rocksdb"',
 		'blob = "rocksdb"',
 		'lookup = "rocksdb"',
+		'spam = "rocksdb"',
 		'directory = "internal"',
 		'',
 		'[store.rocksdb]',
