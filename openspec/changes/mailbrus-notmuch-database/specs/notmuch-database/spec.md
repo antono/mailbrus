@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Isolated database location
-Mailbrus SHALL maintain its notmuch database exclusively at `$XDG_DATA_HOME/mailbrus/notmuch/`. It SHALL NOT read, write, or reference the system notmuch config (`~/.notmuch-config`) or any user-configured notmuch database path.
+Mailbrus SHALL maintain its notmuch database exclusively rooted at `$XDG_DATA_HOME/mailbrus/` (with the index in the hidden `$XDG_DATA_HOME/mailbrus/.notmuch/` subdirectory and account maildirs under `$XDG_DATA_HOME/mailbrus/mail/`). It SHALL NOT read, write, or reference the system notmuch config (`~/.notmuch-config`) or any user-configured notmuch database path.
 
 #### Scenario: Database path is always internal
 - **WHEN** mailbrus-server starts
-- **THEN** the notmuch database path resolves to `$XDG_DATA_HOME/mailbrus/notmuch/` regardless of any system notmuch installation
+- **THEN** the notmuch database path resolves to `$XDG_DATA_HOME/mailbrus/` regardless of any system notmuch installation
 
 #### Scenario: System notmuch config is untouched
 - **WHEN** mailbrus-server starts and `~/.notmuch-config` exists
@@ -17,7 +17,7 @@ Mailbrus SHALL maintain its notmuch database exclusively at `$XDG_DATA_HOME/mail
 Mailbrus SHALL automatically create and initialize the notmuch database on first startup if it does not exist. No manual `notmuch new` or user action SHALL be required.
 
 #### Scenario: First startup creates database
-- **WHEN** mailbrus-server starts and `$XDG_DATA_HOME/mailbrus/notmuch/.notmuch/` does not exist
+- **WHEN** mailbrus-server starts and `$XDG_DATA_HOME/mailbrus/.notmuch/` does not exist
 - **THEN** the database is created before any sync or query operation proceeds
 
 #### Scenario: Existing database is not overwritten

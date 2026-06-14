@@ -42,25 +42,63 @@ pub struct SyncEvent {
     pub error: Option<String>,
 }
 
+/// Progress of indexing fetched messages into the notmuch database.
+#[derive(Debug, Clone, Serialize)]
+pub struct IndexEvent {
+    pub account_id: String,
+    pub mailbox: Option<String>,
+    pub status: SyncStatus,
+    pub indexed: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Everything broadcast over the `/api/sync/stream` SSE channel.
+///
+/// Internally tagged on `type`, so a [`SyncEvent`] serializes as
+/// `{"type":"sync",…}` and an [`IndexEvent`] as `{"type":"index",…}`; consumers
+/// switch on the `type` field.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum BroadcastEvent {
+    Sync(SyncEvent),
+    Index(IndexEvent),
+}
+
+impl From<SyncEvent> for BroadcastEvent {
+    fn from(e: SyncEvent) -> Self {
+        BroadcastEvent::Sync(e)
+    }
+}
+
+impl From<IndexEvent> for BroadcastEvent {
+    fn from(e: IndexEvent) -> Self {
+        BroadcastEvent::Index(e)
+    }
+}
+
 pub struct SyncEngine {
     accounts: HashMap<String, AccountConfig>,
     in_flight: Arc<Mutex<HashSet<String>>>,
     notmuch_db_path: PathBuf,
     notmuch_lock: NotmuchLock,
     state_db_path: PathBuf,
-    events_tx: broadcast::Sender<SyncEvent>,
+    events_tx: broadcast::Sender<BroadcastEvent>,
 }
 
 impl SyncEngine {
     pub fn new(
         accounts: &[AccountConfig],
-        notmuch_db_path: PathBuf,
         state_db_path: Option<PathBuf>,
     ) -> Result<Self, ImapSyncError> {
         let mut registry = HashMap::new();
         for acc in accounts {
             registry.insert(acc.id.clone(), acc.clone());
         }
+        // The notmuch database path is always resolved internally; mailbrus owns
+        // its own isolated database and never accepts an external path.
+        let notmuch_db_path =
+            crate::notmuch_db::default_db_path().map_err(|e| ImapSyncError::Notmuch(e.to_string()))?;
         let state_db_path = match state_db_path {
             Some(p) => p,
             None => state::default_path().map_err(ImapSyncError::State)?,
@@ -88,7 +126,7 @@ impl SyncEngine {
         v
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<SyncEvent> {
+    pub fn subscribe(&self) -> broadcast::Receiver<BroadcastEvent> {
         self.events_tx.subscribe()
     }
 
@@ -133,21 +171,22 @@ impl SyncEngine {
     }
 
     async fn run_account_worker(self: Arc<Self>, account: AccountConfig, id: String) {
-        let _ = self.events_tx.send(SyncEvent {
+        let _ = self.events_tx.send(BroadcastEvent::Sync(SyncEvent {
             account_id: id.clone(),
             mailbox: None,
             status: SyncStatus::Running,
             fetched: 0,
             deleted: 0,
             error: None,
-        });
+        }));
 
         let worker_result = ImapWorker::new(
             &account,
             self.notmuch_db_path.clone(),
             self.notmuch_lock.clone(),
             self.state_db_path.clone(),
-        );
+        )
+        .map(|w| w.with_events_tx(self.events_tx.clone()));
 
         let outcome = match worker_result {
             Ok(worker) => worker.sync().await,
@@ -184,7 +223,7 @@ impl SyncEngine {
                 }
             }
         };
-        let _ = self.events_tx.send(final_event);
+        let _ = self.events_tx.send(BroadcastEvent::Sync(final_event));
 
         let mut in_flight = self.in_flight.lock().await;
         in_flight.remove(&id);
@@ -236,12 +275,7 @@ mod tests {
     fn make_engine(ids: &[&str]) -> Arc<SyncEngine> {
         let accounts: Vec<AccountConfig> = ids.iter().map(|s| account(s)).collect();
         let dir = tmp_dir();
-        let engine = SyncEngine::new(
-            &accounts,
-            dir.join("notmuch"),
-            Some(dir.join("sync.db")),
-        )
-        .unwrap();
+        let engine = SyncEngine::new(&accounts, Some(dir.join("sync.db"))).unwrap();
         Arc::new(engine)
     }
 

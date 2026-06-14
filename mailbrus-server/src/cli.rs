@@ -32,8 +32,9 @@ pub struct Cli {
     /// Path to mailbrus config file (TOML). Defaults to $XDG_CONFIG_HOME/mailbrus/config.toml.
     #[arg(long)]
     pub config: Option<std::path::PathBuf>,
-    /// Path to notmuch database root. Defaults to ~/.notmuch-config resolution at runtime.
-    #[arg(long)]
+    /// Deprecated and ignored. Mailbrus always owns an isolated notmuch database
+    /// rooted at $XDG_DATA_HOME/mailbrus/. Passing this flag logs a warning.
+    #[arg(long, hide = true)]
     pub notmuch_db: Option<std::path::PathBuf>,
 }
 

@@ -23,11 +23,12 @@ use imap_client::imap_next::imap_types::{
     ToStatic,
 };
 use thiserror::Error;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, info, instrument, warn};
 
 use crate::config::{AccountConfig, ImapConfig, ProtocolConfig};
 use crate::credentials::{self, CredentialError};
+use crate::sync::engine::{BroadcastEvent, IndexEvent, SyncStatus};
 use crate::sync::state::{ImapMailboxState, SyncStateDb, SyncStateError};
 
 const DEFAULT_MAILBOX: &str = "INBOX";
@@ -82,6 +83,7 @@ pub struct ImapWorker {
     notmuch_lock: NotmuchLock,
     state_db_path: PathBuf,
     mailbox: String,
+    events_tx: Option<broadcast::Sender<BroadcastEvent>>,
 }
 
 impl ImapWorker {
@@ -106,12 +108,32 @@ impl ImapWorker {
             notmuch_lock,
             state_db_path,
             mailbox: DEFAULT_MAILBOX.to_string(),
+            events_tx: None,
         })
     }
 
     pub fn with_mailbox(mut self, mailbox: impl Into<String>) -> Self {
         self.mailbox = mailbox.into();
         self
+    }
+
+    /// Attach the SSE broadcast sender so indexing progress is published as
+    /// [`IndexEvent`]s. Without it, indexing proceeds silently.
+    pub fn with_events_tx(mut self, tx: broadcast::Sender<BroadcastEvent>) -> Self {
+        self.events_tx = Some(tx);
+        self
+    }
+
+    fn emit_index(&self, status: SyncStatus, indexed: u32, error: Option<String>) {
+        if let Some(tx) = &self.events_tx {
+            let _ = tx.send(BroadcastEvent::Index(IndexEvent {
+                account_id: self.account_id.clone(),
+                mailbox: Some(self.mailbox.clone()),
+                status,
+                indexed,
+                error,
+            }));
+        }
     }
 
     /// Run a full sync cycle for this account's selected mailbox.
@@ -422,6 +444,9 @@ impl ImapWorker {
         if written.is_empty() && deleted.is_empty() {
             return Ok(());
         }
+        let indexed_count = written.len() as u32;
+        self.emit_index(SyncStatus::Running, 0, None);
+
         let _guard = self.notmuch_lock.0.lock().await;
         let db_path = self.notmuch_db_path.clone();
         let account_id = self.account_id.clone();
@@ -430,7 +455,7 @@ impl ImapWorker {
         let deleted_paths: Vec<PathBuf> =
             deleted.iter().map(|(_, b)| maildir_cur.join(b)).collect();
 
-        tokio::task::spawn_blocking(move || -> Result<(), ImapSyncError> {
+        let result = tokio::task::spawn_blocking(move || -> Result<(), ImapSyncError> {
             let db = notmuch::Database::open_with_config(
                 Some(&db_path),
                 notmuch::DatabaseMode::ReadWrite,
@@ -460,14 +485,23 @@ impl ImapWorker {
             Ok(())
         })
         .await
-        .map_err(|e| ImapSyncError::Notmuch(format!("join: {e}")))??;
+        .map_err(|e| ImapSyncError::Notmuch(format!("join: {e}")));
 
-        Ok(())
+        match result {
+            Ok(Ok(())) => {
+                self.emit_index(SyncStatus::Done, indexed_count, None);
+                Ok(())
+            }
+            Ok(Err(e)) | Err(e) => {
+                self.emit_index(SyncStatus::Error, 0, Some(e.to_string()));
+                Err(e)
+            }
+        }
     }
 }
 
 /// Walk an error's `source()` chain and join the messages with `: `.
-fn error_chain(err: &(dyn std::error::Error)) -> String {
+fn error_chain(err: &dyn std::error::Error) -> String {
     let mut out = err.to_string();
     let mut next = err.source();
     while let Some(src) = next {

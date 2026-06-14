@@ -80,7 +80,7 @@ pub async fn sync_stream(
 }
 
 struct BroadcastSseStream {
-    rx: broadcast::Receiver<mailbrus_core::sync::SyncEvent>,
+    rx: broadcast::Receiver<mailbrus_core::sync::BroadcastEvent>,
 }
 
 impl Stream for BroadcastSseStream {

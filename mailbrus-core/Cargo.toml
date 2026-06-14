@@ -18,7 +18,6 @@ sync = [
     "dep:tokio",
     "dep:tracing",
     "dep:thiserror",
-    "dep:dirs",
     "dep:async-trait",
     "dep:chrono",
 ]
@@ -27,6 +26,7 @@ sync = [
 io-email = { git = "https://github.com/pimalaya/io-email" }
 io-maildir = { git = "https://github.com/pimalaya/io-maildir" }
 notmuch = "0.8"
+dirs = "5"
 
 # sync feature deps
 email-lib = { git = "https://github.com/pimalaya/core", package = "email-lib", default-features = false, features = ["tokio", "rustls", "imap", "maildir", "notmuch", "keyring"], optional = true }
@@ -39,7 +39,6 @@ serde = { version = "1", features = ["derive"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs"], optional = true }
 tracing = { version = "0.1", optional = true }
 thiserror = { version = "2", optional = true }
-dirs = { version = "5", optional = true }
 async-trait = { version = "0.1", optional = true }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"], optional = true }
 

@@ -26,12 +26,13 @@ Indexing (`notmuch new`-equivalent) happens inline during sync with no observabl
 
 ### D1: Database location
 
-**Decision:** `$XDG_DATA_HOME/mailbrus/notmuch/` (typically `~/.local/share/mailbrus/notmuch/`).
+**Decision:** `$XDG_DATA_HOME/mailbrus/` (typically `~/.local/share/mailbrus/`). The notmuch index is created as the hidden `$XDG_DATA_HOME/mailbrus/.notmuch/` subdirectory; account maildirs live under `$XDG_DATA_HOME/mailbrus/mail/<account-id>/`.
 
-Rationale: consistent with existing XDG layout (`sync.db`, `mail/`). Using a subdirectory rather than the `mail/` root keeps the notmuch `.notmuch/` directory separate from the Maildir tree.
+Rationale: notmuch's `index_file` requires every indexed message to live **under** the database's resolved path (libnotmuch: *"an absolute filename with initial components that match the path of the database"*), so the database root must be a common ancestor of all account maildirs. The `notmuch` 0.8 crate also only exposes the legacy `Database::create(path)`, which always produces the single-directory layout (`path/.notmuch`, mail_root = path); it cannot create the split index/mail-root layout. Rooting the database at `$XDG_DATA_HOME/mailbrus/` keeps the index as a *hidden* `.notmuch/` sibling of `mail/`, so it adds no noise to maildir listings while remaining fully isolated from the system notmuch database.
 
 Alternatives considered:
-- `$XDG_DATA_HOME/mailbrus/` (same as mail root) — notmuch would place `.notmuch/` inside the mail tree, creating noise in Maildir listings.
+- `$XDG_DATA_HOME/mailbrus/notmuch/` (index isolated from mail) — not achievable with the 0.8 crate: a true split layout (`database.path` ≠ `database.mail_root`) cannot be created via `Database::create`, and `index_file` would reject messages stored under a sibling `mail/` tree.
+- `$XDG_DATA_HOME/mailbrus/mail/` (index inside the mail tree) — would place `.notmuch/` among the per-account maildirs.
 - User-configurable path — adds complexity with no clear use case given the isolation goal.
 
 ### D2: Notmuch config generation

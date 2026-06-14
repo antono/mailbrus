@@ -46,10 +46,17 @@ pub struct MaildirReader {
 impl MaildirReader {
     pub fn new(db_path: impl AsRef<Path>) -> Result<Self, MailboxError> {
         let path = db_path.as_ref();
+        // Prefer the mailbrus-managed config (`<db_path>/notmuch.cfg`) so notmuch
+        // never falls back to the developer's system `~/.notmuch-config` for
+        // ancillary settings (exclude_tags, etc.). The server writes this file on
+        // startup; if it is absent (e.g. CLI before any sync) we let notmuch use
+        // its default search, with `db_path` still overriding `database.path`.
+        let managed_cfg = path.join("notmuch.cfg");
+        let config_path = if managed_cfg.is_file() { Some(managed_cfg) } else { None };
         let db = notmuch::Database::open_with_config(
             Some(path),
             notmuch::DatabaseMode::ReadOnly,
-            None::<&std::path::Path>,
+            config_path.as_deref(),
             None,
         )
         .map_err(|e| {
@@ -115,16 +122,11 @@ impl MaildirReader {
         std::fs::read(&path).map_err(|e| MailboxError::BodyReadFailed { path, reason: e })
     }
 
-    /// Opens the notmuch database using the default user config (~/.notmuch-config).
+    /// Opens the mailbrus-owned notmuch database rooted at
+    /// `$XDG_DATA_HOME/mailbrus/`. The system `~/.notmuch-config` is never read.
     pub fn open() -> Result<Self, MailboxError> {
-        let db = notmuch::Database::open_with_config(
-            None::<&Path>,
-            notmuch::DatabaseMode::ReadOnly,
-            None::<&Path>,
-            None,
-        )
-        .map_err(|e| MailboxError::QueryFailed(e.to_string()))?;
-        Ok(Self { db })
+        let db_path = default_db_path()?;
+        Self::new(db_path)
     }
 
     pub fn list_maildirs(&self) -> Result<Vec<PathBuf>, MailboxError> {
@@ -161,6 +163,16 @@ impl MaildirReader {
         folders.sort();
         Ok(folders)
     }
+}
+
+/// Root of the mailbrus-owned notmuch database (`$XDG_DATA_HOME/mailbrus/`).
+///
+/// Mirrors `notmuch_db::default_db_path` but lives here so the read path is
+/// available without the `sync` feature (e.g. in `mailbrus-cli`).
+pub fn default_db_path() -> Result<PathBuf, MailboxError> {
+    dirs::data_dir()
+        .map(|d| d.join("mailbrus"))
+        .ok_or_else(|| MailboxError::QueryFailed("cannot resolve XDG data directory".to_string()))
 }
 
 fn sort_to_notmuch(sort: &SortBy) -> notmuch::Sort {
@@ -334,7 +346,7 @@ Hello!\r\n";
         let maildirs = reader.list_maildirs().unwrap();
 
         assert!(!maildirs.iter().any(|p| {
-            p.file_name().and_then(|n| n.to_str()).map_or(false, |s| s.starts_with('.'))
+            p.file_name().and_then(|n| n.to_str()).is_some_and(|s| s.starts_with('.'))
         }));
 
         fs::remove_dir_all(&dir).ok();

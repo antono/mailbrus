@@ -22,6 +22,7 @@ use handlers::{
     sync::{sync_account, sync_all, sync_stream},
 };
 use mailbrus_core::config::load_config;
+use mailbrus_core::notmuch_db;
 use mailbrus_core::sync::SyncEngine;
 use middleware::log_middleware;
 use push_poller::spawn_push_poller;
@@ -61,15 +62,59 @@ async fn main() {
         }
     };
 
+    // Mailbrus owns an isolated notmuch database rooted at
+    // `$XDG_DATA_HOME/mailbrus/`. Generate its config and auto-create the
+    // database before the sync engine starts; the system `~/.notmuch-config`
+    // is never read or written.
+    let notmuch_db_path = match notmuch_db::default_db_path() {
+        Ok(p) => Some(p),
+        Err(e) => {
+            warn!("[startup] cannot resolve notmuch database path: {}", e);
+            None
+        }
+    };
+    if let Some(db_path) = &notmuch_db_path {
+        match notmuch_db::default_config_path() {
+            Ok(cfg_path) => {
+                let maildir_roots: Vec<std::path::PathBuf> = accounts
+                    .iter()
+                    .map(|a| {
+                        a.imap()
+                            .and_then(|imap| imap.maildir_root.clone())
+                            .or_else(|| {
+                                mailbrus_core::config::default_maildir_root(&a.id)
+                            })
+                            .unwrap_or_else(|| db_path.join("mail").join(&a.id))
+                    })
+                    .collect();
+                if let Err(e) = notmuch_db::write_config(&cfg_path, db_path, &maildir_roots) {
+                    warn!("[startup] failed to write notmuch config: {}", e);
+                }
+            }
+            Err(e) => warn!("[startup] cannot resolve notmuch config path: {}", e),
+        }
+        if let Err(e) = notmuch_db::ensure_initialized(db_path) {
+            warn!("[startup] failed to initialize notmuch database: {}", e);
+        } else {
+            info!("[startup] notmuch database ready at {}", db_path.display());
+        }
+    }
+
+    if cli.notmuch_db.is_some() {
+        warn!(
+            "[startup] --notmuch-db is deprecated and ignored; mailbrus always uses {}",
+            notmuch_db_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "$XDG_DATA_HOME/mailbrus/".to_string())
+        );
+    }
+
     let sync_engine = if accounts.is_empty() {
         warn!("[startup] no accounts configured; sync engine disabled");
         None
     } else {
-        let notmuch_db_path = cli
-            .notmuch_db
-            .clone()
-            .unwrap_or_else(|| std::path::PathBuf::from(""));
-        match SyncEngine::new(&accounts, notmuch_db_path, None) {
+        match SyncEngine::new(&accounts, None) {
             Ok(engine) => {
                 info!("[startup] sync engine initialized");
                 Some(Arc::new(engine))
@@ -85,7 +130,7 @@ async fn main() {
         cli.log_level,
         accounts,
         sync_engine,
-        cli.notmuch_db.clone(),
+        notmuch_db_path,
     );
     spawn_push_poller(state.clone());
 

@@ -43,13 +43,19 @@ async function waitForHealth(baseURL: string, timeoutMs = 20_000): Promise<void>
 }
 
 export interface ServerOptions {
-	scope: NotmuchScope;
+	/**
+	 * Notmuch scope from a prior `indexClone`. Optional: the server owns its own
+	 * database under `$XDG_DATA_HOME/mailbrus/` and never reads `NOTMUCH_CONFIG`,
+	 * so a spec that exercises auto-initialization can start a server against an
+	 * un-indexed clone with no scope at all.
+	 */
+	scope?: NotmuchScope;
 	clone: Clone;
 	/** Mailbrus config TOML; the server reads accounts from this file. */
 	config: ConfigHandle;
 }
 
-/** Start a server scoped to `scope`'s notmuch config and wait until it answers. */
+/** Start a server pointed at `clone`'s `XDG_DATA_HOME` and wait until it answers. */
 export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
 	const port = await reserveFreePort();
 	const baseURL = `http://127.0.0.1:${port}`;
@@ -60,13 +66,14 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
 		'--frontend-dist',
 		BUILD_DIR,
 		'--config',
-		opts.config.path,
-		'--notmuch-db',
-		opts.clone.maildir
+		opts.config.path
 	];
 
+	// `XDG_DATA_HOME` points the server's self-owned notmuch DB at this clone
+	// (`$XDG_DATA_HOME/mailbrus/`). No `--notmuch-db` and no `NOTMUCH_CONFIG`: the
+	// server never reads the developer's real notmuch setup.
 	const child = spawn(SERVER_BIN, args, {
-		env: { ...process.env, NOTMUCH_CONFIG: opts.scope.configPath },
+		env: { ...process.env, XDG_DATA_HOME: opts.clone.xdgDataHome },
 		stdio: 'pipe'
 	});
 

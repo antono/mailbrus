@@ -9,6 +9,9 @@ pub mod config;
 pub mod credentials;
 
 #[cfg(feature = "sync")]
+pub mod notmuch_db;
+
+#[cfg(feature = "sync")]
 pub mod sync;
 
 /// Returns the mailbrus version string.
