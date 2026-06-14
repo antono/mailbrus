@@ -24,3 +24,6 @@ result-*
 
 # Stalwart dev data (deno task stalwart:dev)
 .stalwart-dev/
+
+# Claude Code runtime state
+.claude/*.lock
