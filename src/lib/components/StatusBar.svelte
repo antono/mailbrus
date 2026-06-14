@@ -7,16 +7,27 @@
 		isActive,
 		hasError,
 		rowList,
+		requestSync,
 		type EventStatus
 	} from '$lib/syncState.svelte.ts';
 
 	let open = $state(false);
+	let triggerError = $state<string | null>(null);
 
 	$effect(() => connectSyncStream());
 
 	let active = $derived(isActive());
 	let errored = $derived(hasError());
 	let rows = $derived(rowList());
+
+	async function onSyncNow() {
+		triggerError = null;
+		try {
+			await requestSync();
+		} catch (e) {
+			triggerError = e instanceof Error ? e.message : String(e);
+		}
+	}
 
 	function badgeLabel(status: EventStatus | undefined): string {
 		switch (status) {
@@ -67,6 +78,15 @@
 				<span class="eyebrow">sync &amp; indexing</span>
 				<button
 					type="button"
+					class="mb-status-sync"
+					onclick={onSyncNow}
+					disabled={active}
+					data-testid="status-bar.sync-btn"
+				>
+					{active ? 'Syncing…' : 'Sync now'}
+				</button>
+				<button
+					type="button"
 					class="mb-status-close"
 					onclick={() => (open = false)}
 					aria-label="Close sync status"
@@ -75,6 +95,11 @@
 					×
 				</button>
 			</div>
+			{#if triggerError}
+				<p class="mb-status-trigger-error" data-testid="status-bar.trigger-error">
+					{triggerError}
+				</p>
+			{/if}
 			<div class="mb-status-popup-body">
 				{#if rows.length === 0}
 					<p class="mb-status-empty" data-testid="status-bar.empty">No sync activity yet.</p>
@@ -181,6 +206,21 @@
 		padding: 0.5rem 0.75rem;
 		border-bottom: 1px solid var(--border);
 	}
+	.mb-status-sync {
+		margin-left: auto;
+		margin-right: 0.5rem;
+		padding: 0.15rem 0.55rem;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		background: var(--background);
+		color: var(--foreground);
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+	.mb-status-sync:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
 	.mb-status-close {
 		background: none;
 		border: none;
@@ -188,6 +228,12 @@
 		font-size: 1.1rem;
 		line-height: 1;
 		cursor: pointer;
+	}
+	.mb-status-trigger-error {
+		padding: 0.4rem 0.75rem;
+		color: var(--destructive);
+		font-size: 0.75rem;
+		border-bottom: 1px solid var(--border);
 	}
 	.mb-status-popup-body {
 		padding: 0.4rem 0.25rem;

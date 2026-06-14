@@ -27,6 +27,7 @@
 		type Message,
 		type RenderMode,
 	} from '$lib/api.js';
+	import { requestSync } from '$lib/syncState.svelte.ts';
 	import { loadSettings, getSettings, writeSetting, addSearchHistory, setLastFolder, setEmailMode, getSenderEmailMode, setSenderEmailMode, type UiPrefs, type EmailMode } from '$lib/settings.js';
 	import { cacheMessages, getLocalMessages } from '$lib/message-cache.js';
 	import { enqueue as outboxEnqueue, getOutbox, initOutboxFlusher, type OutboxEntry } from '$lib/outbox.js';
@@ -472,6 +473,7 @@
 			case 'go-inbox': goCanonical('inbox'); break;
 			case 'go-archive': goCanonical('archive'); break;
 			case 'compose': ui.composeOpen = true; break;
+			case 'sync-mail': void requestSync().catch((e) => console.error('sync failed', e)); break;
 			case 'keyboard-help': ui.helpOpen = true; break;
 			case 'about': ui.aboutOpen = true; break;
 			case 'search': searchOpen = true; break;

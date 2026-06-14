@@ -1,6 +1,8 @@
 // openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md (Global keymap)
+// openspec/changes/ui-sync-trigger/specs/sveltekit-ui/spec.md (Sync via hotkey)
 import type { Keymap } from './types.ts';
 import { ui } from '../ui-state.svelte.ts';
+import { requestSync } from '../syncState.svelte.ts';
 
 export const globalKeymap: Keymap = {
 	scope: 'global',
@@ -13,6 +15,16 @@ export const globalKeymap: Keymap = {
 			handler: (e) => {
 				e.preventDefault();
 				ui.cmdOpen = !ui.cmdOpen;
+			}
+		},
+		{
+			keys: ['Ctrl+Shift+S'],
+			group: 'App',
+			description: 'Sync mail',
+			handler: (e) => {
+				e.preventDefault();
+				// `requestSync` no-ops if a sync is already in flight.
+				void requestSync().catch((err) => console.error('sync failed', err));
 			}
 		},
 		{

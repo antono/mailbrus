@@ -27,6 +27,17 @@ export async function fetchMaildirs(): Promise<Account[]> {
 	return apiFetch('/api/maildirs') as Promise<Account[]>;
 }
 
+/**
+ * Trigger an on-demand sync. With no `accountId`, syncs all configured accounts
+ * (`POST /api/sync`); otherwise one account (`POST /api/sync/<account>`). The
+ * server returns `202 Accepted` and runs in the background — progress arrives
+ * over `/api/sync/stream`. Rejects with the server's error message on non-2xx.
+ */
+export async function triggerSync(accountId?: string): Promise<void> {
+	const path = accountId ? `/api/sync/${encodeURIComponent(accountId)}` : '/api/sync';
+	await apiFetch(path, { method: 'POST' });
+}
+
 export async function fetchFolders(maildirId: string): Promise<Folder[]> {
 	return apiFetch(`/api/maildirs/${encodeURIComponent(maildirId)}/folders`) as Promise<Folder[]>;
 }

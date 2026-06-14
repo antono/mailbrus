@@ -20,6 +20,7 @@
 		{ key: 'go-inbox', primary: 'Go to inbox', secondary: 'Jump to INBOX', meta: 'g i' },
 		{ key: 'go-archive', primary: 'Go to archive', secondary: 'Jump to Archive', meta: 'g A' },
 		{ key: 'compose', primary: 'Compose new message', secondary: `From ${account.address}`, meta: 'c' },
+		{ key: 'sync-mail', primary: 'Sync mail', secondary: 'Fetch new mail for all accounts', meta: '⇧⌘S' },
 		{ key: 'mark-read', primary: 'Mark all as read', secondary: `In ${folder?.name || 'current folder'}`, meta: '' },
 		{ key: 'search', primary: 'Search this folder', secondary: 'Filter messages by sender / subject', meta: '/' },
 		{ key: 'keyboard-help', primary: 'Keyboard shortcuts…', secondary: 'Show all hotkeys', meta: '?' },
