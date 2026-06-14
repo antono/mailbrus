@@ -7,8 +7,20 @@ let
     cargoLock = {
       lockFile = ../Cargo.lock;
       outputHashes = {
-        "io-email-0.0.1" = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
-        "io-maildir-0.0.1" = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
+        # pimalaya/core git packages (all same rev b3a9640)
+        "email-lib-0.27.0"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "http-lib-0.1.0"     = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "keyring-lib-1.0.3"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "mml-lib-1.1.2"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "oauth-lib-2.0.0"    = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "pgp-lib-1.0.0"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "process-lib-1.0.0"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "secret-lib-1.0.1"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        # pimalaya/imap-client git package (rev 5600187)
+        "imap-client-0.3.1"  = "sha256-TgmhgPVwv0MNSniejb7uCwbbjy2y8/e1mEJmOqzlMU0=";
+        # pimalaya/io-email and io-maildir
+        "io-email-0.0.1"     = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
+        "io-maildir-0.0.1"   = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
       };
     };
     buildAndTestFocus = "mailbrus-cli";
@@ -41,8 +53,20 @@ let
     cargoLock = {
       lockFile = ../Cargo.lock;
       outputHashes = {
-        "io-email-0.0.1" = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
-        "io-maildir-0.0.1" = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
+        # pimalaya/core git packages (all same rev b3a9640)
+        "email-lib-0.27.0"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "http-lib-0.1.0"     = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "keyring-lib-1.0.3"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "mml-lib-1.1.2"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "oauth-lib-2.0.0"    = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "pgp-lib-1.0.0"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "process-lib-1.0.0"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "secret-lib-1.0.1"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        # pimalaya/imap-client git package (rev 5600187)
+        "imap-client-0.3.1"  = "sha256-TgmhgPVwv0MNSniejb7uCwbbjy2y8/e1mEJmOqzlMU0=";
+        # pimalaya/io-email and io-maildir
+        "io-email-0.0.1"     = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
+        "io-maildir-0.0.1"   = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
       };
     };
     buildAndTestFocus = "mailbrus-desktop";
@@ -81,8 +105,20 @@ let
     cargoLock = {
       lockFile = ../Cargo.lock;
       outputHashes = {
-        "io-email-0.0.1" = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
-        "io-maildir-0.0.1" = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
+        # pimalaya/core git packages (all same rev b3a9640)
+        "email-lib-0.27.0"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "http-lib-0.1.0"     = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "keyring-lib-1.0.3"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "mml-lib-1.1.2"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "oauth-lib-2.0.0"    = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "pgp-lib-1.0.0"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "process-lib-1.0.0"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        "secret-lib-1.0.1"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
+        # pimalaya/imap-client git package (rev 5600187)
+        "imap-client-0.3.1"  = "sha256-TgmhgPVwv0MNSniejb7uCwbbjy2y8/e1mEJmOqzlMU0=";
+        # pimalaya/io-email and io-maildir
+        "io-email-0.0.1"     = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
+        "io-maildir-0.0.1"   = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
       };
     };
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
