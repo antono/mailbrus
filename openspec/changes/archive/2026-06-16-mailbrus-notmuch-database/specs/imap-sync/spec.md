@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Sync engine notmuch path
 The sync engine SHALL resolve the notmuch database path internally from `$XDG_DATA_HOME/mailbrus/notmuch/`. It SHALL NOT accept an external `notmuch_db_path` constructor argument.

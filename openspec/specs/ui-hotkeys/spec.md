@@ -6,12 +6,18 @@ Keyboard shortcut handling for the mailbrus SvelteKit frontend. Covers global sh
 
 ---
 ## Requirements
-
 ### Requirement: Active scope and scope stack
 The frontend SHALL maintain a single ordered stack of *active scopes* where each scope is one of
 `list`, `reader`, `compose`, `palette`, `modal`, or `hint`. The top of the stack is the active scope.
 Every view SHALL push its scope when it mounts and pop the same scope when it unmounts. The stack SHALL
 never be empty; `list` is the base scope at app boot.
+
+Popping a scope SHALL remove the most-recent occurrence of that scope wherever it sits in the stack,
+not only the top. Scoped views can layer (e.g. the command palette opens over the reader) and a
+layered view's action can dismiss the view beneath it, so a scope may be popped while another scope
+still sits above it. Removing by identity keeps the active scope (the stack tip) correct and leaves no
+stale scope behind. A pop of a scope that is not present in the stack at all is a programming error and
+SHALL fail loudly.
 
 #### Scenario: Boot stack
 - **WHEN** the app first mounts at the message list
@@ -33,11 +39,13 @@ never be empty; `list` is the base scope at app boot.
 - **WHEN** the user presses `f` to enter hint mode in the reader
 - **THEN** the scope stack becomes `['list', 'reader', 'hint']` and the active scope is `hint`
 
-#### Scenario: Mismatched pop fails loudly in development
-- **WHEN** a view attempts to pop a scope that is not the current top of the stack
-- **THEN** the pop SHALL throw in development builds and SHALL be logged as an error in release builds
+#### Scenario: A layered view dismisses the view beneath it
+- **WHEN** the stack is `['list', 'reader', 'palette']` and a palette action closes the reader underneath the still-open palette
+- **THEN** the `reader` scope is removed and the stack becomes `['list', 'palette']` with the active scope still `palette`, and closing the palette then returns to `['list']`
 
----
+#### Scenario: Popping an absent scope fails loudly in development
+- **WHEN** a view attempts to pop a scope that is not present anywhere in the stack
+- **THEN** the pop SHALL throw in development builds and SHALL be logged as an error in release builds
 
 ### Requirement: Per-scope hotkey isolation
 A keyboard binding declared for one scope SHALL NOT fire while a different scope is active. Only two
@@ -303,19 +311,31 @@ An unrecognized key or timeout SHALL cancel the leader with no action. The indic
 ---
 
 ### Requirement: Reader navigation keys
-Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous message in the current list. `Escape` SHALL close the reader and return to the list at the same cursor position. `g g` (g pressed twice within 1.2 s) SHALL scroll the reader message body to the top. `G` SHALL scroll the reader message body to the bottom. `J` SHALL scroll the reader body down by 20 lines (400 px) and `K` SHALL scroll it up by 20 lines; these keys SHALL stop propagation so they do not trigger next/previous message navigation.
+Inside the reader, `j`/`↓` and `k`/`↑` SHALL move to the next/previous message across the **entire folder**, not just the loaded page. When the open message is the last loaded message of the current page and a later page exists, `j`/`↓` SHALL load the next page and open its first message; when the open message is the first message of the current page and an earlier page exists, `k`/`↑` SHALL load the previous page and open its last message. At the absolute last (respectively first) message of the folder, `j`/`↓` (respectively `k`/`↑`) SHALL do nothing. `Escape` SHALL close the reader and return to the list with the current message selected and scrolled into view; because reader navigation may have crossed pages, the list MAY show a different page than the one the reader was opened from. `g g` (g pressed twice within 1.2 s) SHALL scroll the reader message body to the top. `G` SHALL scroll the reader message body to the bottom. `J` SHALL scroll the reader body down by 20 lines (400 px) and `K` SHALL scroll it up by 20 lines; these keys SHALL stop propagation so they do not trigger next/previous message navigation.
 
-#### Scenario: Next message in reader
-- **WHEN** the reader is open and the user presses `j` or `↓`
-- **THEN** the reader advances to the next message; the list selected index updates accordingly
+#### Scenario: Next message within the current page
+- **WHEN** the reader is open on a message that is not the last loaded on the page and the user presses `j` or `↓`
+- **THEN** the reader advances to the next message on the same page; the list selected index updates accordingly
 
-#### Scenario: Previous message in reader
-- **WHEN** the reader is open and the user presses `k` or `↑`
-- **THEN** the reader moves to the previous message; the list selected index updates accordingly
+#### Scenario: Previous message within the current page
+- **WHEN** the reader is open on a message that is not the first on the page and the user presses `k` or `↑`
+- **THEN** the reader moves to the previous message on the same page; the list selected index updates accordingly
 
-#### Scenario: Escape closes reader
+#### Scenario: Next message crosses to the following page
+- **WHEN** the reader is open on the last loaded message of page N, a page N+1 exists, and the user presses `j` or `↓`
+- **THEN** the list loads page N+1 and the reader opens the first message of page N+1; the current page becomes N+1
+
+#### Scenario: Previous message crosses to the preceding page
+- **WHEN** the reader is open on the first message of page N (N > 1) and the user presses `k` or `↑`
+- **THEN** the list loads page N−1 and the reader opens the last message of page N−1; the current page becomes N−1
+
+#### Scenario: Next at the last message of the folder is a no-op
+- **WHEN** the reader is open on the last message of the last page and the user presses `j` or `↓`
+- **THEN** nothing happens; the same message stays open
+
+#### Scenario: Escape closes reader on the current page
 - **WHEN** the reader is open and the user presses `Escape`
-- **THEN** the reader closes and the list is visible with the cursor on the same message
+- **THEN** the reader closes and the list is visible, showing the page that contains the current message, with that message selected and scrolled into view
 
 #### Scenario: gg scrolls reader body to top
 - **WHEN** the reader is open and the user presses `g` then `g` within 1.2 s
@@ -332,8 +352,6 @@ Inside the reader, `j`/`↓` and `k`/`↑` SHALL cycle to the next/previous mess
 #### Scenario: K scrolls reader body up
 - **WHEN** the reader is open and the user presses `K`
 - **THEN** the reader message body scroll container scrolls up 400 px (smooth); previous-message navigation does not trigger
-
----
 
 ### Requirement: Compose keyboard shortcuts
 Inside the compose screen, `⌘↵`/`Ctrl+↵` SHALL trigger send, `⌘S`/`Ctrl+S` SHALL save draft, and `Escape` SHALL discard (with confirmation if any field is non-empty). `Tab`/`Shift+Tab` SHALL move focus between fields.
@@ -463,4 +481,19 @@ active scope SHALL appear at any one time.
 #### Scenario: List f entry not shown in reader help
 - **WHEN** the user opens keyboard help while the active scope is `reader`
 - **THEN** the List section's `f` entry is not displayed (the List section is not rendered)
+
+### Requirement: Reader quit-to-list key
+Inside the reader, `q` SHALL close the reader and return to the message list with the currently-open message selected and scrolled into view, on whatever page that message currently lives (which may differ from the page the reader was opened from). `q` SHALL be documented in the keyboard help under the reader scope.
+
+#### Scenario: q returns to the list focused on the current message
+- **WHEN** the reader is open and the user presses `q`
+- **THEN** the reader closes, the list is shown on the page containing the current message, and that message's row is selected and scrolled into view
+
+#### Scenario: q after cross-page navigation lands on the new page
+- **WHEN** the user has pressed `j` enough times to cross into a later page and then presses `q`
+- **THEN** the list is shown on that later page with the current message selected and scrolled into view, not on the page the reader was opened from
+
+#### Scenario: q is listed in keyboard help
+- **WHEN** the keyboard help overlay is opened while the reader is the active scope
+- **THEN** `q` appears with a "quit to list" description
 

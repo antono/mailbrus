@@ -2,7 +2,7 @@
 
 Define the Cargo workspace structure that organizes the mailbrus project into interdependent crates.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Workspace root Cargo.toml declares all members
 The root `Cargo.toml` SHALL be a Cargo workspace manifest with members `mailbrus-core`, `mailbrus-cli`, `src-tauri` and `resolver = "2"`.

@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Maildir root registered in notmuch config
 Each account's resolved maildir root SHALL be automatically registered in the mailbrus-managed notmuch config at startup. No user action is required to make the maildir visible to notmuch.

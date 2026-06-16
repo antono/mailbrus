@@ -1,5 +1,8 @@
-## ADDED Requirements
+# imap-sync Specification
 
+## Purpose
+TBD - created by archiving change imap-synchronization. Update Purpose after archive.
+## Requirements
 ### Requirement: SyncEngine dispatches per-account IMAP workers
 `mailbrus-core` SHALL expose a `SyncEngine` that accepts an account registry and
 dispatches an async IMAP sync worker per configured account.
@@ -67,9 +70,21 @@ The IMAP worker SHALL persist per-mailbox sync cursors in a SQLite database at
 - **THEN** it is created with the schema applied before the first sync begins
 
 ### Requirement: notmuch database is opened read-write only during sync
-To avoid contention with the HTTP API (which uses read-only access), the notmuch
-database SHALL be opened in `ReadWrite` mode only for the duration of a sync operation.
+The notmuch database SHALL be opened in `ReadWrite` mode only for the duration of a
+sync operation, to avoid contention with the HTTP API (which uses read-only access).
 
 #### Scenario: Write lock released after sync
 - **WHEN** an IMAP sync completes (success or failure)
 - **THEN** the notmuch `ReadWrite` handle is dropped before the worker task exits
+
+### Requirement: Sync engine notmuch path
+The sync engine SHALL resolve the notmuch database path internally from `$XDG_DATA_HOME/mailbrus/notmuch/`. It SHALL NOT accept an external `notmuch_db_path` constructor argument.
+
+#### Scenario: SyncEngine uses internal path
+- **WHEN** `SyncEngine::new` is called
+- **THEN** the notmuch database path is resolved internally without requiring a caller-supplied path
+
+#### Scenario: --notmuch-db flag is removed
+- **WHEN** mailbrus-server is started with `--notmuch-db` flag
+- **THEN** the server logs a deprecation warning and ignores the flag
+

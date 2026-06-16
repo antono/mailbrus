@@ -34,8 +34,6 @@ sync events.
 - **WHEN** a sync completes (success or failure)
 - **THEN** the server emits a final event with `"status": "done"` or `"status": "error"`
 
-## MODIFIED Requirements
-
 ### Requirement: Server reads account list from config file
 `mailbrus-server` SHALL load the account list from the mailbrus config file at startup
 rather than inferring accounts from the notmuch root directory listing.

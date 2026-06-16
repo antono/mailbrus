@@ -2,7 +2,7 @@
 
 Define the mailbrus-desktop Tauri crate that provides the desktop application interface for mailbrus.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Desktop is a Tauri binary crate
 `src-tauri/` SHALL contain a Rust `bin` crate with `name = "mailbrus-desktop"` and a `tauri.conf.json` configuring the app identifier and window title.

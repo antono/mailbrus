@@ -2,7 +2,7 @@
 
 Define the Nix build infrastructure for mailbrus, providing reproducible builds for CLI, desktop, and frontend targets.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Flake defines all build outputs
 The flake.nix SHALL expose packages `mailbrus`, `mailbrus-desktop`, `mailbrus-frontend`, and `default` (= `mailbrus`) for each default system via `flake-utils.lib.eachDefaultSystem`.

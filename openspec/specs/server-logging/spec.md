@@ -47,7 +47,7 @@ All API requests SHALL produce a single log line with method, path, and status c
 - **THEN** middleware emits `[api] <METHOD> <PATH> -> <STATUS>` using `warn!`
 
 ### Requirement: Full response body logging at debug level
-At debug level, handlers additionally log the full response body before returning it (or key metadata for large payloads that would be impractical to log in full).
+At debug level, handlers SHALL additionally log the full response body before returning it (or key metadata for large payloads that would be impractical to log in full).
 
 #### Scenario: GET /api/maildirs logs full JSON array
 - **WHEN** `--log-level debug` and client requests `GET /api/maildirs`
@@ -183,3 +183,7 @@ All log messages SHALL use a bracketed prefix to identify the subsystem.
 | `[shutdown]`    | main() after axum::serve returns               |
 | `[push-poller]` | background push-notification polling task      |
 | `[pwa]`         | PWA subsystem init (e.g. VAPID key generation) |
+
+#### Scenario: Every log line carries a subsystem prefix
+- **WHEN** any subsystem emits a log message
+- **THEN** the line begins with the bracketed prefix for that subsystem (`[api]`, `[startup]`, `[shutdown]`, `[push-poller]`, or `[pwa]`)

@@ -127,7 +127,7 @@ Pressing `/` on the list SHALL open an inline search bar above the message list.
 ---
 
 ### Requirement: Reader screen
-Opening a message (Enter or click) SHALL show the Reader fullscreen over the list. Reader SHALL display: breadcrumb status line (reading mode), subject row (bold, reduced font size) with icon row (padlock, unsubscribe, headers), From / To / Date meta block, optional attachment pills, and the message body with signature dimming. The date SHALL appear as a dedicated meta row below the To row — not inline with the subject.
+Opening a message (Enter or click) SHALL show the Reader fullscreen over the list. Reader SHALL display: breadcrumb status line (reading mode) including a position counter, subject row (bold, reduced font size) with icon row (padlock, unsubscribe, headers), From / To / Date meta block, optional attachment pills, and the message body with signature dimming. The date SHALL appear as a dedicated meta row below the To row — not inline with the subject. The position counter SHALL render three numbers in the form `index / page / total` where `index` is the absolute 1-based position of the open message in the folder (`(page − 1) · perPage + selectedIndex + 1`), `page` is the current page number, and `total` is the total message count of the folder. Each of the three numbers SHALL carry a hover hint via a `title` attribute: the index hint reads "Message <index> of <total>", the page hint reads "Page <page> of <lastPage>", and the total hint reads "<total> messages in <folder>". Closing the reader (via `Escape` or `q`) SHALL return to the list with the current message selected and scrolled into view.
 
 #### Scenario: Subject is bold at reduced size with no inline date
 - **WHEN** the reader opens a message
@@ -153,15 +153,25 @@ Opening a message (Enter or click) SHALL show the Reader fullscreen over the lis
 - **WHEN** message body has a `-- ` signature block
 - **THEN** a closed padlock in brand color appears; otherwise an open padlock in dim color
 
-#### Scenario: j/k cycle messages in reader
+#### Scenario: Position counter shows absolute index, page, and total
+- **WHEN** the reader opens the 2nd message on page 2 with a per-page size of 25 in a folder of 483 messages
+- **THEN** the breadcrumb counter shows `27 / 2 / 483`
+
+#### Scenario: Counter numbers expose hover hints
+- **WHEN** the user hovers each number of the counter
+- **THEN** the index shows a `title` of "Message 27 of 483", the page shows "Page 2 of 20", and the total shows "483 messages in <folder>"
+
+#### Scenario: Counter updates after cross-page navigation
+- **WHEN** reader navigation crosses from page 1 into page 2
+- **THEN** the counter's page number and absolute index update to reflect the new page
+
+#### Scenario: j/k cycle messages in reader across pages
 - **WHEN** reader is open and user presses j or k
-- **THEN** the next or previous message opens in the reader
+- **THEN** the next or previous message in the folder opens in the reader, loading an adjacent page when the current page edge is reached
 
-#### Scenario: Esc closes reader
+#### Scenario: Esc closes reader focused on current message
 - **WHEN** user presses Esc in the reader
-- **THEN** reader closes and list is shown at the same cursor position
-
----
+- **THEN** reader closes and the list is shown on the page containing the current message, with that message selected and scrolled into view
 
 ### Requirement: Headers popover
 Clicking the headers icon (three-line icon) in the reader SHALL open a popover anchored below the subject row, right-aligned, 640px wide, max 60vh tall, showing synthesized RFC 5322 headers in a two-column mono grid.
@@ -406,4 +416,41 @@ The About dialog (`About.svelte`) SHALL display the Mailbrus logo image above th
 #### Scenario: Logo centered
 - **WHEN** the about dialog is open
 - **THEN** the logo is horizontally centered within the dialog card
+
+### Requirement: Trigger sync from the UI
+The desktop frontend SHALL provide an in-app affordance to start an on-demand
+mail sync without leaving the app. Triggering a sync SHALL issue `POST /api/sync`
+(all accounts) or `POST /api/sync/<account>` (one account) and SHALL reflect
+progress through the existing `/api/sync/stream` SSE channel.
+
+#### Scenario: Sync now from the status bar
+- **WHEN** the user opens the status-bar popup and activates "Sync now"
+- **THEN** the frontend issues `POST /api/sync` and the status bar enters its active (spinner) state once a `running` event is received
+
+#### Scenario: Sync via command palette
+- **WHEN** the user runs the "Sync mail" command from the command palette
+- **THEN** the frontend issues `POST /api/sync` for all configured accounts
+
+#### Scenario: Sync via hotkey
+- **WHEN** the user presses the sync hotkey while not typing in an input field
+- **THEN** the frontend issues `POST /api/sync` for all configured accounts
+
+#### Scenario: Trigger is disabled while a sync is in flight
+- **WHEN** a sync is already running (any row has `status:"running"`)
+- **THEN** the "Sync now" control is disabled until the in-flight sync reaches a terminal `done`/`error` state
+
+#### Scenario: Trigger failure surfaces an error
+- **WHEN** the sync request returns a non-2xx response (e.g. `503` no sync engine configured)
+- **THEN** the UI surfaces the error and does not leave the control stuck in a pending state
+
+### Requirement: Cold deep-link to a folder loads its messages
+The SPA SHALL load a folder's messages when the user navigates directly to a
+folder URL (e.g. `/folder/INBOX`) on a fresh load before any account is
+selected. It SHALL resolve the account, fetch its folders, and load the folder
+without requiring a manual reload. Auto-selecting the account for a folder
+deep-link SHALL NOT open the folder picker or clear the current folder.
+
+#### Scenario: First visit to a folder URL shows the message list
+- **WHEN** the user opens `/folder/INBOX` cold (no account selected yet) while accounts are still loading
+- **THEN** once accounts load the app selects the account, loads INBOX, and shows the message list — without a manual reload
 
