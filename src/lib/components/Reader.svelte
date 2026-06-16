@@ -7,8 +7,7 @@
 	import { type RenderMode } from '$lib/api.js';
 	import { getSettings, writeSetting } from '$lib/settings.js';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
-	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
-	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createReaderKeymap } from '$lib/hotkeys/keymaps/reader.ts';
 
 	let {
@@ -91,28 +90,21 @@
 		if (scrollEl) scrollEl.scrollTo({ top: scrollEl.scrollHeight });
 	}
 
-	$effect(() => {
-		pushScope('reader');
-		const dispose = registerKeymap(
-			createReaderKeymap({
-				next: onNext,
-				prev: onPrev,
-				open: onNext,
-				scrollLineDown: () => scrollLines(1),
-				scrollLineUp: () => scrollLines(-1),
-				pageDown: () => scrollByPage(1),
-				pageUp: () => scrollByPage(-1),
-				jumpTop: scrollBodyTop,
-				jumpBottom: scrollBodyBottom,
-				activateHints: onActivateHints,
-				close: onClose
-			})
-		);
-		return () => {
-			dispose();
-			popScope('reader');
-		};
-	});
+	useScopedKeymap('reader', () =>
+		createReaderKeymap({
+			next: onNext,
+			prev: onPrev,
+			open: onNext,
+			scrollLineDown: () => scrollLines(1),
+			scrollLineUp: () => scrollLines(-1),
+			pageDown: () => scrollByPage(1),
+			pageUp: () => scrollByPage(-1),
+			jumpTop: scrollBodyTop,
+			jumpBottom: scrollBodyBottom,
+			activateHints: onActivateHints,
+			close: onClose
+		})
+	);
 
 	let compactMeta = $derived.by(() => {
 		const from = sentMatch ? account.address : (isDraft ? account.address : (message.from || message.addr));

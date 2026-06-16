@@ -260,9 +260,13 @@
 						})
 						.catch((e: Error) => { error = e.message; loading = false; });
 				} else if (accts.length > 0) {
-					// Deep link with no account selected — auto-select the only/first account
-					// The reconciler will re-run when account is set (account is a reactive dep)
-					onAccountPick(accts[0]);
+					// Deep link to a folder with no account selected — select it silently
+					// (account is a reactive dep, so the reconciler re-runs, fetches folders,
+					// and loads this folder). Do NOT use onAccountPick here: it opens the
+					// folder picker and nulls `folder`, which would flash an empty screen on
+					// a cold deep-link until a manual reload.
+					account = accts[0];
+					folderList = [];
 				} else {
 					// Accounts not yet loaded; they'll load soon and trigger onAccountPick
 					// If still no account after load, show account picker
@@ -486,20 +490,15 @@
 	$effect(() => { ui.canTogglePalette = !!(account && folder); });
 
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md — list keymap registration.
-	// The list keymap registers only while the list view is the genuinely active surface;
-	// when the reader / a modal / compose / hint mode is open, the corresponding scope
-	// owns the keyboard and the list keymap stands down (no fall-through).
+	// Register the list keymap whenever the list phase is shown. It must stay
+	// registered even while an overlay (reader / modal / compose / hint / palette)
+	// is open: per-scope isolation already prevents list bindings from firing
+	// (only the active scope — the top of the stack — dispatches, and every
+	// overlay pushes its own scope). Gating registration on the overlay flags
+	// would unregister the list keymap, which also breaks the keyboard-help
+	// dialog's introspection of the scope beneath an open modal.
 	$effect(() => {
-		const listActive =
-			phase === 'list' &&
-			!openMessage &&
-			!ui.cmdOpen &&
-			!ui.composeOpen &&
-			!ui.helpOpen &&
-			!ui.aboutOpen &&
-			!ui.settingsOpen &&
-			!hintMode;
-		if (!listActive) return;
+		if (phase !== 'list') return;
 		const km = createListKeymap({
 			selectNext: () => {
 				selectedIdx = Math.min(selectedIdx + 1, currentMessages.length - 1);

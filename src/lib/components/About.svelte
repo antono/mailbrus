@@ -2,20 +2,12 @@
 	import Wordmark from './Wordmark.svelte';
 	import logoUrl from '$lib/assets/mailbrus.svg';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
-	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
-	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createModalKeymap } from '$lib/hotkeys/keymaps/modal.ts';
 
 	let { onClose }: { onClose: () => void } = $props();
 
-	$effect(() => {
-		pushScope('modal');
-		const dispose = registerKeymap(createModalKeymap({ close: onClose }));
-		return () => {
-			dispose();
-			popScope('modal');
-		};
-	});
+	useScopedKeymap('modal', () => createModalKeymap({ close: onClose }));
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->

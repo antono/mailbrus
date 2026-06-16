@@ -1,8 +1,7 @@
 <script lang="ts">
 	import Wordmark from './Wordmark.svelte';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
-	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
-	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createPaletteKeymap } from '$lib/hotkeys/keymaps/palette.ts';
 
 	export interface PaletteItem {
@@ -68,29 +67,22 @@
 		if (it) onSelect(it);
 	}
 
-	$effect(() => {
-		pushScope('palette');
-		const dispose = registerKeymap(
-			createPaletteKeymap({
-				moveDown: () => {
-					idx = Math.min(idx + 1, filtered.length - 1);
-				},
-				moveUp: () => {
-					idx = Math.max(idx - 1, 0);
-				},
-				confirm: () => select(idx),
-				cancel: () => onCancel?.(),
-				jumpTo: (n) => {
-					if (n < filtered.length) select(n);
-				},
-				isQueryEmpty: () => q === ''
-			})
-		);
-		return () => {
-			dispose();
-			popScope('palette');
-		};
-	});
+	useScopedKeymap('palette', () =>
+		createPaletteKeymap({
+			moveDown: () => {
+				idx = Math.min(idx + 1, filtered.length - 1);
+			},
+			moveUp: () => {
+				idx = Math.max(idx - 1, 0);
+			},
+			confirm: () => select(idx),
+			cancel: () => onCancel?.(),
+			jumpTo: (n) => {
+				if (n < filtered.length) select(n);
+			},
+			isQueryEmpty: () => q === ''
+		})
+	);
 
 	function onCurtainClick(e: MouseEvent) {
 		if ((e.target as HTMLElement).classList.contains('mb-curtain')) onCancel?.();

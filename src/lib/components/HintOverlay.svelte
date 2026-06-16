@@ -2,8 +2,7 @@
 	import type { HintTarget } from '$lib/hints.js';
 	import { onMount } from 'svelte';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
-	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
-	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createHintKeymap } from '$lib/hotkeys/keymaps/hint.ts';
 
 	let {
@@ -31,24 +30,17 @@
 		positions = computePositions();
 	});
 
-	$effect(() => {
-		pushScope('hint');
-		const dispose = registerKeymap(
-			createHintKeymap({
-				labels: () => targets.map((t) => t.label),
-				activate: (label) => {
-					const match = targets.find((t) => t.label === label);
-					match?.onActivate();
-					onCancel();
-				},
-				cancel: onCancel
-			})
-		);
-		return () => {
-			dispose();
-			popScope('hint');
-		};
-	});
+	useScopedKeymap('hint', () =>
+		createHintKeymap({
+			labels: () => targets.map((t) => t.label),
+			activate: (label) => {
+				const match = targets.find((t) => t.label === label);
+				match?.onActivate();
+				onCancel();
+			},
+			cancel: onCancel
+		})
+	);
 </script>
 
 <div

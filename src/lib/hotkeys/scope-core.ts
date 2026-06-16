@@ -8,12 +8,20 @@ export function pushScopePure(stack: Scope[], s: Scope): void {
 }
 
 export function popScopePure(stack: Scope[], s: Scope): PopResult {
-	const top = stack[stack.length - 1];
-	if (top !== s) {
-		const msg = `popScope mismatch: expected '${s}' on top, found '${top ?? '(empty)'}' (stack: ${stack.join(', ')})`;
+	// Remove the most-recent occurrence of `s` wherever it sits, not only the
+	// top. Scoped views can layer (e.g. the command palette opens over the
+	// reader -> ['list', 'reader', 'palette']) and a palette action may dismiss
+	// the underlying reader, so the reader pops while `palette` is still on top.
+	// Removing by identity keeps the active scope (stack tip) correct and avoids
+	// leaving a stale scope behind. A genuinely bogus pop (scope never pushed)
+	// still fails loudly.
+	const idx = stack.lastIndexOf(s);
+	if (idx === -1) {
+		const top = stack[stack.length - 1];
+		const msg = `popScope mismatch: '${s}' is not on the stack (top: '${top ?? '(empty)'}', stack: ${stack.join(', ')})`;
 		return { popped: false, error: msg };
 	}
-	stack.pop();
+	stack.splice(idx, 1);
 	return { popped: true, error: null };
 }
 

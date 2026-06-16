@@ -3,8 +3,7 @@
 	import RecipientInput from './RecipientInput.svelte';
 	import type { Account, Folder } from '$lib/data.js';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
-	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
-	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
+	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createComposeKeymap } from '$lib/hotkeys/keymaps/compose.ts';
 
 	let {
@@ -37,26 +36,19 @@
 	let wordCount = $derived(body.trim() ? body.trim().split(/\s+/).length : 0);
 	let charCount = $derived(body.length);
 
-	$effect(() => {
-		pushScope('compose');
-		const dispose = registerKeymap(
-			createComposeKeymap({
-				send: () => onSent({ to, cc, bcc, subject, body }),
-				saveDraft: () => onSent({ to, cc, bcc, subject, body, draft: true }),
-				escape: () => {
-					if (isDirty) {
-						if (window.confirm('Discard this draft?')) onClose();
-					} else {
-						onClose();
-					}
+	useScopedKeymap('compose', () =>
+		createComposeKeymap({
+			send: () => onSent({ to, cc, bcc, subject, body }),
+			saveDraft: () => onSent({ to, cc, bcc, subject, body, draft: true }),
+			escape: () => {
+				if (isDirty) {
+					if (window.confirm('Discard this draft?')) onClose();
+				} else {
+					onClose();
 				}
-			})
-		);
-		return () => {
-			dispose();
-			popScope('compose');
-		};
-	});
+			}
+		})
+	);
 </script>
 
 <div class="mb-compose" data-testid="compose.container">

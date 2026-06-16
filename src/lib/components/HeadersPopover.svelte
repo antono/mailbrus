@@ -1,5 +1,6 @@
 <script lang="ts">
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	import { untrack } from 'svelte';
 	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
 	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
 	import { createModalKeymap } from '$lib/hotkeys/keymaps/modal.ts';
@@ -20,7 +21,7 @@
 		};
 		document.addEventListener('mousedown', onDown);
 		pushScope('modal');
-		const dispose = registerKeymap(createModalKeymap({ close: onClose }));
+		const dispose = registerKeymap(untrack(() => createModalKeymap({ close: onClose })));
 		return () => {
 			document.removeEventListener('mousedown', onDown);
 			dispose();

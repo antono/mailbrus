@@ -3,21 +3,15 @@
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
 	// — Keymaps are the single source of help content
 	// — Keyboard help toggle (Global + active scope only)
-	import { pushScope, popScope, scopeStack } from '$lib/hotkeys/scope.svelte.ts';
-	import { registerKeymap, globalBindings, scopeBindings } from '$lib/hotkeys/registry.svelte.ts';
+	import { scopeStack } from '$lib/hotkeys/scope.svelte.ts';
+	import { globalBindings, scopeBindings } from '$lib/hotkeys/registry.svelte.ts';
+	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createModalKeymap } from '$lib/hotkeys/keymaps/modal.ts';
 	import type { Binding, Scope } from '$lib/hotkeys/types.ts';
 
 	let { onClose }: { onClose: () => void } = $props();
 
-	$effect(() => {
-		pushScope('modal');
-		const dispose = registerKeymap(createModalKeymap({ close: onClose }));
-		return () => {
-			dispose();
-			popScope('modal');
-		};
-	});
+	useScopedKeymap('modal', () => createModalKeymap({ close: onClose }));
 
 	const SCOPE_LABEL: Record<Scope, string> = {
 		list: 'List',
