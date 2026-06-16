@@ -1,7 +1,8 @@
-use super::json_error;
+use super::{json_error, read_with_retry};
 use crate::mime::{build_body_response, extract_message, message_to_json};
+use crate::state::AppState;
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
     Json,
@@ -14,6 +15,43 @@ use mailbrus_core::{
 use serde::Deserialize;
 use serde_json::json;
 use tracing::{debug, info, warn};
+
+/// Build the notmuch `folder:` query for an account's mailbox.
+///
+/// notmuch's `folder:` term is the message directory relative to the database
+/// (mail) root. Mailbrus stores each account under `<db_root>/mail/<id>/`, so
+/// the term is `mail/<id>/<folder>`, not `<id>/<folder>`. Resolve the prefix
+/// from the account's configured maildir root relative to the DB root so it
+/// works regardless of layout (e.g. the flat layout used by E2E clones).
+fn folder_query(state: &AppState, maildir_id: &str, folder_id: &str) -> String {
+    format!("folder:\"{}/{folder_id}\"", mailbox_prefix(state, maildir_id))
+}
+
+/// The account's maildir directory relative to the notmuch database (mail) root,
+/// e.g. `mail/<id>` for the normal layout or `<id>` for the flat E2E clone
+/// layout. Used to build `folder:`/`path:` queries that match how synced mail is
+/// actually stored.
+pub(crate) fn mailbox_prefix(state: &AppState, maildir_id: &str) -> String {
+    let maildir_root = state
+        .accounts
+        .iter()
+        .find(|a| a.id == maildir_id)
+        .and_then(|a| a.imap())
+        .and_then(|i| i.maildir_root.clone())
+        .or_else(|| mailbrus_core::config::default_maildir_root(maildir_id));
+    let db_root = state
+        .notmuch_db_path
+        .clone()
+        .or_else(|| mailbrus_core::notmuch_db::default_db_path().ok());
+
+    if let (Some(root), Some(db)) = (maildir_root.as_ref(), db_root.as_ref()) {
+        if let Ok(rel) = root.strip_prefix(db) {
+            return rel.to_string_lossy().into_owned();
+        }
+    }
+    // Fallback: assume the maildir sits directly under the DB root.
+    maildir_id.to_string()
+}
 
 #[derive(Deserialize)]
 pub struct Pagination {
@@ -37,13 +75,20 @@ impl Pagination {
 }
 
 pub async fn list_messages(
+    State(state): State<AppState>,
     Path((maildir_id, folder_id)): Path<(String, String)>,
     Query(pagination): Query<Pagination>,
 ) -> Response {
     let (opts, page, per_page) = pagination.to_opts();
-    let query = format!("folder:\"{maildir_id}/{folder_id}\"");
+    let query = folder_query(&state, &maildir_id, &folder_id);
     match tokio::task::spawn_blocking(move || {
-        MaildirReader::open().and_then(|r| r.list_messages(&query, SortBy::Newest, opts))
+        read_with_retry(|r| {
+            r.list_messages(
+                &query,
+                SortBy::Newest,
+                PaginationOpts { limit: opts.limit, offset: opts.offset },
+            )
+        })
     })
     .await
     {
@@ -94,7 +139,13 @@ pub async fn search_messages(Query(params): Query<SearchParams>) -> Response {
         offset: ((page - 1) * per_page) as usize,
     };
     match tokio::task::spawn_blocking(move || {
-        MaildirReader::open().and_then(|r| r.list_messages(&q, SortBy::Newest, opts))
+        read_with_retry(|r| {
+            r.list_messages(
+                &q,
+                SortBy::Newest,
+                PaginationOpts { limit: opts.limit, offset: opts.offset },
+            )
+        })
     })
     .await
     {
@@ -133,8 +184,7 @@ pub async fn get_message(
 ) -> Response {
     let mode = query.mode.unwrap_or_else(|| "auto".to_string());
     match tokio::task::spawn_blocking(move || {
-        let reader = MaildirReader::open()?;
-        let raw = reader.get_message_body(&id)?;
+        let raw = read_with_retry(|r| r.get_message_body(&id))?;
         Ok::<_, MailboxError>((id, raw))
     })
     .await

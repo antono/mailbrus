@@ -3633,6 +3633,7 @@ dependencies = [
  "mailbrus-core",
  "serde",
  "serde_json",
+ "tokio",
  "toon-format",
 ]
 

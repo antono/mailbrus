@@ -24,7 +24,7 @@ use handlers::{
 use mailbrus_core::config::load_config;
 use mailbrus_core::notmuch_db;
 use mailbrus_core::sync::SyncEngine;
-use middleware::log_middleware;
+use middleware::{log_middleware, no_store_middleware};
 use push_poller::spawn_push_poller;
 use state::AppState;
 use std::net::SocketAddr;
@@ -172,6 +172,7 @@ async fn main() {
             state.clone(),
             log_middleware,
         ))
+        .layer(axum::middleware::from_fn(no_store_middleware))
         .with_state(state);
 
     let index = cli.frontend_dist.join("index.html");

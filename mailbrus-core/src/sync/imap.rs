@@ -26,12 +26,17 @@ use thiserror::Error;
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, info, instrument, warn};
 
-use crate::config::{AccountConfig, ImapConfig, ProtocolConfig};
+use crate::config::{AccountConfig, CredentialBackend, ImapConfig, ProtocolConfig};
 use crate::credentials::{self, CredentialError};
 use crate::sync::engine::{BroadcastEvent, IndexEvent, SyncStatus};
 use crate::sync::state::{ImapMailboxState, SyncStateDb, SyncStateError};
 
 const DEFAULT_MAILBOX: &str = "INBOX";
+
+/// Number of message bodies fetched (and then written + indexed) per batch.
+/// Bounds memory and lets progress stream during a large initial sync; each
+/// batch is indexed and checkpointed before the next is fetched.
+const FETCH_BATCH_SIZE: usize = 50;
 
 #[derive(Debug, Error)]
 pub enum ImapSyncError {
@@ -75,6 +80,37 @@ pub struct SyncReport {
 #[derive(Clone, Default)]
 pub struct NotmuchLock(pub Arc<Mutex<()>>);
 
+/// A milestone emitted during [`ImapWorker::sync`] when a progress sink is
+/// attached via [`ImapWorker::with_progress`]. Used by `mailbrus-cli` to stream
+/// live progress; ignored (never produced) when no sink is set.
+#[derive(Debug, Clone)]
+pub enum SyncProgress {
+    /// Resolving the account password. `reference` is the store key for
+    /// `keyring`/`pass`; it is `None` for `plain` (where the reference *is* the
+    /// secret). The resolved password is never carried in any variant.
+    ResolvingCredentials { backend: &'static str, reference: Option<String> },
+    CredentialsResolved { backend: &'static str },
+    Connecting { host: String, port: u16 },
+    Authenticated,
+    MailboxSelected { mailbox: String, uid_validity: u32 },
+    NewMessages { count: usize },
+    /// About to issue a FETCH for the next batch of `count` message bodies.
+    FetchingBatch { count: usize },
+    /// The batch's `count` message bodies have arrived.
+    BatchFetched { count: usize },
+    MessageFetched { uid: u32 },
+    MessageStored { uid: u32, path: PathBuf },
+    MessageFailed { uid: Option<u32>, reason: String },
+    MessageDeleted { uid: u32 },
+    IndexingStarted { count: usize },
+    /// `indexed` of `total` messages indexed so far.
+    IndexingProgress { indexed: usize, total: usize },
+    IndexingFinished { indexed: usize },
+}
+
+/// A callback invoked synchronously for each [`SyncProgress`] milestone.
+pub type ProgressSink = Arc<dyn Fn(SyncProgress) + Send + Sync>;
+
 pub struct ImapWorker {
     account_id: String,
     imap: ImapConfig,
@@ -84,6 +120,7 @@ pub struct ImapWorker {
     state_db_path: PathBuf,
     mailbox: String,
     events_tx: Option<broadcast::Sender<BroadcastEvent>>,
+    progress: Option<ProgressSink>,
 }
 
 impl ImapWorker {
@@ -109,12 +146,39 @@ impl ImapWorker {
             state_db_path,
             mailbox: DEFAULT_MAILBOX.to_string(),
             events_tx: None,
+            progress: None,
         })
     }
 
     pub fn with_mailbox(mut self, mailbox: impl Into<String>) -> Self {
         self.mailbox = mailbox.into();
         self
+    }
+
+    /// Attach a progress sink that receives [`SyncProgress`] milestones as the
+    /// sync proceeds. Without it, the sync runs silently (behaviour unchanged).
+    pub fn with_progress<F>(mut self, sink: F) -> Self
+    where
+        F: Fn(SyncProgress) + Send + Sync + 'static,
+    {
+        self.progress = Some(Arc::new(sink));
+        self
+    }
+
+    fn progress(&self, p: SyncProgress) {
+        if let Some(sink) = &self.progress {
+            sink(p);
+        }
+    }
+
+    /// The password store name and a *safe* reference to log. For `plain` the
+    /// reference holds the secret, so it is deliberately withheld.
+    fn credential_descriptor(&self) -> (&'static str, Option<String>) {
+        match self.imap.credential_backend {
+            CredentialBackend::Keyring => ("keyring", Some(self.imap.credential_ref.clone())),
+            CredentialBackend::Pass => ("pass", Some(self.imap.credential_ref.clone())),
+            CredentialBackend::Plain => ("plain", None),
+        }
     }
 
     /// Attach the SSE broadcast sender so indexing progress is published as
@@ -142,9 +206,17 @@ impl ImapWorker {
         info!(account = %self.account_id, mailbox = %self.mailbox, "starting IMAP sync");
 
         let account_cfg = self.account_config_for_credential_lookup();
+        let (backend, reference) = self.credential_descriptor();
+        self.progress(SyncProgress::ResolvingCredentials { backend, reference });
         let password = credentials::resolve(&account_cfg).await?;
+        self.progress(SyncProgress::CredentialsResolved { backend });
 
+        self.progress(SyncProgress::Connecting {
+            host: self.imap.imap_host.clone(),
+            port: self.imap.imap_port,
+        });
         let mut client = self.connect_and_auth(&password).await?;
+        self.progress(SyncProgress::Authenticated);
 
         let condstore_supported = client.state.ext_condstore_supported();
         if condstore_supported {
@@ -157,6 +229,10 @@ impl ImapWorker {
 
         let uid_validity = select_data.uid_validity.map(|v| v.get()).unwrap_or(0);
         let highest_modseq = select_data.highest_modseq.map(|v| v.get());
+        self.progress(SyncProgress::MailboxSelected {
+            mailbox: self.mailbox.clone(),
+            uid_validity,
+        });
 
         let state_db = SyncStateDb::open(&self.state_db_path)?;
         let stored = state_db.get_mailbox_state(&self.account_id, &self.mailbox)?;
@@ -198,12 +274,7 @@ impl ImapWorker {
             .copied()
             .filter(|u| !stored_uid_set.contains(u))
             .collect();
-
-        let fetched_messages = if new_uids.is_empty() {
-            Vec::new()
-        } else {
-            self.fetch_message_bodies(&mut client, &new_uids).await?
-        };
+        self.progress(SyncProgress::NewMessages { count: new_uids.len() });
 
         let maildir_cur = self.maildir_root.join(&self.mailbox).join("cur");
         std::fs::create_dir_all(&maildir_cur).map_err(|e| ImapSyncError::MaildirIo {
@@ -213,15 +284,51 @@ impl ImapWorker {
         std::fs::create_dir_all(self.maildir_root.join(&self.mailbox).join("new")).ok();
         std::fs::create_dir_all(self.maildir_root.join(&self.mailbox).join("tmp")).ok();
 
+        // Process each batch end-to-end before the next: fetch bodies → write to
+        // the maildir → index into notmuch → checkpoint the batch's UIDs. A first
+        // sync of a large mailbox therefore streams progress, keeps peak memory
+        // to one batch of bodies, makes mail searchable as it arrives, and — if
+        // interrupted — retains every batch it already pulled (no re-fetch).
+        let total_new = new_uids.len();
         let mut written_files: Vec<(u32, PathBuf, String)> = Vec::new();
-        for (uid, body, flags) in fetched_messages {
-            let basename = maildir_basename(uid_validity, uid, &flags);
-            let path = maildir_cur.join(&basename);
-            std::fs::write(&path, &body).map_err(|e| ImapSyncError::MaildirIo {
-                path: path.clone(),
-                source: e,
-            })?;
-            written_files.push((uid, path, basename));
+        let mut indexed = 0usize;
+        let mut started_indexing = false;
+        for chunk in new_uids.chunks(FETCH_BATCH_SIZE) {
+            self.progress(SyncProgress::FetchingBatch { count: chunk.len() });
+            let fetched = self.fetch_message_bodies(&mut client, chunk).await?;
+            self.progress(SyncProgress::BatchFetched { count: fetched.len() });
+
+            let mut batch: Vec<(u32, PathBuf, String)> = Vec::new();
+            for (uid, body, flags) in fetched {
+                self.progress(SyncProgress::MessageFetched { uid });
+                let basename = maildir_basename(uid_validity, uid, &flags);
+                let path = maildir_cur.join(&basename);
+                std::fs::write(&path, &body).map_err(|e| ImapSyncError::MaildirIo {
+                    path: path.clone(),
+                    source: e,
+                })?;
+                self.progress(SyncProgress::MessageStored { uid, path: path.clone() });
+                batch.push((uid, path, basename));
+            }
+
+            if !batch.is_empty() {
+                if !started_indexing {
+                    self.progress(SyncProgress::IndexingStarted { count: total_new });
+                    started_indexing = true;
+                }
+                self.index_in_notmuch(&batch, &[], &maildir_cur).await?;
+                // Checkpoint this batch's UIDs so an interrupted sync need not
+                // re-fetch them next time.
+                for (uid, _, basename) in &batch {
+                    state_db.record_uid(&self.account_id, &self.mailbox, *uid, basename)?;
+                }
+                indexed += batch.len();
+                self.progress(SyncProgress::IndexingProgress { indexed, total: total_new });
+                written_files.extend(batch);
+            }
+        }
+        if started_indexing {
+            self.progress(SyncProgress::IndexingFinished { indexed });
         }
 
         let server_uid_set: HashSet<u32> = if use_condstore {
@@ -235,15 +342,13 @@ impl ImapWorker {
             .filter(|(uid, _)| !server_uid_set.contains(uid))
             .collect();
 
-        for (_, basename) in &deleted {
+        for (uid, basename) in &deleted {
             let path = maildir_cur.join(basename);
             let _ = std::fs::remove_file(&path);
+            self.progress(SyncProgress::MessageDeleted { uid: *uid });
         }
-
-        self.index_in_notmuch(&written_files, &deleted, &maildir_cur).await?;
-
-        for (uid, _, basename) in &written_files {
-            state_db.record_uid(&self.account_id, &self.mailbox, *uid, basename)?;
+        if !deleted.is_empty() {
+            self.index_in_notmuch(&[], &deleted, &maildir_cur).await?;
         }
         for (uid, _) in &deleted {
             state_db.forget_uid(&self.account_id, &self.mailbox, *uid)?;
@@ -429,6 +534,10 @@ impl ImapWorker {
                 (Some(uid), Some(body)) => out.push((uid, body, flags)),
                 (uid, body) => {
                     debug!(?uid, body_len = body.as_ref().map(|b| b.len()), "skipping incomplete fetch item");
+                    self.progress(SyncProgress::MessageFailed {
+                        uid,
+                        reason: "incomplete fetch response (missing UID or body)".to_string(),
+                    });
                 }
             }
         }

@@ -111,6 +111,18 @@ impl MaildirReader {
         Ok((result, total))
     }
 
+    /// Count the messages matching `query` without materializing them.
+    pub fn count(&self, query: &str) -> Result<usize, MailboxError> {
+        let q = self
+            .db
+            .create_query(query)
+            .map_err(|e| MailboxError::QueryFailed(e.to_string()))?;
+        let n = q
+            .count_messages()
+            .map_err(|e| MailboxError::QueryFailed(e.to_string()))? as usize;
+        Ok(n)
+    }
+
     pub fn get_message_body(&self, message_id: &str) -> Result<Vec<u8>, MailboxError> {
         let msg = self
             .db

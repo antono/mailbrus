@@ -3,5 +3,5 @@ pub mod imap;
 pub mod state;
 
 pub use engine::{BroadcastEvent, IndexEvent, SyncEngine, SyncError, SyncEvent, SyncStatus};
-pub use imap::{ImapSyncError, ImapWorker, NotmuchLock, SyncReport};
+pub use imap::{ImapSyncError, ImapWorker, NotmuchLock, ProgressSink, SyncProgress, SyncReport};
 pub use state::{ImapMailboxState, SyncStateDb, SyncStateError};
