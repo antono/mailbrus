@@ -131,6 +131,29 @@ If the config file is absent or has no accounts, sync is disabled but the server
 
 ## Triggering a sync
 
+### Via the CLI
+
+No server required — `mailbrus sync` runs the same sync pipeline and **blocks
+until it finishes**, printing a per-account summary:
+
+```bash
+# Sync every configured account
+mailbrus sync
+
+# Sync one account by ID
+mailbrus sync gmail
+```
+
+It reads the same `config.toml`, auto-creates the database on first run, and
+exits non-zero if any account fails. Output looks like:
+
+```
+gmail: fetched 42, deleted 0, indexed 42
+```
+
+> Don't run `mailbrus sync` and a `POST /api/sync` against the same database at
+> the same time — they would contend on the notmuch write lock.
+
 ### Via the API
 
 ```bash

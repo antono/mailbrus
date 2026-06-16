@@ -51,9 +51,30 @@ same account→maildir-root resolution as the server. This guarantees the CLI an
 server share one database and config.
 
 ### D4: Exit code + reporting
-**Decision:** Print one line per account (`fetched/deleted/indexed`). Accumulate
-failures; exit non-zero if any account errored, 0 otherwise. Unknown account id
-is a usage error (non-zero, no sync attempted).
+**Decision:** Print one line per account (`fetched/deleted/indexed`) as the final
+summary on stdout. Accumulate failures; exit non-zero if any account errored, 0
+otherwise. Unknown account id is a usage error (non-zero, no sync attempted).
+
+### D5: Live progress via a callback sink, not the SSE broadcast
+**Decision:** Add an optional progress sink to `ImapWorker`:
+`Option<Arc<dyn Fn(SyncProgress) + Send + Sync>>`, set via `with_progress(...)`,
+emitted synchronously at each milestone inside `sync()`. The CLI installs a sink
+that prints human-readable lines to **stderr** as they arrive; the final
+per-account summary stays on **stdout** (so it remains pipe-friendly).
+
+Rationale / alternatives:
+- **Why not reuse the `events_tx` broadcast (SSE) path?** Those events are
+  coarse (per-account/per-mailbox terminal states) and feed the UI; adding
+  per-message/per-file frames there would be noisy for the SSE consumers and
+  would require the CLI to run a concurrent subscriber task. A direct callback
+  is simpler, synchronous with the work, and decoupled from the UI model.
+- **Why not `tracing`?** Logs carry level/target noise and the format isn't the
+  clean progress UX requested; a structured sink lets the CLI format lines and
+  keeps per-message emission out of server logs.
+
+The sink must be `Send + Sync` because `ImapWorker::sync()` is awaited inside a
+spawned task in the server's engine path; a stateless printing closure satisfies
+this. `SyncProgress` is a public enum re-exported from `mailbrus_core::sync`.
 
 ## Risks / Trade-offs
 

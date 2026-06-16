@@ -16,21 +16,35 @@ terminal, a cron job, or a script currently has to run the whole server and
 - It reuses the existing core pipeline: resolve config, write the managed
   notmuch config, auto-initialize the database, then run `ImapWorker::sync()`
   per account — no new sync logic.
+- It **streams progress live** as the sync runs (config read, per-account start,
+  connect/authenticate, mailbox selected, each message fetched and each file
+  written, indexing, and any error) rather than going silent until the end.
+- To enable that, `ImapWorker` gains an **optional progress sink** (a callback)
+  that emits structured milestones; it is `None` by default, so the server and
+  the SSE channel are unaffected.
 - `mailbrus-cli` gains the `sync` feature of `mailbrus-core` and a Tokio runtime
   scoped to this subcommand; the existing read-only subcommands stay synchronous.
 
-The server API and the core engine are unchanged.
+The server API and the SSE event model are unchanged.
 
 ## Capabilities
 
 ### Modified Capabilities
-- `mailbrus-cli-crate`: adds the `sync` subcommand, the `sync` feature
-  dependency, and an async runtime for it.
+- `mailbrus-cli-crate`: adds the `sync` subcommand, its live progress output,
+  the `sync` feature dependency, and an async runtime for it.
+- `mailbrus-core-crate`: `ImapWorker` gains an optional progress sink that emits
+  structured `SyncProgress` milestones during a sync, and processes messages in
+  bounded fetch→write→index→checkpoint batches.
+- `mailbrus-server-crate`: the message-list `folder:` query is resolved from the
+  account's maildir root relative to the notmuch DB root (fix found during the
+  first real CLI sync — mail stored under `mail/<id>/` was not being listed).
 
 ## Impact
 
 - `mailbrus-cli`: `Cargo.toml` (enable `mailbrus-core`'s `sync` feature, add
-  `tokio`), `src/main.rs` (new subcommand + runtime).
-- No changes to `mailbrus-core`, `mailbrus-server`, or the frontend.
+  `tokio`), `src/main.rs` (new subcommand + runtime + progress printer).
+- `mailbrus-core`: `sync/imap.rs` (new `SyncProgress` enum, optional progress
+  sink, milestone emit points) — additive, default `None`.
+- No changes to `mailbrus-server`, the SSE event model, or the frontend.
 - The same credential backends (`keyring` / `pass` / `plain`) and the same
   `$XDG_CONFIG_HOME/mailbrus/config.toml` apply.
