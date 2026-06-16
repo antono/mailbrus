@@ -1,10 +1,17 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use mail_parser::{MessageParser, MimeHeaders, PartType};
 use mailbrus_core::{
+    config::{load_config, AccountConfig},
     maildir_reader::{MaildirReader, SortBy, PaginationOpts},
+    notmuch_db,
+    sync::{ImapWorker, NotmuchLock, SyncProgress},
     MailboxError,
 };
 use serde_json::{json, Map, Value};
+use std::io::{IsTerminal, Write};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "mailbrus", version)]
@@ -26,6 +33,15 @@ enum Commands {
     Message {
         #[command(subcommand)]
         cmd: MessageCommands,
+    },
+    /// Fetch mail from IMAP into the mailbrus notmuch database. Blocks until done.
+    Sync {
+        /// Account id to sync. Omit to sync every configured account.
+        account: Option<String>,
+        /// Print a line per milestone (each prefixed with [fetched/total]).
+        /// Without it, only a compact [fetched/total] indicator is redrawn.
+        #[arg(short, long)]
+        verbose: bool,
     },
 }
 
@@ -246,6 +262,13 @@ fn messages_to_json(messages: &[mailbrus_core::maildir_reader::Message]) -> Valu
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    // `sync` fetches mail (async, may run before any database exists), so it is
+    // handled before opening the read-only reader used by every other command.
+    if let Commands::Sync { account, verbose } = cli.command {
+        return run_sync(account, verbose);
+    }
+
     let reader = MaildirReader::open().map_err(|e: MailboxError| e.to_string())?;
 
     match cli.command {
@@ -282,8 +305,176 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             })?;
             print_message(&id, &raw, &output);
         }
+        Commands::Sync { .. } => unreachable!("sync is handled before reader setup"),
     }
 
+    Ok(())
+}
+
+/// Resolve an account's maildir root the same way the server does:
+/// explicit `maildir_root`, else the XDG default, else `<db>/mail/<id>`.
+fn resolve_maildir_root(account: &AccountConfig, db_path: &Path) -> PathBuf {
+    account
+        .imap()
+        .and_then(|i| i.maildir_root.clone())
+        .or_else(|| mailbrus_core::config::default_maildir_root(&account.id))
+        .unwrap_or_else(|| db_path.join("mail").join(&account.id))
+}
+
+/// Entry point for `mailbrus sync`: spin up a Tokio runtime just for this
+/// command and drive the core sync pipeline to completion.
+fn run_sync(account: Option<String>, verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(sync_accounts(account, verbose))
+}
+
+/// Human-readable text for a single `SyncProgress` milestone (no counter, no
+/// account prefix — those are added by the printer). Never includes secrets.
+fn describe(p: &SyncProgress) -> String {
+    match p {
+        SyncProgress::ResolvingCredentials { backend, reference } => match reference {
+            Some(r) => format!("resolving password from {backend} (key: {r})"),
+            None => format!("resolving password from {backend}"),
+        },
+        SyncProgress::CredentialsResolved { backend } => format!("fetched password from {backend}"),
+        SyncProgress::Connecting { host, port } => format!("connecting to {host}:{port}"),
+        SyncProgress::Authenticated => "authenticated".to_string(),
+        SyncProgress::MailboxSelected { mailbox, uid_validity } => {
+            format!("selected {mailbox} (uidvalidity {uid_validity})")
+        }
+        SyncProgress::NewMessages { count } => format!("{count} new message(s)"),
+        SyncProgress::FetchingBatch { count } => format!("fetching {count} message(s)…"),
+        SyncProgress::BatchFetched { count } => format!("received {count} message(s)"),
+        SyncProgress::MessageFetched { uid } => format!("fetched uid {uid}"),
+        SyncProgress::MessageStored { uid, path } => format!("stored uid {uid} -> {}", path.display()),
+        SyncProgress::MessageFailed { uid, reason } => match uid {
+            Some(u) => format!("FAILED uid {u}: {reason}"),
+            None => format!("FAILED message: {reason}"),
+        },
+        SyncProgress::MessageDeleted { uid } => format!("deleted uid {uid}"),
+        SyncProgress::IndexingStarted { count } => format!("indexing {count} message(s)…"),
+        SyncProgress::IndexingProgress { indexed, total } => format!("indexed {indexed}/{total}"),
+        SyncProgress::IndexingFinished { indexed } => format!("indexed {indexed} message(s)"),
+    }
+}
+
+/// Renders sync progress for one account: a per-milestone log in verbose mode,
+/// or a single redrawn `[fetched/total]` line otherwise. Shared into the worker's
+/// progress sink, so it uses atomics for its counters.
+struct ProgressPrinter {
+    account: String,
+    verbose: bool,
+    tty: bool,
+    total: AtomicUsize,
+    done: AtomicUsize,
+}
+
+impl ProgressPrinter {
+    fn new(account: String, verbose: bool) -> Self {
+        Self {
+            account,
+            verbose,
+            tty: std::io::stderr().is_terminal(),
+            total: AtomicUsize::new(0),
+            done: AtomicUsize::new(0),
+        }
+    }
+
+    fn handle(&self, p: SyncProgress) {
+        match &p {
+            SyncProgress::NewMessages { count } => self.total.store(*count, Ordering::Relaxed),
+            SyncProgress::MessageStored { .. } | SyncProgress::MessageFailed { .. } => {
+                self.done.fetch_add(1, Ordering::Relaxed);
+            }
+            _ => {}
+        }
+        let done = self.done.load(Ordering::Relaxed);
+        let total = self.total.load(Ordering::Relaxed);
+
+        if self.verbose {
+            eprintln!("[{done}/{total}] {}: {}", self.account, describe(&p));
+        } else if self.tty {
+            // Redraw a single status line in place.
+            eprint!("\r[{done}/{total}] {} syncing…", self.account);
+            let _ = std::io::stderr().flush();
+        }
+    }
+
+    /// End the redrawn line (non-verbose TTY mode) so later output starts fresh.
+    fn finish(&self) {
+        if !self.verbose && self.tty {
+            eprintln!();
+        }
+    }
+}
+
+async fn sync_accounts(
+    account: Option<String>,
+    verbose: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let accounts = load_config(None)?;
+    if accounts.is_empty() {
+        return Err("no accounts configured in $XDG_CONFIG_HOME/mailbrus/config.toml".into());
+    }
+    if verbose {
+        eprintln!("config: {} account(s) loaded", accounts.len());
+    }
+
+    let targets: Vec<AccountConfig> = match &account {
+        Some(id) => vec![accounts
+            .iter()
+            .find(|a| &a.id == id)
+            .cloned()
+            .ok_or_else(|| format!("unknown account: {id}"))?],
+        None => accounts.clone(),
+    };
+
+    // Own the database exactly as the server does: managed config + auto-init,
+    // never touching the system ~/.notmuch-config.
+    let db_path = notmuch_db::default_db_path()?;
+    let config_path = notmuch_db::default_config_path()?;
+    let maildir_roots: Vec<PathBuf> =
+        accounts.iter().map(|a| resolve_maildir_root(a, &db_path)).collect();
+    notmuch_db::write_config(&config_path, &db_path, &maildir_roots)?;
+    notmuch_db::ensure_initialized(&db_path)?;
+
+    let state_db_path = mailbrus_core::sync::state::default_path()?;
+    let lock = NotmuchLock::default();
+
+    let mut failures = 0usize;
+    for acc in &targets {
+        if verbose {
+            eprintln!("{}: starting sync", acc.id);
+        }
+        let printer = Arc::new(ProgressPrinter::new(acc.id.clone(), verbose));
+        let result = match ImapWorker::new(acc, db_path.clone(), lock.clone(), state_db_path.clone()) {
+            Ok(worker) => {
+                let sink = printer.clone();
+                worker
+                    .with_progress(move |p| sink.handle(p))
+                    .sync()
+                    .await
+            }
+            Err(e) => Err(e),
+        };
+        printer.finish();
+        match result {
+            Ok(report) => println!(
+                "{}: fetched {}, deleted {}, indexed {}",
+                acc.id, report.fetched, report.deleted, report.fetched
+            ),
+            Err(e) => {
+                eprintln!("{}: sync failed: {e}", acc.id);
+                failures += 1;
+            }
+        }
+    }
+
+    if failures > 0 {
+        return Err(format!("{failures} account(s) failed to sync").into());
+    }
     Ok(())
 }
 
