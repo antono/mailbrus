@@ -24,6 +24,9 @@ function openDB(): Promise<IDBDatabase> {
 		};
 		req.onsuccess = () => { _db = req.result; resolve(_db); };
 		req.onerror = () => reject(req.error);
+		// A blocked open (another connection holding a pending versionchange/delete)
+		// would otherwise hang this promise forever. Reject so callers can fall back.
+		req.onblocked = () => reject(new Error('indexedDB open blocked'));
 	});
 }
 

@@ -451,11 +451,22 @@
 	) {
 		loading = true;
 		error = null;
-		// task 6.2: render from IDB immediately, then update from network
-		const local = await getLocalMessages(folderId).catch(() => []);
-		if (local.length && page === 1) { currentMessages = local; loading = false; }
+		// task 6.2: render from IDB immediately as an optimisation — but NEVER gate the
+		// network fetch on it. A stalled/blocked IndexedDB open (first-launch SW
+		// contention, a pending versionchange, slow disk) would otherwise leave the
+		// message list empty and stuck on "loading…" until a manual reload. Fire the
+		// network request immediately and let the cache read race it.
+		let networkSettled = false;
+		if (page === 1) {
+			getLocalMessages(folderId)
+				.then((local) => {
+					if (!networkSettled && local.length) { currentMessages = local; loading = false; }
+				})
+				.catch(() => {});
+		}
 		fetchMessages(accountId, folderId, page, currentPerPage)
 			.then((data) => {
+				networkSettled = true;
 				currentMessages = data.messages;
 				currentPage = data.page;
 				currentPerPage = data.per_page;
@@ -465,7 +476,12 @@
 				// task 6.1: upsert into IDB after successful fetch (page 1 only)
 				if (page === 1) cacheMessages(folderId, data.messages).catch(() => {});
 			})
-			.catch((e: Error) => { if (!local.length) error = e.message; loading = false; });
+			.catch((e: Error) => {
+				networkSettled = true;
+				// Only surface the error if nothing is on screen (the cache may have populated).
+				if (currentMessages.length === 0) error = e.message;
+				loading = false;
+			});
 	}
 
 	// ── Command palette ───────────────────────────────────────────────────────
