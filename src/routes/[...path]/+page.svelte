@@ -14,7 +14,7 @@
 	import { assignLabels, type HintTarget } from '$lib/hints.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { untrack } from 'svelte';
+	import { untrack, tick } from 'svelte';
 	import { parsePath, buildFolderUrl, buildMessageUrl, buildSearchUrl } from '$lib/url.js';
 	import {
 		fetchMaildirs,
@@ -668,6 +668,62 @@
 			replaceRoute('/');
 		}
 	}
+
+	// ── Reader navigation + position counter ────────────────────────────────────
+	// openspec/changes/reader-cross-page-nav/specs/ui-hotkeys/spec.md
+	let lastPage = $derived(Math.max(1, Math.ceil(totalCount / currentPerPage)));
+	// Absolute 1-based position of the selected message within the folder.
+	let msgIndex = $derived((currentPage - 1) * currentPerPage + selectedIdx + 1);
+
+	// Reader j/↓: advance within the page, or load the next page and open its
+	// first message at the page edge. No-op at the last message of the folder.
+	function readerNext() {
+		if (!account || !folder) return;
+		if (selectedIdx < currentMessages.length - 1) {
+			selectedIdx += 1;
+			const msg = currentMessages[selectedIdx];
+			if (msg) openMessageRoute(folder.id, msg.id);
+			return;
+		}
+		if (currentPage < lastPage) {
+			loadMessages(account.id, folder.id, currentPage + 1, (msgs) => {
+				const first = msgs[0];
+				if (first && folder) openMessageRoute(folder.id, first.id);
+			});
+		}
+	}
+
+	// Reader k/↑: step back within the page, or load the previous page and open
+	// its last message at the page edge. No-op at the first message of the folder.
+	function readerPrev() {
+		if (!account || !folder) return;
+		if (selectedIdx > 0) {
+			selectedIdx -= 1;
+			const msg = currentMessages[selectedIdx];
+			if (msg) openMessageRoute(folder.id, msg.id);
+			return;
+		}
+		if (currentPage > 1) {
+			loadMessages(account.id, folder.id, currentPage - 1, (msgs) => {
+				const last = msgs[msgs.length - 1];
+				if (last && folder) openMessageRoute(folder.id, last.id);
+			});
+		}
+	}
+
+	// Scroll the selected list row into view after returning from the reader.
+	async function focusSelectedRow() {
+		await tick();
+		listEl?.querySelector(`[data-msg-idx="${selectedIdx}"]`)?.scrollIntoView({ block: 'nearest' });
+	}
+
+	// Close the reader and return to the list focused on the current message
+	// (which may live on a different page than the reader was opened from).
+	function closeReaderToList() {
+		if (folder) closeReaderRoute(folder.id);
+		else goBack();
+		focusSelectedRow();
+	}
 </script>
 
 <div class="mb-app" data-screen-label="Mailbrus">
@@ -732,23 +788,18 @@
 			has_remote={messageHasRemote}
 			format_flowed={messageFormatFlowed}
 			attachments={messageAttachments}
-			onClose={() => { if (folder) closeReaderRoute(folder.id); else goBack(); }}
+			onClose={closeReaderToList}
 			onHome={() => (ui.aboutOpen = true)}
 			onAccount={() => (phase = 'account')}
 			onFolder={() => { openMessage = null; phase = 'folder'; }}
 			onModeChange={handleModeChange}
-			onNext={() => {
-				const next = Math.min(selectedIdx + 1, currentMessages.length - 1);
-				selectedIdx = next;
-				const nextMsg = currentMessages[next];
-				if (nextMsg && folder) openMessageRoute(folder.id, nextMsg.id);
-			}}
-			onPrev={() => {
-				const next = Math.max(selectedIdx - 1, 0);
-				selectedIdx = next;
-				const prevMsg = currentMessages[next];
-				if (prevMsg && folder) openMessageRoute(folder.id, prevMsg.id);
-			}}
+			onNext={readerNext}
+			onPrev={readerPrev}
+			onQuit={closeReaderToList}
+			{msgIndex}
+			pageNum={currentPage}
+			{lastPage}
+			total={totalCount}
 			onActivateHints={() => {
 				if (messageMode === 'html' || !readerBodyEl) return;
 				const links = Array.from(

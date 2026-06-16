@@ -13,6 +13,7 @@ export type ReaderKeymapCtx = {
 	jumpBottom: () => void;
 	activateHints: () => void;
 	close: () => void;
+	quit: () => void;
 };
 
 export function createReaderKeymap(ctx: ReaderKeymapCtx): Keymap {
@@ -35,6 +36,7 @@ export function createReaderKeymap(ctx: ReaderKeymapCtx): Keymap {
 			{ keys: ['g', 'g'], group: 'Scrolling', description: 'Scroll to top', handler: prevent(ctx.jumpTop) },
 			{ keys: ['G'], group: 'Scrolling', description: 'Scroll to bottom', handler: prevent(ctx.jumpBottom) },
 			{ keys: ['f'], group: 'Actions', description: 'Follow link / attachment by hint', handler: prevent(ctx.activateHints) },
+			{ keys: ['q'], group: 'Actions', description: 'Quit to list', handler: prevent(ctx.quit) },
 			{ keys: ['Escape'], group: 'Actions', description: 'Close reader', handler: prevent(ctx.close) }
 		]
 	};

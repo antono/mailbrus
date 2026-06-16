@@ -28,7 +28,12 @@
 		onModeChange,
 		onNext,
 		onPrev,
+		onQuit,
 		onActivateHints,
+		msgIndex,
+		pageNum,
+		lastPage,
+		total,
 		bodyEl = $bindable<HTMLDivElement | null>(null)
 	}: {
 		message: Message;
@@ -48,7 +53,12 @@
 		onModeChange: (m: RenderMode) => void;
 		onNext: () => void;
 		onPrev: () => void;
+		onQuit: () => void;
 		onActivateHints: () => void;
+		msgIndex: number;
+		pageNum: number;
+		lastPage: number;
+		total: number;
 		bodyEl?: HTMLDivElement | null;
 	} = $props();
 
@@ -102,7 +112,8 @@
 			jumpTop: scrollBodyTop,
 			jumpBottom: scrollBodyBottom,
 			activateHints: onActivateHints,
-			close: onClose
+			close: onClose,
+			quit: onQuit
 		})
 	);
 
@@ -189,6 +200,19 @@
 	<Breadcrumbs {account} {folder} {onHome} {onAccount} {onFolder}>
 		{#snippet right()}
 			<span class="count">reading</span>
+			<span>·</span>
+			<span class="mb-reader-counter" aria-label="Position in folder">
+				<span
+					class="num"
+					title={`Message ${msgIndex} of ${total}`}
+					data-testid="reader.counter-index">{msgIndex}</span><span class="sep">/</span><span
+					class="num"
+					title={`Page ${pageNum} of ${lastPage}`}
+					data-testid="reader.counter-page">{pageNum}</span><span class="sep">/</span><span
+					class="num"
+					title={`${total} messages in ${folder.name}`}
+					data-testid="reader.counter-total">{total}</span>
+			</span>
 			<span>·</span>
 			<span><span class="kbd">esc</span> back</span>
 		{/snippet}
@@ -358,6 +382,18 @@
 </div>
 
 <style>
+	.mb-reader-counter {
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.mb-reader-counter .num {
+		cursor: help;
+	}
+	.mb-reader-counter .sep {
+		opacity: 0.4;
+		margin: 0 2px;
+	}
+
 	.mode-toggle {
 		display: inline-flex;
 		border: 1px solid color-mix(in srgb, currentColor 20%, transparent);

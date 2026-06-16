@@ -93,4 +93,38 @@ export class MessagePage {
 	async close(): Promise<void> {
 		await this.page.keyboard.press('Escape');
 	}
+
+	// ── Folder-position counter ─────────────────────────────────────────────────
+
+	/** Absolute message index number in the breadcrumb counter. */
+	counterIndex(): Locator {
+		return this.page.getByTestId('reader.counter-index');
+	}
+
+	/** Current page number in the breadcrumb counter. */
+	counterPage(): Locator {
+		return this.page.getByTestId('reader.counter-page');
+	}
+
+	/** Folder total in the breadcrumb counter. */
+	counterTotal(): Locator {
+		return this.page.getByTestId('reader.counter-total');
+	}
+
+	// ── Keyboard navigation ─────────────────────────────────────────────────────
+
+	/** `j` — next message (crosses to the next page at the page edge). */
+	async next(): Promise<void> {
+		await this.page.keyboard.press('j');
+	}
+
+	/** `k` — previous message (crosses to the previous page at the page edge). */
+	async prev(): Promise<void> {
+		await this.page.keyboard.press('k');
+	}
+
+	/** `q` — quit to the list, focused on the current message. */
+	async quit(): Promise<void> {
+		await this.page.keyboard.press('q');
+	}
 }
