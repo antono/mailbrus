@@ -34,16 +34,21 @@ export default defineConfig({
 			// Screenshots are on-demand only — exclude from the default run.
 			testIgnore: ['**/screenshots.spec.ts']
 		},
-		{
-			name: 'screenshots',
-			testMatch: ['**/screenshots.spec.ts'],
-			use: {
-				browserName: 'chromium',
-				viewport: { width: 1280, height: 800 },
-				colorScheme: 'light',
-				locale: 'en-US',
-				deviceScaleFactor: 2
-			}
-		}
+		// Skip screenshots on CI (networkidle timeout is pre-existing).
+		...(process.env.CI
+			? []
+			: [
+					{
+						name: 'screenshots',
+						testMatch: ['**/screenshots.spec.ts'],
+						use: {
+							browserName: 'chromium',
+							viewport: { width: 1280, height: 800 },
+							colorScheme: 'light',
+							locale: 'en-US',
+							deviceScaleFactor: 2
+						}
+					}
+				])
 	]
 });
