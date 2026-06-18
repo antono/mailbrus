@@ -11,7 +11,7 @@
  * handler directly — still worked. The registry now uses `$state.raw` so
  * disposal removes the right keymap.
  *
- * openspec/changes/cli-sync-command/specs/ui-hotkeys/spec.md
+ * openspec/specs/ui-hotkeys/spec.md
  */
 import { test, expect } from '../harness/fixtures.ts';
 import { AccountsPage } from '../pages/AccountsPage.ts';

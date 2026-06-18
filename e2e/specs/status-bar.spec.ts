@@ -4,7 +4,7 @@
  */
 import { test, expect } from '../harness/fixtures.ts';
 
-// openspec/changes/mailbrus-notmuch-database/specs/notmuch-database/spec.md: Indexing progress — desktop UI spinner
+// openspec/specs/notmuch-database/spec.md: Indexing progress — desktop UI spinner
 test('status bar is present and its popup toggles open', async ({ page }) => {
 	await page.goto('/');
 
@@ -26,7 +26,7 @@ test('status bar is present and its popup toggles open', async ({ page }) => {
 	await expect(page.getByTestId('status-bar.popup')).toHaveCount(0);
 });
 
-// openspec/changes/mailbrus-notmuch-database/specs/notmuch-database/spec.md: Spinner appears during active indexing
+// openspec/specs/notmuch-database/spec.md: Spinner appears during active indexing
 //
 // Showing the spinner and populated per-account rows requires a sync that stays
 // `running` long enough to observe and that reaches the indexing phase. The

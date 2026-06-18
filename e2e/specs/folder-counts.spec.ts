@@ -7,7 +7,7 @@
  * "0" for every folder including Inbox. The handlers now count via notmuch
  * (`folder:`/`path:` queries resolved against the database root).
  *
- * openspec/changes/cli-sync-command/specs/mailbrus-server-crate/spec.md
+ * openspec/specs/mailbrus-server-crate/spec.md
  */
 import { test, expect } from '../harness/fixtures.ts';
 import { AccountsPage } from '../pages/AccountsPage.ts';

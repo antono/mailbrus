@@ -4,26 +4,8 @@ let
     pname = "mailbrus";
     version = "0.1.0";
     src = ../.;
-    cargoLock = {
-      lockFile = ../Cargo.lock;
-      outputHashes = {
-        # pimalaya/core git packages (all same rev b3a9640)
-        "email-lib-0.27.0"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "http-lib-0.1.0"     = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "keyring-lib-1.0.3"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "mml-lib-1.1.2"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "oauth-lib-2.0.0"    = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "pgp-lib-1.0.0"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "process-lib-1.0.0"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "secret-lib-1.0.1"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        # pimalaya/imap-client git package (rev 5600187)
-        "imap-client-0.3.1"  = "sha256-TgmhgPVwv0MNSniejb7uCwbbjy2y8/e1mEJmOqzlMU0=";
-        # pimalaya/io-email and io-maildir
-        "io-email-0.0.1"     = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
-        "io-maildir-0.0.1"   = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
-      };
-    };
-    buildAndTestFocus = "mailbrus-cli";
+    cargoHash = "sha256-3wvvnRI9E8cHBVPy19tGySNZpvVW9Ae4TF7bX9G7FsE=";
+    cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
     doCheck = false;
@@ -34,58 +16,58 @@ let
     version = "0.1.0";
     src = ../.;
     nativeBuildInputs = [ pkgs.deno ];
+    preferLocalBuild = true;
     buildPhase = ''
       export DENO_DIR=$(mktemp -d)
+      export npm_config_cache=$(mktemp -d)
       # TODO: vendor deno deps for fully hermetic build
-      # For now relies on deno.lock for reproducibility
+      # Fixed-output derivation: network access allowed, output verified by hash
+      deno install --allow-scripts
       deno task build
     '';
     installPhase = ''
       mkdir -p $out
       cp -r build/* $out
     '';
+    outputHashMode = "recursive";
+    outputHashAlgo = "sha256";
+    outputHash = "sha256-vmn4zfzJfxQt3OcyTXkJJLk0H0rlHSMPR0uX1QqgQu4=";
   };
 
   mailbrus-desktop = pkgs.rustPlatform.buildRustPackage {
     pname = "mailbrus-desktop";
     version = "0.1.0";
     src = ../.;
-    cargoLock = {
-      lockFile = ../Cargo.lock;
-      outputHashes = {
-        # pimalaya/core git packages (all same rev b3a9640)
-        "email-lib-0.27.0"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "http-lib-0.1.0"     = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "keyring-lib-1.0.3"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "mml-lib-1.1.2"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "oauth-lib-2.0.0"    = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "pgp-lib-1.0.0"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "process-lib-1.0.0"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "secret-lib-1.0.1"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        # pimalaya/imap-client git package (rev 5600187)
-        "imap-client-0.3.1"  = "sha256-TgmhgPVwv0MNSniejb7uCwbbjy2y8/e1mEJmOqzlMU0=";
-        # pimalaya/io-email and io-maildir
-        "io-email-0.0.1"     = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
-        "io-maildir-0.0.1"   = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
-      };
-    };
-    buildAndTestFocus = "mailbrus-desktop";
+    preferLocalBuild = true;
+    cargoHash = "sha256-3wvvnRI9E8cHBVPy19tGySNZpvVW9Ae4TF7bX9G7FsE=";
+    cargoBuildFlags = [ "--package" "mailbrus-desktop" ];
+    doCheck = false;
     nativeBuildInputs = [
       pkgs.pkg-config
       pkgs.wrapGAppsHook3
       pkgs.gobject-introspection
       pkgs.jq
+      mailbrus-server
     ];
     buildInputs = tauri-deps ++ [ pkgs.gtk3 pkgs.gsettings-desktop-schemas pkgs.adwaita-icon-theme ];
 
     postPatch = ''
       jq '.build.devUrl = null | .build.frontendDist = "${mailbrus-frontend}"' src-tauri/tauri.conf.json > src-tauri/tauri.conf.json.tmp
       mv src-tauri/tauri.conf.json.tmp src-tauri/tauri.conf.json
+      mkdir -p src-tauri/binaries
+      ln -sf ${mailbrus-server}/bin/mailbrus-server src-tauri/binaries/mailbrus-server-${pkgs.stdenv.hostPlatform.config}
     '';
 
     TAURI_ENV_DEBUG = "false";
 
     postInstall = ''
+      # Tauri on Linux resolves BaseDirectory::Resource to exe_dir/../lib/<app_name>/
+      mkdir -p $out/lib/mailbrus-desktop/binaries
+      ln -sf ${mailbrus-server}/bin/mailbrus-server $out/lib/mailbrus-desktop/binaries/mailbrus-server-${pkgs.stdenv.hostPlatform.config}
+
+      mkdir -p $out/lib/mailbrus-desktop/build
+      cp -r ${mailbrus-frontend}/* $out/lib/mailbrus-desktop/build/
+
       mkdir -p $out/share/applications
       cp src-tauri/mailbrus-desktop.desktop $out/share/applications/
 
@@ -102,25 +84,7 @@ let
     pname = "mailbrus-server";
     version = "0.1.0";
     src = ../.;
-    cargoLock = {
-      lockFile = ../Cargo.lock;
-      outputHashes = {
-        # pimalaya/core git packages (all same rev b3a9640)
-        "email-lib-0.27.0"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "http-lib-0.1.0"     = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "keyring-lib-1.0.3"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "mml-lib-1.1.2"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "oauth-lib-2.0.0"    = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "pgp-lib-1.0.0"      = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "process-lib-1.0.0"  = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        "secret-lib-1.0.1"   = "sha256-+zp0WPMZ3Y9PgWWzNAAuUNKFUF7c2VrDijI82pA8GJk=";
-        # pimalaya/imap-client git package (rev 5600187)
-        "imap-client-0.3.1"  = "sha256-TgmhgPVwv0MNSniejb7uCwbbjy2y8/e1mEJmOqzlMU0=";
-        # pimalaya/io-email and io-maildir
-        "io-email-0.0.1"     = "sha256-cXvItn/GvHlpCEhx9n53/GiTADakBk70/YTcowXB3m8=";
-        "io-maildir-0.0.1"   = "sha256-mDuzb+/KkitAum3+KzaxJ7J6SH/CK38er0UjLtZqRGc=";
-      };
-    };
+    cargoHash = "sha256-3wvvnRI9E8cHBVPy19tGySNZpvVW9Ae4TF7bX9G7FsE=";
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];

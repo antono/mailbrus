@@ -12,7 +12,7 @@
  * mouse clicks — which are not scope-gated — kept working. The fix binds each
  * scope+keymap once per mount via `useScopedKeymap`.
  *
- * openspec/changes/cli-sync-command/specs/ui-hotkeys/spec.md
+ * openspec/specs/ui-hotkeys/spec.md
  */
 import { test, expect } from '../harness/fixtures.ts';
 import { AccountsPage } from '../pages/AccountsPage.ts';

@@ -13,7 +13,7 @@
  *
  * 8.2 / 8.3 reuse the default fixture and do not need a real IMAP server.
  */
-// openspec/changes/imap-synchronization/tasks.md — phase 8
+// openspec/specs/imap-sync/spec.md: Sync API contract tests (phase 8)
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, expect } from '../harness/fixtures.ts';

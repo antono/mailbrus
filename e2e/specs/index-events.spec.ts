@@ -55,7 +55,7 @@ async function readSseUntil(
 	return frames;
 }
 
-// openspec/changes/mailbrus-notmuch-database/specs/notmuch-database/spec.md: SyncEvent carries type discriminator
+// openspec/specs/notmuch-database/spec.md: SyncEvent carries type discriminator
 test('sync stream frames carry a "type":"sync" discriminator', async ({ app }) => {
 	const account = app.config.entries[0].id;
 
@@ -79,7 +79,7 @@ test('sync stream frames carry a "type":"sync" discriminator', async ({ app }) =
 	expect(['running', 'done', 'error']).toContain(sync!.status);
 });
 
-// openspec/changes/mailbrus-notmuch-database/specs/notmuch-database/spec.md: Indexing emits done event
+// openspec/specs/notmuch-database/spec.md: Indexing emits done event
 //
 // Reaching an `{"type":"index","status":"done"}` frame requires a *successful*
 // IMAP sync that fetches new messages and indexes them. The per-test harness

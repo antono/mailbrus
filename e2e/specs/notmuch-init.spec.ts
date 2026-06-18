@@ -23,7 +23,7 @@ async function exists(p: string): Promise<boolean> {
 	}
 }
 
-// openspec/changes/mailbrus-notmuch-database/specs/notmuch-database/spec.md: First startup creates database
+// openspec/specs/notmuch-database/spec.md: First startup creates database
 test('server auto-creates the notmuch database on first start', async () => {
 	let clone: Clone | undefined;
 	let server: ServerHandle | undefined;
@@ -49,7 +49,7 @@ test('server auto-creates the notmuch database on first start', async () => {
 	}
 });
 
-// openspec/changes/mailbrus-notmuch-database/specs/notmuch-database/spec.md: Existing database is not overwritten
+// openspec/specs/notmuch-database/spec.md: Existing database is not overwritten
 test('server opens an existing notmuch database without re-initializing', async () => {
 	let clone: Clone | undefined;
 	let server: ServerHandle | undefined;

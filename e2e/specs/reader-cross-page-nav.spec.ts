@@ -28,7 +28,7 @@ async function openArchive(page: import('@playwright/test').Page): Promise<Mailb
 	return mailbox;
 }
 
-// openspec/changes/reader-cross-page-nav/specs/ui-hotkeys/spec.md: next crosses to following page
+// openspec/specs/ui-hotkeys/spec.md: next crosses to following page
 test('reader j at the last message of a page opens the next page', async ({ page }) => {
 	const mailbox = await openArchive(page);
 	await mailbox.openMessage(lastOnPage1.subject);
@@ -41,7 +41,7 @@ test('reader j at the last message of a page opens the next page', async ({ page
 	await expect(reader.counterIndex()).toHaveText(String(PER_PAGE + 1));
 });
 
-// openspec/changes/reader-cross-page-nav/specs/ui-hotkeys/spec.md: previous crosses to preceding page
+// openspec/specs/ui-hotkeys/spec.md: previous crosses to preceding page
 test('reader k at the first message of a page opens the previous page', async ({ page }) => {
 	const mailbox = await openArchive(page);
 	await mailbox.openMessage(lastOnPage1.subject);
@@ -56,7 +56,7 @@ test('reader k at the first message of a page opens the previous page', async ({
 	await expect(reader.counterIndex()).toHaveText(String(PER_PAGE));
 });
 
-// openspec/changes/reader-cross-page-nav/specs/ui-hotkeys/spec.md: next at last message is a no-op
+// openspec/specs/ui-hotkeys/spec.md: next at last message is a no-op
 test('reader j at the last message of the folder does nothing', async ({ page }) => {
 	const mailbox = await openArchive(page);
 	await mailbox.openMessage(lastOnPage1.subject);
@@ -71,7 +71,7 @@ test('reader j at the last message of the folder does nothing', async ({ page })
 	await expect(reader.counterIndex()).toHaveText(String(total));
 });
 
-// openspec/changes/reader-cross-page-nav/specs/ui-hotkeys/spec.md: q returns to the list focused on the current message
+// openspec/specs/ui-hotkeys/spec.md: q returns to the list focused on the current message
 test('q returns to the list on the page containing the current message', async ({ page }) => {
 	const mailbox = await openArchive(page);
 	await mailbox.openMessage(lastOnPage1.subject);
@@ -87,7 +87,7 @@ test('q returns to the list on the page containing the current message', async (
 	await expect(mailbox.messageRow(firstOnPage2.subject).first()).toHaveClass(/active/);
 });
 
-// openspec/changes/reader-cross-page-nav/specs/sveltekit-ui/spec.md: position counter shows index/page/total with hints
+// openspec/specs/sveltekit-ui/spec.md: position counter shows index/page/total with hints
 test('reader counter shows absolute index, page, total with hover hints', async ({ page }) => {
 	const mailbox = await openArchive(page);
 	await mailbox.openMessage(ordered[0].subject); // first message of the folder
