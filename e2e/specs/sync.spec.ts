@@ -92,7 +92,7 @@ test.describe('POST /api/sync', () => {
 			expect(trigger.status).toBe(202);
 			expect((await trigger.json()).job).toBe(stalwartEntry.id);
 
-			const events = await readSseUntilDone(sseRes.body!, stalwartEntry.id, 20_000);
+			const { events, allFrames } = await readSseUntilDone(sseRes.body!, stalwartEntry.id, 20_000);
 			const last = events.at(-1);
 			expect(last, `expected a terminal event, got: ${JSON.stringify(events)}`).toBeDefined();
 			expect(last!.account_id).toBe(stalwartEntry.id);
@@ -103,6 +103,11 @@ test.describe('POST /api/sync', () => {
 			if (last!.status === 'error') {
 				expect(last!.error).toMatch(/authenticate|connect|imap/i);
 			}
+
+			// Verify SyncFinished was emitted for this account.
+			const finished = allFrames.find((f) => f.type === 'sync_finished');
+			expect(finished, `expected sync_finished in frames, got: ${JSON.stringify(allFrames)}`).toBeDefined();
+			expect(finished!.accounts).toContain(stalwartEntry.id);
 		} finally {
 			if (server) await server.stop();
 			if (stalwart) await stalwart.stop();
@@ -140,48 +145,68 @@ interface SyncEventJson {
 	error?: string;
 }
 
+interface SyncFinishedJson {
+	type: 'sync_finished';
+	accounts: string[];
+}
+
+type SseFrame = SyncEventJson | SyncFinishedJson;
+
 /**
  * Pull SSE `data:` JSON frames for `accountId` until one carries a terminal
- * status (`done`/`error`) or the deadline elapses.
+ * status (`done`/`error`) or the deadline elapses. Returns both the per-account
+ * events and all frames (including sync_finished) for broad assertions.
+ *
+ * After the terminal event, we keep reading briefly (up to 2 s) to capture
+ * any trailing events such as `SyncFinished`.
  */
 async function readSseUntilDone(
 	body: ReadableStream<Uint8Array>,
 	accountId: string,
 	timeoutMs: number
-): Promise<SyncEventJson[]> {
+): Promise<{ events: SyncEventJson[]; allFrames: SseFrame[] }> {
 	const reader = body.getReader();
 	const decoder = new TextDecoder();
 	const deadline = Date.now() + timeoutMs;
 	let pending = '';
 	const events: SyncEventJson[] = [];
+	const allFrames: SseFrame[] = [];
+	let terminalFound = false;
 	while (Date.now() < deadline) {
 		const remaining = deadline - Date.now();
+		// After the terminal event, only wait an extra 2 s for trailing frames.
+		const sliceTimeout = terminalFound ? Math.min(remaining, 2_000) : remaining;
 		const tick = await Promise.race([
 			reader.read(),
 			new Promise<{ value: undefined; done: true }>((r) =>
-				setTimeout(() => r({ value: undefined, done: true }), remaining)
+				setTimeout(() => r({ value: undefined, done: true }), sliceTimeout)
 			)
 		]);
 		if (tick.done) break;
 		pending += decoder.decode(tick.value, { stream: true });
-		const frames = pending.split('\n');
-		pending = frames.pop() ?? '';
-		for (const line of frames) {
+		const lines = pending.split('\n');
+		pending = lines.pop() ?? '';
+		for (const line of lines) {
 			if (!line.startsWith('data:')) continue;
-			let evt: SyncEventJson;
+			let evt: SseFrame;
 			try {
 				evt = JSON.parse(line.slice(5).trim());
 			} catch {
 				continue;
 			}
-			if (evt.account_id !== accountId) continue;
-			events.push(evt);
-			if (evt.status === 'done' || evt.status === 'error') {
-				await reader.cancel();
-				return events;
+			allFrames.push(evt);
+			if (!terminalFound && 'account_id' in evt && evt.account_id === accountId) {
+				events.push(evt);
+				if (evt.status === 'done' || evt.status === 'error') {
+					terminalFound = true;
+				}
 			}
+		}
+		if (terminalFound && !pending.includes('data:')) {
+			// No more frames buffered; give it a moment for trailing events.
+			// The shorter sliceTimeout on the next iteration handles this.
 		}
 	}
 	await reader.cancel();
-	return events;
+	return { events, allFrames };
 }

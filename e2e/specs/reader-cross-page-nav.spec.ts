@@ -63,10 +63,14 @@ test('reader j at the last message of the folder does nothing', async ({ page })
 	const reader = new MessagePage(page);
 
 	await reader.next(); // page 2, first message
+	await expect(reader.counterIndex()).toHaveText(String(PER_PAGE + 1));
 	await reader.next(); // page 2, second (= last in folder)
+
 	await expect(reader.counterIndex()).toHaveText(String(total));
 
 	await reader.next(); // no-op at the absolute end
+	await expect(reader.subjectLocator()).toContainText(lastInFolder.subject);
+	await expect(reader.counterIndex()).toHaveText(String(total));
 	await expect(reader.subjectLocator()).toContainText(lastInFolder.subject);
 	await expect(reader.counterIndex()).toHaveText(String(total));
 });

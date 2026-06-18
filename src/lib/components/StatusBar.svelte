@@ -7,27 +7,27 @@
 		isActive,
 		hasError,
 		rowList,
+		totalDerived,
 		requestSync,
+		syncState,
 		type EventStatus
 	} from '$lib/syncState.svelte.ts';
+	import { history, loadHistory, clearHistory, type SyncRun, type HistoryRow } from '$lib/syncHistory.svelte.ts';
 
 	let open = $state(false);
 	let triggerError = $state<string | null>(null);
+	let expandedHistory = $state<Set<string>>(new Set());
 
-	$effect(() => connectSyncStream());
+	$effect(() => {
+		connectSyncStream();
+		loadHistory();
+	});
 
 	let active = $derived(isActive());
 	let errored = $derived(hasError());
 	let rows = $derived(rowList());
-
-	async function onSyncNow() {
-		triggerError = null;
-		try {
-			await requestSync();
-		} catch (e) {
-			triggerError = e instanceof Error ? e.message : String(e);
-		}
-	}
+	let totals = $derived(totalDerived());
+	let hasHistory = $derived(history.length > 0);
 
 	function badgeLabel(status: EventStatus | undefined): string {
 		switch (status) {
@@ -40,6 +40,32 @@
 			default:
 				return '—';
 		}
+	}
+
+	async function onSyncNow() {
+		triggerError = null;
+		try {
+			await requestSync();
+		} catch (e) {
+			triggerError = e instanceof Error ? e.message : String(e);
+		}
+	}
+
+	function toggleHistory(runKey: string) {
+		if (expandedHistory.has(runKey)) {
+			expandedHistory.delete(runKey);
+		} else {
+			expandedHistory.add(runKey);
+		}
+	}
+
+	function onClearHistory() {
+		clearHistory();
+	}
+
+	function formatTime(iso: string): string {
+		const d = new Date(iso);
+		return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 	}
 </script>
 
@@ -60,7 +86,7 @@
 				aria-hidden="true"
 				data-testid="status-bar.spinner"
 			></span>
-			<span class="mb-status-text">Syncing…</span>
+			<span class="mb-status-text">{syncState.started ? 'Started…' : 'Syncing…'}</span>
 		{:else}
 			<span
 				class="mb-status-dot"
@@ -83,7 +109,7 @@
 					disabled={active}
 					data-testid="status-bar.sync-btn"
 				>
-					{active ? 'Syncing…' : 'Sync now'}
+					{active ? (syncState.started ? 'Started…' : 'Syncing…') : 'Sync now'}
 				</button>
 				<button
 					type="button"
@@ -104,6 +130,15 @@
 				{#if rows.length === 0}
 					<p class="mb-status-empty" data-testid="status-bar.empty">No sync activity yet.</p>
 				{:else}
+					<!-- Summary header -->
+					<div class="mb-status-summary" data-testid="status-bar.summary">
+						<span class="mb-status-summary-count">fetched {totals.totalFetched}</span>
+						<span class="mb-status-summary-count">indexed {totals.totalIndexed}</span>
+						<span class="mb-status-summary-count" class:has-errors={totals.totalErrors > 0}>
+							errors {totals.totalErrors}
+						</span>
+					</div>
+					<!-- Current run rows -->
 					{#each rows as row (row.accountId + ' ' + (row.mailbox ?? ''))}
 						<div
 							class="mb-status-row"
@@ -127,6 +162,63 @@
 							{/if}
 						</div>
 					{/each}
+					<!-- History section -->
+					{#if hasHistory}
+						<div class="mb-status-history" data-testid="status-bar.history">
+							<div class="mb-status-history-head">
+								<span class="mb-status-history-title">History</span>
+								<button
+									type="button"
+									class="mb-status-history-clear"
+									onclick={onClearHistory}
+									data-testid="status-bar.clear-history"
+								>
+									Clear history
+								</button>
+							</div>
+							{#each history as run, i}
+								{@const runKey = `run-${i}-${run.finishedAt}`}
+								<div
+									class="mb-status-history-run"
+									class:is-expanded={expandedHistory.has(runKey)}
+									data-testid="status-bar.history-run"
+								>
+									<button
+										type="button"
+										class="mb-status-history-run-toggle"
+										onclick={() => toggleHistory(runKey)}
+									>
+										<span class="mb-status-history-run-time">{formatTime(run.finishedAt)}</span>
+										<span class="mb-status-history-run-summary">
+											{run.rows.length} account{run.rows.length !== 1 ? 's' : ''}
+										</span>
+									</button>
+									{#if expandedHistory.has(runKey)}
+										<div class="mb-status-history-run-details">
+											{#each run.rows as hrow}
+												<div class="mb-status-history-row">
+													<div class="mb-status-row-head">
+														<span class="mb-status-account">{hrow.accountId}</span>
+														{#if hrow.mailbox}<span class="mb-status-mailbox">{hrow.mailbox}</span>{/if}
+													</div>
+													<div class="mb-status-counts">
+														<span class="mb-status-count">fetched {hrow.fetched}</span>
+														<span class="mb-status-count">indexed {hrow.indexed}</span>
+														<span class="mb-status-badge" data-status={hrow.indexStatus ?? hrow.syncStatus ?? 'idle'}>
+															{badgeLabel((hrow.indexStatus ?? hrow.syncStatus) as EventStatus | undefined)}
+														</span>
+													</div>
+													{#if hrow.error}
+														<p class="mb-status-error">{hrow.error}</p>
+													{/if}
+												</div>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>
@@ -242,6 +334,16 @@
 		padding: 0.5rem 0.75rem;
 		opacity: 0.7;
 	}
+	.mb-status-summary {
+		display: flex;
+		gap: 0.75rem;
+		padding: 0.4rem 0.75rem;
+		border-bottom: 1px solid var(--border);
+		font-weight: 600;
+	}
+	.mb-status-summary-count.has-errors {
+		color: var(--destructive);
+	}
 	.mb-status-row {
 		padding: 0.45rem 0.75rem;
 		border-bottom: 1px solid var(--border);
@@ -288,5 +390,69 @@
 		margin-top: 0.3rem;
 		color: var(--destructive);
 		font-size: 0.75rem;
+	}
+	.mb-status-history {
+		border-top: 1px solid var(--border);
+		margin-top: 0.25rem;
+	}
+	.mb-status-history-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.4rem 0.75rem;
+	}
+	.mb-status-history-title {
+		font-weight: 600;
+		opacity: 0.7;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+	.mb-status-history-clear {
+		background: none;
+		border: none;
+		color: var(--muted-foreground);
+		font-size: 0.7rem;
+		cursor: pointer;
+		text-decoration: underline;
+	}
+	.mb-status-history-clear:hover {
+		color: var(--destructive);
+	}
+	.mb-status-history-run {
+		border-top: 1px solid var(--border);
+	}
+	.mb-status-history-run-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.35rem 0.75rem;
+		background: none;
+		border: none;
+		color: var(--foreground);
+		font-size: 0.8125rem;
+		cursor: pointer;
+		text-align: left;
+	}
+	.mb-status-history-run-toggle:hover {
+		background: var(--accent-muted, rgb(0 0 0 / 0.03));
+	}
+	.mb-status-history-run-time {
+		font-weight: 600;
+	}
+	.mb-status-history-run-summary {
+		opacity: 0.65;
+		font-size: 0.75rem;
+	}
+	.mb-status-history-run-details {
+		padding: 0 0.75rem 0.4rem;
+	}
+	.mb-status-history-row {
+		padding: 0.3rem 0;
+		border-bottom: 1px solid var(--border);
+	}
+	.mb-status-history-row:last-child {
+		border-bottom: none;
 	}
 </style>

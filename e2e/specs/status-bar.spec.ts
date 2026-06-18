@@ -45,3 +45,55 @@ test.fixme('spinner shows during an active sync and popup lists the account', as
 	await page.getByTestId('status-bar.toggle').click();
 	await expect(page.getByTestId('status-bar.row').filter({ has: page.locator(`[data-account="${account}"]`) })).toBeVisible();
 });
+
+// openspec/specs/sveltekit-ui/spec.md: Sync now — optimistic started state
+//
+// requestSync() sets started=true synchronously, so the toggle shows the
+// spinner and "Started…" text immediately after clicking the sync button.
+test('toggle shows spinner and "Started…" text immediately after clicking Sync now', async ({ page }) => {
+	await page.goto('/');
+	await page.getByTestId('status-bar.toggle').click();
+	await page.getByTestId('status-bar.sync-btn').click();
+
+	// The toggle button itself should show the spinner + "Started…".
+	await expect(page.getByTestId('status-bar.spinner')).toBeVisible();
+	await expect(page.getByTestId('status-bar.toggle')).toContainText('Started…');
+});
+
+// openspec/specs/notmuch-database/spec.md: Popup shows sync history
+//
+// History persistence requires a completed sync with SyncFinished. The
+// per-test harness has no completing IMAP backend. Enable once a
+// TLS-capable Stalwart (or equivalent) supports a completing sync.
+test.fixme('sync history section shows after SyncFinished and survives reload', async ({
+	app,
+	page
+}) => {
+	const account = app.config.entries[0].id;
+	await page.goto('/');
+	await page.getByTestId('status-bar.toggle').click();
+	await page.getByTestId('status-bar.sync-btn').click();
+	// Wait for the sync to complete (SyncFinished received).
+	await expect(page.getByTestId('status-bar.idle')).toBeVisible({ timeout: 30_000 });
+	await expect(page.getByTestId('status-bar.history')).toBeVisible();
+
+	// Reload and verify history persists.
+	await page.reload();
+	await page.getByTestId('status-bar.toggle').click();
+	await expect(page.getByTestId('status-bar.history')).toBeVisible();
+});
+
+// openspec/specs/notmuch-database/spec.md: Clear history button dismisses old logs
+//
+// Same backend limitation as the history test above.
+test.fixme('clear history button removes persisted sync history', async ({ app, page }) => {
+	const account = app.config.entries[0].id;
+	await page.goto('/');
+	await page.getByTestId('status-bar.toggle').click();
+	await page.getByTestId('status-bar.sync-btn').click();
+	await expect(page.getByTestId('status-bar.idle')).toBeVisible({ timeout: 30_000 });
+	await expect(page.getByTestId('status-bar.history')).toBeVisible();
+
+	await page.getByTestId('status-bar.clear-history').click();
+	await expect(page.getByTestId('status-bar.history')).toHaveCount(0);
+});

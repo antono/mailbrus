@@ -1,7 +1,7 @@
 /**
  * SSE event-shape contract for the `/api/sync/stream` channel after the
  * notmuch-database change: every frame carries a `type` discriminator
- * (`"sync"` | `"index"`).
+ * (`"sync"` | `"index"` | `"sync_finished"`).
  */
 import { test, expect } from '../harness/fixtures.ts';
 
@@ -12,6 +12,7 @@ interface StreamFrame {
 	fetched?: number;
 	indexed?: number;
 	error?: string;
+	accounts?: string[];
 }
 
 /** Read `data:` JSON frames until one matches `pred` or the deadline elapses. */
@@ -77,6 +78,28 @@ test('sync stream frames carry a "type":"sync" discriminator', async ({ app }) =
 	expect(sync, `expected a sync frame, got: ${JSON.stringify(frames)}`).toBeDefined();
 	expect(sync!.account_id).toBe(account);
 	expect(['running', 'done', 'error']).toContain(sync!.status);
+});
+
+// openspec/specs/notmuch-database/spec.md: SyncFinished event on SSE stream
+//
+// run_account_worker emits SyncFinished after the terminal SyncEvent even when
+// the IMAP backend fails, so this test works with the default harness.
+test('sync stream emits SyncFinished after terminal sync frame', async ({ app }) => {
+	const account = app.config.entries[0].id;
+
+	const sse = await fetch(`${app.baseURL}/api/sync/stream`, {
+		headers: { Accept: 'text/event-stream' }
+	});
+	expect(sse.ok).toBe(true);
+
+	await fetch(`${app.baseURL}/api/sync/${encodeURIComponent(account)}`, {
+		method: 'POST'
+	});
+
+	const frames = await readSseUntil(sse.body!, (f) => f.type === 'sync_finished', 20_000);
+	const finished = frames.find((f) => f.type === 'sync_finished');
+	expect(finished, `expected sync_finished frame, got: ${JSON.stringify(frames)}`).toBeDefined();
+	expect(finished!.accounts).toContain(account);
 });
 
 // openspec/specs/notmuch-database/spec.md: Indexing emits done event

@@ -20,13 +20,22 @@ test('"Sync now" button issues POST /api/sync', async ({ page }) => {
 
 // openspec/specs/sveltekit-ui/spec.md: Trigger is disabled while a sync is in flight
 //
-// Observing the disabled state requires a sync that stays `running` long enough
-// to assert against. The per-test harness has no live IMAP backend that
-// authenticates, so a triggered sync flips from `running` to `error` almost
-// immediately. Enable once a completing sync is available in the harness.
-test.fixme('"Sync now" is disabled while a sync is in flight', async ({ page }) => {
+// requestSync() sets started=true synchronously before the HTTP call, so the
+// button is disabled immediately on click even without a completing backend.
+test('"Sync now" is disabled while a sync is in flight', async ({ page }) => {
 	await page.goto('/');
 	await page.getByTestId('status-bar.toggle').click();
 	await page.getByTestId('status-bar.sync-btn').click();
 	await expect(page.getByTestId('status-bar.sync-btn')).toBeDisabled();
+});
+
+// openspec/specs/sveltekit-ui/spec.md: Sync now — optimistic started state
+test('sync button shows optimistic "Started…" text on click', async ({ page }) => {
+	await page.goto('/');
+	await page.getByTestId('status-bar.toggle').click();
+	const syncBtn = page.getByTestId('status-bar.sync-btn');
+	await expect(syncBtn).toHaveText('Sync now');
+
+	await syncBtn.click();
+	await expect(syncBtn).toHaveText('Started…');
 });

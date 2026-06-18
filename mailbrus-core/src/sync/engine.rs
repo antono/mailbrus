@@ -53,6 +53,12 @@ pub struct IndexEvent {
     pub error: Option<String>,
 }
 
+/// Emitted once all account workers in a sync run reach a terminal state.
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncFinishedEvent {
+    pub accounts: Vec<String>,
+}
+
 /// Everything broadcast over the `/api/sync/stream` SSE channel.
 ///
 /// Internally tagged on `type`, so a [`SyncEvent`] serializes as
@@ -63,6 +69,8 @@ pub struct IndexEvent {
 pub enum BroadcastEvent {
     Sync(SyncEvent),
     Index(IndexEvent),
+    #[serde(rename = "sync_finished")]
+    SyncFinished(SyncFinishedEvent),
 }
 
 impl From<SyncEvent> for BroadcastEvent {
@@ -74,6 +82,12 @@ impl From<SyncEvent> for BroadcastEvent {
 impl From<IndexEvent> for BroadcastEvent {
     fn from(e: IndexEvent) -> Self {
         BroadcastEvent::Index(e)
+    }
+}
+
+impl From<SyncFinishedEvent> for BroadcastEvent {
+    fn from(e: SyncFinishedEvent) -> Self {
+        BroadcastEvent::SyncFinished(e)
     }
 }
 
@@ -132,15 +146,32 @@ impl SyncEngine {
 
     /// Trigger a background sync for every configured account.
     /// Returns immediately after spawning tasks.
+    /// A supervisor task waits for all spawned workers and emits `SyncFinished`
+    /// on the broadcast channel with the full account list.
     pub fn sync_all(self: &Arc<Self>) {
-        for id in self.account_ids() {
-            let engine = self.clone();
-            tokio::spawn(async move {
-                if let Err(e) = engine.sync_account(&id).await {
-                    error!(account = %id, err = ?e, "sync_account failed to start");
-                }
-            });
-        }
+        let ids = self.account_ids();
+        let engine = self.clone();
+        let handles: Vec<_> = ids
+            .iter()
+            .map(|id| {
+                let engine = engine.clone();
+                let id = id.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = engine.sync_account(&id).await {
+                        error!(account = %id, err = ?e, "sync_account failed to start");
+                    }
+                })
+            })
+            .collect();
+
+        tokio::spawn(async move {
+            for h in handles {
+                let _ = h.await;
+            }
+            let _ = engine
+                .events_tx
+                .send(BroadcastEvent::SyncFinished(SyncFinishedEvent { accounts: ids }));
+        });
     }
 
     /// Trigger a sync for one account. Returns immediately after spawning
@@ -224,6 +255,13 @@ impl SyncEngine {
             }
         };
         let _ = self.events_tx.send(BroadcastEvent::Sync(final_event));
+        // Single-account sync: emit SyncFinished so the frontend knows the run
+        // is complete for this account.
+        let _ = self
+            .events_tx
+            .send(BroadcastEvent::SyncFinished(SyncFinishedEvent {
+                accounts: vec![id.clone()],
+            }));
 
         let mut in_flight = self.in_flight.lock().await;
         in_flight.remove(&id);
