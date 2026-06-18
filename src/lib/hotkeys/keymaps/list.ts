@@ -1,4 +1,5 @@
 // openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md (Per-scope hotkey isolation)
+// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md (g-leader navigation)
 import type { Keymap } from '../types.ts';
 
 export type ListKeymapCtx = {
@@ -16,10 +17,6 @@ export type ListKeymapCtx = {
 	markRead: () => void;
 	markUnread: () => void;
 	deleteSelected: () => void;
-	goInbox: () => void;
-	goArchive: () => void;
-	goSent: () => void;
-	goDrafts: () => void;
 	goFolderPicker: () => void;
 	goAccountPicker: () => void;
 	activateHints: () => void;
@@ -51,12 +48,8 @@ export function createListKeymap(ctx: ListKeymapCtx): Keymap {
 			{ keys: ['d'], group: 'Actions', description: 'Delete', handler: prevent(ctx.deleteSelected) },
 			{ keys: ['#'], group: 'Actions', description: 'Delete', handler: prevent(ctx.deleteSelected) },
 			{ keys: ['Escape'], group: 'Actions', description: 'Close search / go back', handler: prevent(ctx.escape) },
-			{ keys: ['g', 'i'], group: 'Go to', description: 'Inbox', handler: prevent(ctx.goInbox) },
-			{ keys: ['g', 'a'], group: 'Go to', description: 'Archive', handler: prevent(ctx.goArchive) },
-			{ keys: ['g', 's'], group: 'Go to', description: 'Sent', handler: prevent(ctx.goSent) },
-			{ keys: ['g', 'd'], group: 'Go to', description: 'Drafts', handler: prevent(ctx.goDrafts) },
 			{ keys: ['g', 'f'], group: 'Go to', description: 'Folder picker', handler: prevent(ctx.goFolderPicker) },
-			{ keys: ['g', 'A'], group: 'Go to', description: 'Account picker', handler: prevent(ctx.goAccountPicker) }
+			{ keys: ['g', 'a'], group: 'Go to', description: 'Account picker', handler: prevent(ctx.goAccountPicker) }
 		]
 	};
 }

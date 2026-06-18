@@ -7,8 +7,12 @@
 	import { type RenderMode } from '$lib/api.js';
 	import { getSettings, writeSetting } from '$lib/settings.js';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md
 	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createReaderKeymap } from '$lib/hotkeys/keymaps/reader.ts';
+	import { ui } from '$lib/ui-state.svelte.ts';
+	import { buildReply, buildForward } from '$lib/reply.ts';
+	import { copyText } from '$lib/clipboard.ts';
 
 	let {
 		message,
@@ -21,6 +25,8 @@
 		has_remote,
 		format_flowed,
 		attachments = [],
+		to = [],
+		cc = [],
 		onClose,
 		onHome,
 		onAccount,
@@ -46,6 +52,8 @@
 		has_remote: number;
 		format_flowed: boolean;
 		attachments?: { name: string; size: number; mime: string }[];
+		to?: string[];
+		cc?: string[];
 		onClose: () => void;
 		onHome: () => void;
 		onAccount: () => void;
@@ -100,6 +108,59 @@
 		if (scrollEl) scrollEl.scrollTo({ top: scrollEl.scrollHeight });
 	}
 
+	// ── Reader message actions (reply / forward / yank / headers) ───────────────
+	// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md
+
+	// The opened message as a reply/forward source: sender plus the real To/Cc
+	// recipients threaded from the message-detail response.
+	let replySource = $derived({
+		from: message.from || message.addr,
+		addr: message.addr,
+		subject: message.subject,
+		to,
+		cc
+	});
+
+	function openPrefilled(draft: import('$lib/reply.ts').ComposeDraft) {
+		ui.composePrefill = draft;
+		ui.composeOpen = true;
+	}
+
+	function reply() {
+		openPrefilled(buildReply(replySource, account, body));
+	}
+	function replyAll() {
+		openPrefilled(buildReply(replySource, account, body, { all: true }));
+	}
+	function forward() {
+		openPrefilled(buildForward(replySource, account, body, headers));
+	}
+
+	function toggleHeaders() {
+		showHeaders = !showHeaders;
+	}
+
+	function yankBody() {
+		void copyText(body);
+	}
+
+	// `Y` copies the displayed common headers (From/To/Subject + Date/Cc when
+	// present) drawn from the same rows shown in the popover, a blank line, then
+	// the body. Cc is sourced from the threaded recipients (buildHeaders has none).
+	function yankHeaders() {
+		const lines: string[] = [];
+		for (const name of ['From', 'To']) {
+			const row = headers.find(([k]) => k === name);
+			if (row) lines.push(`${name}: ${row[1]}`);
+		}
+		if (cc.length) lines.push(`Cc: ${cc.join(', ')}`);
+		for (const name of ['Subject', 'Date']) {
+			const row = headers.find(([k]) => k === name);
+			if (row) lines.push(`${name}: ${row[1]}`);
+		}
+		void copyText(`${lines.join('\n')}\n\n${body}`);
+	}
+
 	useScopedKeymap('reader', () =>
 		createReaderKeymap({
 			next: onNext,
@@ -112,6 +173,14 @@
 			jumpTop: scrollBodyTop,
 			jumpBottom: scrollBodyBottom,
 			activateHints: onActivateHints,
+			reply,
+			replyAll,
+			forward,
+			yankBody,
+			yankHeaders,
+			toggleHeaders,
+			goFolderPicker: onFolder,
+			goAccountPicker: onAccount,
 			close: onClose,
 			quit: onQuit
 		})

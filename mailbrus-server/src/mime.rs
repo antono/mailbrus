@@ -159,6 +159,21 @@ pub fn extract_message(raw: &[u8]) -> Option<ParsedMessage> {
     })
 }
 
+/// Collect the recipients of a `To`/`Cc` style header out of the parsed header
+/// map into a flat list of addressable strings.
+fn recipient_list(headers: &Map<String, Value>, key: &str) -> Vec<String> {
+    headers
+        .get(key)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .flat_map(mailbrus_core::maildir_reader::split_address_list)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 pub fn build_body_response(id: &str, parsed: ParsedMessage, mode: &str) -> Value {
     let ParsedMessage {
         headers,
@@ -200,6 +215,12 @@ pub fn build_body_response(id: &str, parsed: ParsedMessage, mode: &str) -> Value
         _ => (text_body, 0),
     };
 
+    // Structured recipient lists for reply-all on the client. The raw `To`/`Cc`
+    // header strings live in `headers`; split them into addressable recipients
+    // using the same parser the list path uses.
+    let to = recipient_list(&headers, "To");
+    let cc = recipient_list(&headers, "Cc");
+
     debug!(
         "[mime] build_body_response id={} mode={} has_plain={} has_html={} has_remote={}",
         id, resolved_mode, has_plain, has_html, has_remote
@@ -209,6 +230,8 @@ pub fn build_body_response(id: &str, parsed: ParsedMessage, mode: &str) -> Value
         "id": id,
         "headers": headers,
         "body": body,
+        "to": to,
+        "cc": cc,
         "mode": resolved_mode,
         "has_plain": has_plain,
         "has_html": has_html,

@@ -57,6 +57,25 @@ export class MailboxPage {
 		await this.page.keyboard.press('r');
 	}
 
+	/** The currently selected (active) row's 0-based index, or -1 if none. */
+	async selectedIndex(): Promise<number> {
+		const active = this.messages().and(this.page.locator('.active')).first();
+		if ((await active.count()) === 0) return -1;
+		const idx = await active.getAttribute('data-msg-idx');
+		return idx == null ? -1 : Number(idx);
+	}
+
+	/** `g g` — jump selection to the top of the list. */
+	async jumpTop(): Promise<void> {
+		await this.page.keyboard.press('g');
+		await this.page.keyboard.press('g');
+	}
+
+	/** `G` — jump selection to the bottom of the list. */
+	async jumpBottom(): Promise<void> {
+		await this.page.keyboard.press('Shift+G');
+	}
+
 	// ── Search ─────────────────────────────────────────────────────────────────
 
 	/** Open search (via `/` key), type a query, and submit it. */

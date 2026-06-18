@@ -6,6 +6,10 @@ export type RenderMode = 'text' | 'simple' | 'html';
 
 export interface MessageBody extends Message {
 	body: string;
+	/** Original `To` recipients (addressable strings), for reply-all. */
+	to: string[];
+	/** Original `Cc` recipients (addressable strings), for reply-all. */
+	cc: string[];
 	attachments: Attachment[];
 	mode: RenderMode;
 	has_plain: boolean;

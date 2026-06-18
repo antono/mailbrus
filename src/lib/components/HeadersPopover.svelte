@@ -1,9 +1,10 @@
 <script lang="ts">
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md (g h toggles headers menu)
 	import { untrack } from 'svelte';
 	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
 	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
-	import { createModalKeymap } from '$lib/hotkeys/keymaps/modal.ts';
+	import type { Keymap } from '$lib/hotkeys/types.ts';
 
 	let {
 		headers,
@@ -21,7 +22,17 @@
 		};
 		document.addEventListener('mousedown', onDown);
 		pushScope('modal');
-		const dispose = registerKeymap(untrack(() => createModalKeymap({ close: onClose })));
+		// The popover owns a modal-scope keymap so Escape closes it; it also binds the
+		// `g h` leader to close so the reader's open/close toggle is symmetric (the
+		// reader scope is suppressed beneath this exclusive modal scope).
+		const km: Keymap = {
+			scope: 'modal',
+			bindings: [
+				{ keys: ['Escape'], group: 'Modal', description: 'Close', handler: (e) => { e.preventDefault(); onClose(); } },
+				{ keys: ['g', 'h'], group: 'Modal', description: 'Close headers', handler: (e) => { e.preventDefault(); onClose(); } }
+			]
+		};
+		const dispose = registerKeymap(untrack(() => km));
 		return () => {
 			document.removeEventListener('mousedown', onDown);
 			dispose();

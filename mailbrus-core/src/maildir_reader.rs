@@ -12,10 +12,24 @@ pub struct Message {
 pub struct Headers {
     pub from: Option<String>,
     pub to: Vec<String>,
+    pub cc: Vec<String>,
     pub subject: Option<String>,
     pub date: Option<i64>,
     pub message_id: Option<String>,
     pub in_reply_to: Option<String>,
+}
+
+/// Split an RFC 5322 address-list header value (`To`/`Cc`) into individual
+/// recipient strings, trimming whitespace and dropping empties.
+///
+/// Splitting on `,` is intentionally simple to match how the reader displays
+/// recipients; it does not attempt to honour commas inside quoted display
+/// names. Reply-all only needs addressable recipients, which this preserves.
+pub fn split_address_list(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|p| p.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 pub struct MaildirFlags {
@@ -204,18 +218,13 @@ fn extract_message(msg: &notmuch::Message) -> Result<Message, MailboxError> {
             .map_err(|e| MailboxError::QueryFailed(e.to_string()))
     };
 
-    let to = get_header("To")?
-        .map(|s| {
-            s.split(',')
-                .map(|p| p.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
+    let to = get_header("To")?.map(|s| split_address_list(&s)).unwrap_or_default();
+    let cc = get_header("Cc")?.map(|s| split_address_list(&s)).unwrap_or_default();
 
     let headers = Headers {
         from: get_header("From")?,
         to,
+        cc,
         subject: get_header("Subject")?,
         date: Some(msg.date()),
         message_id: get_header("Message-ID")?,
@@ -270,6 +279,77 @@ Hello!\r\n";
                 .unwrap()
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn split_address_list_parses_multiple_recipients() {
+        let parsed = split_address_list("Bob <bob@example.com>, Carol <carol@example.com>");
+        assert_eq!(
+            parsed,
+            vec!["Bob <bob@example.com>", "Carol <carol@example.com>"]
+        );
+    }
+
+    #[test]
+    fn split_address_list_empty_header_is_empty() {
+        assert!(split_address_list("").is_empty());
+        assert!(split_address_list("   ").is_empty());
+    }
+
+    #[test]
+    fn split_address_list_retains_own_address() {
+        // Reply-all needs to *see* the active account address so the frontend can
+        // exclude it; parsing must not drop it.
+        let parsed =
+            split_address_list("alice@example.com, Bob <bob@example.com>, ,carol@example.com");
+        assert_eq!(
+            parsed,
+            vec!["alice@example.com", "Bob <bob@example.com>", "carol@example.com"]
+        );
+    }
+
+    #[test]
+    fn extract_message_parses_to_and_cc() {
+        let dir = unique_tmpdir();
+        let inbox = dir.join("account@test").join("Inbox").join("cur");
+        fs::create_dir_all(&inbox).unwrap();
+        let raw = b"From: Alice <alice@example.com>\r\n\
+To: Bob <bob@example.com>, Carol <carol@example.com>\r\n\
+Cc: Dave <dave@example.com>\r\n\
+Subject: Multi\r\n\
+Date: Thu, 01 Jan 2026 12:00:00 +0000\r\n\
+Message-ID: <multi001@example.com>\r\n\
+\r\n\
+Hello!\r\n";
+        let msg_path = inbox.join("multi001:2,S");
+        fs::write(&msg_path, raw).unwrap();
+        let db = notmuch::Database::create(&dir).unwrap();
+        db.index_file(&msg_path, None).unwrap();
+        drop(db);
+
+        let reader = MaildirReader::new(&dir).unwrap();
+        let (messages, _) = reader
+            .list_messages("*", SortBy::Newest, PaginationOpts { limit: 10, offset: 0 })
+            .unwrap();
+        let m = &messages[0];
+        assert_eq!(m.headers.to, vec!["Bob <bob@example.com>", "Carol <carol@example.com>"]);
+        assert_eq!(m.headers.cc, vec!["Dave <dave@example.com>"]);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn extract_message_missing_cc_is_empty() {
+        let dir = unique_tmpdir();
+        setup_test_db(&dir); // TEST_EMAIL has no Cc header
+
+        let reader = MaildirReader::new(&dir).unwrap();
+        let (messages, _) = reader
+            .list_messages("*", SortBy::Newest, PaginationOpts { limit: 10, offset: 0 })
+            .unwrap();
+        assert!(messages[0].headers.cc.is_empty());
+
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
