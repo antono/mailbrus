@@ -254,13 +254,17 @@ impl ImapWorker {
 
         let stored_modseq = if full_resync { None } else { stored.as_ref().and_then(|s| s.highest_modseq) };
 
-        let use_condstore = condstore_supported && !full_resync && stored_modseq.is_some();
+        // Gmail returns HIGHESTMODSEQ in SELECT responses but does not advertise
+        // CONDSTORE in its capability list, so also treat a present highest_modseq
+        // as evidence of CONDSTORE support.
+        let condstore_effective = condstore_supported || highest_modseq.is_some();
+        let use_condstore = condstore_effective && !full_resync && stored_modseq.is_some();
 
         let target_uids = if use_condstore {
             let modseq = stored_modseq.unwrap();
             self.fetch_changed_uids(&mut client, modseq).await?
         } else {
-            if !condstore_supported {
+            if !condstore_supported && !condstore_effective {
                 warn!(account = %self.account_id, "server does not advertise CONDSTORE; full UID scan");
             }
             self.fetch_all_uids(&mut client).await?
