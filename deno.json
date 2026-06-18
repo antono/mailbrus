@@ -5,6 +5,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
+    "server": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/server.ts",
     "e2e:generate": "deno run -A e2e/fixtures/generate.ts",
     "test:e2e": "node_modules/.bin/playwright test --config=e2e/playwright.config.ts --project=chromium",
     "e2e:ui": "node_modules/.bin/playwright test --config=e2e/playwright.config.ts --ui",
