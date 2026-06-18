@@ -342,6 +342,23 @@ export const manifest: ManifestAccount[] = [
 						attachments: []
 					},
 					{
+						// Multiple recipients incl. alice herself — exercises reader reply-all
+						// (Cc = other To/Cc recipients, own address excluded).
+						slug: 'alice-inbox-10-multi-recipient',
+						box: 'cur',
+						flags: 'S',
+						messageId: 'alice-inbox-10@example.com',
+						from: 'Frank Team',
+						fromAddr: 'frank@work.example',
+						to: 'alice@example.com, Bob Builder <bob@work.example>, Carol Finance <carol@work.example>',
+						subject: 'Team sync recap',
+						date: utc(24, 9, 30),
+						bodyText:
+							'Thanks all for joining the sync.\n\nAction items are in the shared doc; please update your sections by Friday.',
+						signature: 'unsigned',
+						attachments: []
+					},
+					{
 						slug: 'alice-inbox-xss-01-script-tag',
 						box: 'cur',
 						flags: 'S',

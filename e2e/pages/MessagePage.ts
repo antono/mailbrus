@@ -94,6 +94,62 @@ export class MessagePage {
 		await this.page.keyboard.press('Escape');
 	}
 
+	// ── Message actions (reply / forward / yank / headers) ──────────────────────
+	// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md
+
+	/** `r` — reply to sender (opens compose prefilled). */
+	async reply(): Promise<void> {
+		await this.page.keyboard.press('r');
+	}
+
+	/** `R` (Shift+r) — reply to all. */
+	async replyAll(): Promise<void> {
+		await this.page.keyboard.press('Shift+R');
+	}
+
+	/** `F` (Shift+f) — forward (distinct from `f` = hint mode). */
+	async forward(): Promise<void> {
+		await this.page.keyboard.press('Shift+F');
+	}
+
+	/** `y` — yank the message body to the clipboard. */
+	async yankBody(): Promise<void> {
+		await this.page.keyboard.press('y');
+	}
+
+	/** `Y` (Shift+y) — yank headers + body to the clipboard. */
+	async yankHeaders(): Promise<void> {
+		await this.page.keyboard.press('Shift+Y');
+	}
+
+	/** `g h` — toggle the headers popover. */
+	async toggleHeaders(): Promise<void> {
+		await this.page.keyboard.press('g');
+		await this.page.keyboard.press('h');
+	}
+
+	/** `f` — activate vimium-style hint mode (text/simple modes only). */
+	async activateHints(): Promise<void> {
+		await this.page.keyboard.press('f');
+	}
+
+	/** The raw-headers popover (toggled by `g h` or the headers button). */
+	headersPopover(): Locator {
+		return this.page.getByTestId('headers-popover.container');
+	}
+
+	/** `g f` — open the folder picker from the reader. */
+	async gotoFolderPicker(): Promise<void> {
+		await this.page.keyboard.press('g');
+		await this.page.keyboard.press('f');
+	}
+
+	/** `g a` — open the account picker from the reader. */
+	async gotoAccountPicker(): Promise<void> {
+		await this.page.keyboard.press('g');
+		await this.page.keyboard.press('a');
+	}
+
 	// ── Folder-position counter ─────────────────────────────────────────────────
 
 	/** Absolute message index number in the breadcrumb counter. */

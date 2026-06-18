@@ -107,6 +107,9 @@
 	let messageHasRemote = $state(0);
 	let messageFormatFlowed = $state(false);
 	let messageAttachments = $state<{ name: string; size: number; mime: string }[]>([]);
+	// Real To/Cc recipients from the message-detail response, for reader reply-all.
+	let messageTo = $state<string[]>([]);
+	let messageCc = $state<string[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
@@ -358,6 +361,8 @@
 			messageHasRemote = 0;
 			messageFormatFlowed = false;
 			messageAttachments = [];
+			messageTo = [];
+			messageCc = [];
 			return;
 		}
 		const id = openMessage.id;
@@ -376,6 +381,8 @@
 				messageHasRemote = data.has_remote;
 				messageFormatFlowed = data.format_flowed;
 				messageAttachments = data.attachments ?? [];
+				messageTo = data.to ?? [];
+				messageCc = data.cc ?? [];
 				// Plain-text-first default: no per-sender or global preference and the
 				// message has a text/plain part → prefer text mode over server default.
 				if (data.has_plain && data.mode !== 'text' && !senderOverride && !globalMode) {
@@ -388,6 +395,8 @@
 							messageHasRemote = d2.has_remote;
 							messageFormatFlowed = d2.format_flowed;
 							messageAttachments = d2.attachments ?? [];
+							messageTo = d2.to ?? [];
+							messageCc = d2.cc ?? [];
 						})
 						.catch(() => {});
 				}
@@ -407,6 +416,8 @@
 				messageHasRemote = data.has_remote;
 				messageFormatFlowed = data.format_flowed;
 				messageAttachments = data.attachments ?? [];
+				messageTo = data.to ?? [];
+				messageCc = data.cc ?? [];
 			})
 			.catch(() => {});
 		// HTML mode is per-message only — never persisted as global default.
@@ -570,10 +581,6 @@
 				currentMessages = currentMessages.filter((_, i) => i !== selectedIdx);
 				selectedIdx = Math.min(selectedIdx, currentMessages.length - 1);
 			},
-			goInbox: () => goCanonical('inbox'),
-			goArchive: () => goCanonical('archive'),
-			goSent: () => goCanonical('sent'),
-			goDrafts: () => goCanonical('drafts'),
 			goFolderPicker: () => {
 				phase = 'folder';
 			},
@@ -764,15 +771,13 @@
 			<span class="hint"><span class="kbd">esc</span> back</span>
 			<span class="hint"><span class="kbd">/</span> search</span>
 			<span class="hint"><span class="kbd">c</span> compose</span>
-			<span class="hint"><span class="kbd">g</span><span class="kbd">i</span> inbox</span>
-			<span class="hint"><span class="kbd">g</span><span class="kbd">a</span> archive</span>
 			<span class="hint"><span class="kbd">r</span> read</span>
 			<span class="hint"><span class="kbd">u</span> unread</span>
 			<span class="hint"><span class="kbd">d</span> delete</span>
 			<span class="hint"><span class="kbd">h</span> prev-page</span>
 			<span class="hint"><span class="kbd">l</span> next-page</span>
 			<span class="hint"><span class="kbd">g</span><span class="kbd">f</span> folder</span>
-			<span class="hint"><span class="kbd">g</span><span class="kbd" style="text-transform: none">A</span> account</span>
+			<span class="hint"><span class="kbd">g</span><span class="kbd">a</span> account</span>
 		</HintBar>
 	{/if}
 
@@ -788,6 +793,8 @@
 			has_remote={messageHasRemote}
 			format_flowed={messageFormatFlowed}
 			attachments={messageAttachments}
+			to={messageTo}
+			cc={messageCc}
 			onClose={closeReaderToList}
 			onHome={() => (ui.aboutOpen = true)}
 			onAccount={() => (phase = 'account')}
@@ -893,7 +900,13 @@
 
 	{#if leader === 'g' && phase === 'list'}
 		<div class="mb-leader">
-			<span class="key">g</span> — i inbox · a archive · s sent · d drafts · f folder · A account · g top · h prev-page · l next-page
+			{#if openMessage}
+				<!-- Reader scope: g-leader follow-ups are folder/account/top/headers. -->
+				<span class="key">g</span> — f folder · a account · g top · h headers
+			{:else}
+				<!-- List scope: g-leader follow-ups plus standalone page-nav hints. -->
+				<span class="key">g</span> — f folder · a account · g top · h prev-page · l next-page
+			{/if}
 		</div>
 	{/if}
 

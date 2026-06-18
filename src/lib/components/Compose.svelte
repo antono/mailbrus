@@ -2,9 +2,12 @@
 	import Breadcrumbs from './Breadcrumbs.svelte';
 	import RecipientInput from './RecipientInput.svelte';
 	import type { Account, Folder } from '$lib/data.js';
+	import { onMount } from 'svelte';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
+	// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md (compose prefill)
 	import { useScopedKeymap } from '$lib/hotkeys/scope-bind.svelte.ts';
 	import { createComposeKeymap } from '$lib/hotkeys/keymaps/compose.ts';
+	import { ui } from '$lib/ui-state.svelte.ts';
 
 	let {
 		account,
@@ -31,6 +34,21 @@
 	let body = $state('');
 	let showCc = $state(false);
 	let showBcc = $state(false);
+
+	// Seed fields from a reader reply/forward prefill, then clear it so a later
+	// plain compose starts blank. Cc auto-expands when the prefill carries a Cc.
+	onMount(() => {
+		const pre = ui.composePrefill;
+		if (!pre) return;
+		to = pre.to ?? '';
+		cc = pre.cc ?? '';
+		bcc = pre.bcc ?? '';
+		subject = pre.subject ?? '';
+		body = pre.body ?? '';
+		if (cc) showCc = true;
+		if (bcc) showBcc = true;
+		ui.composePrefill = null;
+	});
 
 	let isDirty = $derived(!!(to || cc || bcc || subject || body));
 	let wordCount = $derived(body.trim() ? body.trim().split(/\s+/).length : 0);
