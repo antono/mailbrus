@@ -21,7 +21,7 @@ use tracing::{debug, warn};
 use crate::state::AppState;
 
 pub async fn sync_all(State(state): State<AppState>) -> Response {
-    match &state.sync_engine {
+    match state.sync_engine() {
         Some(engine) => {
             engine.sync_all();
             (StatusCode::ACCEPTED, Json(json!({ "job": "all" }))).into_response()
@@ -37,8 +37,8 @@ pub async fn sync_account(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Response {
-    let engine = match &state.sync_engine {
-        Some(e) => e.clone(),
+    let engine = match state.sync_engine() {
+        Some(e) => e,
         None => {
             return json_error(StatusCode::SERVICE_UNAVAILABLE, "no sync engine configured");
         }
@@ -66,7 +66,7 @@ pub async fn sync_account(
 pub async fn sync_stream(
     State(state): State<AppState>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let rx = match &state.sync_engine {
+    let rx = match state.sync_engine() {
         Some(e) => e.subscribe(),
         None => {
             // Return an empty stream that keeps the connection alive but emits nothing.

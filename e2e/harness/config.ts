@@ -1,13 +1,10 @@
 /**
- * Generate a mailbrus config.toml that mirrors the cloned corpus's account
- * layout. The server uses this to populate `/api/maildirs`; existing tests
- * that previously relied on filesystem-based account discovery now drive the
- * same data through the typed config.
- *
- * The IMAP fields are placeholders — they are only used if a sync is
- * triggered, which existing tests do not do.
+ * Generate per-account TOML files under `accounts/` that mirror the cloned
+ * corpus. The new config format uses one flat `<email>.toml` per account
+ * (no `[accounts.X]` wrapper). The `--config` flag takes the base directory;
+ * accounts are discovered by scanning `<dir>/accounts/*.toml`.
  */
-import { readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Clone } from './clone.ts';
 
@@ -18,7 +15,10 @@ export interface ConfigEntry {
 }
 
 export interface ConfigHandle {
+	/** Base config directory (passed to --config). Contains accounts/ inside. */
 	path: string;
+	/** Accounts subdirectory: write extra *.toml files here to add accounts. */
+	accountsDir: string;
 	entries: ConfigEntry[];
 }
 
@@ -39,15 +39,9 @@ function escape(s: string): string {
 	return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-/**
- * Build an account section. `id` is used as the TOML table key and as the
- * `email` placeholder — most tests assert `id == address`, which the existing
- * filesystem path produced naturally.
- */
-function renderAccount(entry: ConfigEntry): string {
-	const idKey = /^[A-Za-z0-9_-]+$/.test(entry.id) ? entry.id : `"${escape(entry.id)}"`;
+/** Flat per-account TOML (no [accounts.X] wrapper). Filename stem = id = email. */
+export function renderAccountToml(entry: ConfigEntry): string {
 	return [
-		`[accounts.${idKey}]`,
 		`protocol = "imap"`,
 		`email = "${escape(entry.id)}"`,
 		`imap_host = "imap.invalid"`,
@@ -60,11 +54,35 @@ function renderAccount(entry: ConfigEntry): string {
 	].join('\n');
 }
 
-/** Write a fresh config.toml at `<clone.root>/mailbrus-config.toml`. */
+/**
+ * Write a per-account TOML file into `accountsDir/<entry.id>.toml`.
+ * Call after `writeFixtureConfig` to inject extra accounts (e.g. a
+ * Stalwart-backed test account) without rebuilding the whole config.
+ */
+export async function addAccountToml(
+	accountsDir: string,
+	entry: ConfigEntry & { toml?: string }
+): Promise<void> {
+	const body = entry.toml ?? renderAccountToml(entry);
+	await writeFile(join(accountsDir, `${entry.id}.toml`), body);
+}
+
+/** Write fixture config with all accounts from the cloned corpus. */
 export async function writeFixtureConfig(clone: Clone): Promise<ConfigHandle> {
 	const entries = await scanAccounts(clone);
-	const body = entries.map(renderAccount).join('\n');
-	const path = join(clone.root, 'mailbrus-config.toml');
-	await writeFile(path, body);
-	return { path, entries };
+	const configDir = join(clone.root, 'mailbrus-config');
+	const accountsDir = join(configDir, 'accounts');
+	await mkdir(accountsDir, { recursive: true });
+	for (const entry of entries) {
+		await addAccountToml(accountsDir, entry);
+	}
+	return { path: configDir, accountsDir, entries };
+}
+
+/** Write a config directory with an empty accounts/ (zero-account onboarding state). */
+export async function writeEmptyFixtureConfig(clone: Clone): Promise<ConfigHandle> {
+	const configDir = join(clone.root, 'mailbrus-config');
+	const accountsDir = join(configDir, 'accounts');
+	await mkdir(accountsDir, { recursive: true });
+	return { path: configDir, accountsDir, entries: [] };
 }

@@ -19,6 +19,10 @@ pub enum CredentialError {
     Pass { account: String, message: String },
     #[error("account `{account}` has no IMAP protocol config")]
     UnsupportedProtocol { account: String },
+    /// Returned when attempting to write a credential for the `pass` backend,
+    /// which is read-only from the application.
+    #[error("the pass credential backend is read-only; configure it manually")]
+    PassReadOnly,
 }
 
 const DEFAULT_SERVICE_NAME: &str = "mailbrus";
@@ -29,6 +33,40 @@ fn ensure_global_service_name() {
     SERVICE_INIT.get_or_init(|| {
         keyring::set_global_service_name(DEFAULT_SERVICE_NAME);
     });
+}
+
+/// Store the secret for a new account and return the `credential_ref` to persist in the config.
+///
+/// - `Keyring`: writes the secret to the OS keyring under `account_id` (= the email).
+///   Returns `account_id` as the `credential_ref`.
+/// - `Plain`: the secret IS the `credential_ref`; nothing external is written.
+///   Returns `secret` as the `credential_ref`.
+/// - `Pass`: read-only from the application; returns `Err(PassReadOnly)`.
+pub async fn write(
+    account_id: &str,
+    backend: CredentialBackend,
+    secret: &str,
+) -> Result<String, CredentialError> {
+    ensure_global_service_name();
+    match backend {
+        CredentialBackend::Keyring => {
+            let entry =
+                keyring::KeyringEntry::try_new(account_id).map_err(|source| {
+                    CredentialError::Keyring { account: account_id.to_string(), source }
+                })?;
+            entry.set_secret(secret).await.map_err(|source| CredentialError::Keyring {
+                account: account_id.to_string(),
+                source,
+            })?;
+            debug!(account = account_id, "stored keyring credential");
+            Ok(account_id.to_string())
+        }
+        CredentialBackend::Plain => {
+            // For `plain`, the secret is stored inline as `credential_ref`.
+            Ok(secret.to_string())
+        }
+        CredentialBackend::Pass => Err(CredentialError::PassReadOnly),
+    }
 }
 
 /// Resolve the plaintext secret for an account.
@@ -138,6 +176,10 @@ mod tests {
                 credential_ref: credential_ref.to_string(),
                 maildir_root: None,
                 pass_gpg_backend: None,
+                smtp_host: None,
+                smtp_port: None,
+                smtp_starttls: None,
+                signature: None,
             }),
         }
     }
@@ -163,6 +205,48 @@ mod tests {
             // path runs.
             Err(CredentialError::Keyring { .. }) => {}
             other => panic!("expected NotFound or Keyring error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn plain_write_and_resolve_round_trips() {
+        let cred_ref = write("plain@test.local", CredentialBackend::Plain, "s3cr3t").await.unwrap();
+        assert_eq!(cred_ref, "s3cr3t", "plain backend returns the secret as credential_ref");
+
+        // Build an account that would be loaded from the on-disk TOML after write.
+        let acc = account(CredentialBackend::Plain, &cred_ref);
+        let resolved = resolve(&acc).await.expect("plain resolve must not fail");
+        assert_eq!(resolved, "s3cr3t");
+    }
+
+    #[tokio::test]
+    async fn keyring_write_and_resolve_round_trips() {
+        let account_id = format!(
+            "mailbrus-test-rt-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+
+        let result = write(&account_id, CredentialBackend::Keyring, "hunter2").await;
+        match result {
+            // No secret service available in this environment — skip gracefully.
+            Err(CredentialError::Keyring { .. }) => return,
+            Err(e) => panic!("unexpected write error: {e}"),
+            Ok(cred_ref) => {
+                assert_eq!(cred_ref, account_id, "keyring backend returns account_id as credential_ref");
+
+                let acc = account(CredentialBackend::Keyring, &cred_ref);
+                let resolved = resolve(&acc).await.expect("resolve after write must succeed");
+                assert_eq!(resolved, "hunter2");
+
+                // Clean up — best-effort; a leaked test entry is not critical.
+                let entry = keyring::KeyringEntry::try_new(&cred_ref).ok();
+                if let Some(e) = entry {
+                    let _ = e.delete_secret().await;
+                }
+            }
         }
     }
 

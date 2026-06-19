@@ -29,7 +29,8 @@ pub struct Cli {
     /// Log level: debug (full responses), info (metadata only), warn (key events)
     #[arg(long, default_value = "info", value_enum)]
     pub log_level: LogLevel,
-    /// Path to mailbrus config file (TOML). Defaults to $XDG_CONFIG_HOME/mailbrus/config.toml.
+    /// Base config directory. Accounts are read from `<dir>/accounts/*.toml`.
+    /// Defaults to $XDG_CONFIG_HOME/mailbrus/ (typically ~/.config/mailbrus/).
     #[arg(long)]
     pub config: Option<std::path::PathBuf>,
     /// Deprecated and ignored. Mailbrus always owns an isolated notmuch database

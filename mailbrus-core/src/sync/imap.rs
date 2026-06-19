@@ -669,6 +669,10 @@ mod tests {
             credential_ref: "test".to_string(),
             maildir_root: None,
             pass_gpg_backend: None,
+            smtp_host: None,
+            smtp_port: None,
+            smtp_starttls: None,
+            signature: None,
         }
     }
 

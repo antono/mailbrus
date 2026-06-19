@@ -1,8 +1,41 @@
+// openspec/changes/accounts-dialog/specs/onboarding-wizard/spec.md
 import type { Account, Folder, Message, Attachment } from '$lib/data.js';
 
 export type { Account, Folder, Message, Attachment };
 
 export type RenderMode = 'text' | 'simple' | 'html';
+
+/** Credential backend options offered to the user. */
+export type CredentialBackend = 'keyring' | 'plain';
+
+/** Summary returned by GET /api/accounts. */
+export interface AccountSummary {
+	id: string;
+	email: string;
+	protocol: string;
+	display_name: string | null;
+}
+
+/** Body sent to POST /api/accounts. */
+export interface CreateAccountPayload {
+	email: string;
+	display_name?: string;
+	imap_host: string;
+	imap_port: number;
+	imap_tls: boolean;
+	smtp_host?: string;
+	smtp_port?: number;
+	smtp_starttls?: boolean;
+	credential_backend: CredentialBackend;
+	secret: string;
+	signature?: string;
+}
+
+/** Error shape returned by POST /api/accounts on 422/409. */
+export interface AccountCreateError {
+	error: string;
+	field?: string;
+}
 
 export interface MessageBody extends Message {
 	body: string;
@@ -29,6 +62,30 @@ async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
 
 export async function fetchMaildirs(): Promise<Account[]> {
 	return apiFetch('/api/maildirs') as Promise<Account[]>;
+}
+
+/** Returns configured accounts from GET /api/accounts (never includes secrets). */
+export async function getAccounts(): Promise<AccountSummary[]> {
+	return apiFetch('/api/accounts') as Promise<AccountSummary[]>;
+}
+
+/**
+ * Create a new account via POST /api/accounts.
+ *
+ * Returns the created AccountSummary on 201.
+ * Throws an `AccountCreateError`-shaped object for 409/422 responses.
+ */
+export async function createAccount(payload: CreateAccountPayload): Promise<AccountSummary> {
+	const res = await fetch('/api/accounts', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload)
+	});
+	if (res.status === 201) {
+		return res.json() as Promise<AccountSummary>;
+	}
+	const err = await res.json().catch(() => ({ error: res.statusText })) as AccountCreateError;
+	throw Object.assign(new Error(err.error ?? res.statusText), { field: err.field, status: res.status });
 }
 
 /**

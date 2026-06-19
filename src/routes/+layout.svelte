@@ -3,8 +3,6 @@
 	import { installDispatcher } from '$lib/hotkeys/dispatcher.svelte.ts';
 	import { registerKeymap } from '$lib/hotkeys/registry.svelte.ts';
 	import { globalKeymap } from '$lib/hotkeys/global.ts';
-	import StatusBar from '$lib/components/StatusBar.svelte';
-
 	let { children } = $props();
 
 	$effect(() => {
@@ -18,4 +16,3 @@
 </script>
 
 {@render children?.()}
-<StatusBar />

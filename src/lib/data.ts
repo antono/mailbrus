@@ -5,6 +5,8 @@ export interface Account {
 	maildir: string;
 	unread: number;
 	total: number;
+	/** Per-account signature; set on the account config. */
+	signature?: string;
 }
 
 export interface Folder {

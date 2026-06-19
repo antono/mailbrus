@@ -33,7 +33,7 @@ fn folder_query(state: &AppState, maildir_id: &str, folder_id: &str) -> String {
 /// actually stored.
 pub(crate) fn mailbox_prefix(state: &AppState, maildir_id: &str) -> String {
     let maildir_root = state
-        .accounts
+        .accounts()
         .iter()
         .find(|a| a.id == maildir_id)
         .and_then(|a| a.imap())

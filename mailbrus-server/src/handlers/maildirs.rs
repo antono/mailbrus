@@ -30,9 +30,10 @@ pub async fn list_maildirs(State(state): State<AppState>) -> Response {
         maildir: String,
         maildir_root: PathBuf,
         prefix: String,
+        signature: Option<String>,
     }
-    let accounts: Vec<AccountInfo> = state
-        .accounts
+    let accounts_snapshot = state.accounts();
+    let accounts: Vec<AccountInfo> = accounts_snapshot
         .iter()
         .map(|account| {
             let id = account.id.clone();
@@ -42,6 +43,7 @@ pub async fn list_maildirs(State(state): State<AppState>) -> Response {
                 .and_then(|i| i.maildir_root.clone())
                 .or_else(|| mailbrus_core::config::default_maildir_root(&id))
                 .unwrap_or_else(|| PathBuf::from("./mail").join(&id));
+            let signature = imap.and_then(|i| i.signature.clone());
             let prefix = mailbox_prefix(&state, &id);
             AccountInfo {
                 id,
@@ -49,6 +51,7 @@ pub async fn list_maildirs(State(state): State<AppState>) -> Response {
                 maildir: maildir_root.display().to_string(),
                 maildir_root,
                 prefix,
+                signature,
             }
         })
         .collect();
@@ -87,6 +90,7 @@ pub async fn list_maildirs(State(state): State<AppState>) -> Response {
                     "maildir": acc.maildir,
                     "unread": unread,
                     "total": total,
+                    "signature": acc.signature,
                 })
             })
             .collect::<Vec<Value>>()
@@ -107,7 +111,7 @@ pub async fn list_maildirs(State(state): State<AppState>) -> Response {
 }
 
 pub async fn list_folders(State(state): State<AppState>, Path(id): Path<String>) -> Response {
-    let account = state.accounts.iter().find(|a| a.id == id).cloned();
+    let account = state.accounts().iter().find(|a| a.id == id).cloned();
     let account = match account {
         Some(a) => a,
         None => {

@@ -13,6 +13,7 @@ use axum::{
 use clap::Parser;
 use cli::{browser_url, Cli, LogLevel};
 use handlers::{
+    accounts::{create_account, list_accounts},
     maildirs::{list_folders, list_maildirs},
     messages::{
         delete_message, get_attachment, get_cid, get_message, list_messages, open_attachment,
@@ -34,6 +35,11 @@ use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() {
+    // Install the ring CryptoProvider for rustls 0.23 before any TLS code runs.
+    // The connection-test path in mailbrus-core uses tokio-rustls; without this
+    // the worker thread panics on the first POST /api/accounts request.
+    rustls::crypto::ring::default_provider().install_default().ok();
+
     let cli = Cli::parse();
 
     let env_filter = std::env::var("RUST_LOG").ok().map(|s| s.as_str().to_string());
@@ -131,6 +137,7 @@ async fn main() {
         accounts,
         sync_engine,
         notmuch_db_path,
+        cli.config.clone(),
     );
     spawn_push_poller(state.clone());
 
@@ -151,6 +158,8 @@ async fn main() {
     }
 
     let api = Router::new()
+        .route("/accounts", get(list_accounts))
+        .route("/accounts", post(create_account))
         .route("/maildirs", get(list_maildirs))
         .route("/maildirs/{id}/folders", get(list_folders))
         .route("/maildirs/{id}/folders/{folder}/messages", get(list_messages))

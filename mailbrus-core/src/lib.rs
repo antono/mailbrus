@@ -6,6 +6,9 @@ pub use error::MailboxError;
 pub mod config;
 
 #[cfg(feature = "sync")]
+pub mod connection_test;
+
+#[cfg(feature = "sync")]
 pub mod credentials;
 
 #[cfg(feature = "sync")]

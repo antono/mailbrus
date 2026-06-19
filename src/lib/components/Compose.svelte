@@ -39,15 +39,18 @@
 	// plain compose starts blank. Cc auto-expands when the prefill carries a Cc.
 	onMount(() => {
 		const pre = ui.composePrefill;
-		if (!pre) return;
-		to = pre.to ?? '';
-		cc = pre.cc ?? '';
-		bcc = pre.bcc ?? '';
-		subject = pre.subject ?? '';
-		body = pre.body ?? '';
-		if (cc) showCc = true;
-		if (bcc) showBcc = true;
-		ui.composePrefill = null;
+		if (pre) {
+			to = pre.to ?? '';
+			cc = pre.cc ?? '';
+			bcc = pre.bcc ?? '';
+			subject = pre.subject ?? '';
+			body = pre.body ?? '';
+			if (cc) showCc = true;
+			if (bcc) showBcc = true;
+			ui.composePrefill = null;
+		} else if (account.signature) {
+			body = '\r\n-- \r\n' + account.signature;
+		}
 	});
 
 	let isDirty = $derived(!!(to || cc || bcc || subject || body));

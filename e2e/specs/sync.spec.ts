@@ -14,11 +14,11 @@
  * 8.2 / 8.3 reuse the default fixture and do not need a real IMAP server.
  */
 // openspec/specs/imap-sync/spec.md: Sync API contract tests (phase 8)
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test, expect } from '../harness/fixtures.ts';
 import { cloneCorpus, removeClone, type Clone } from '../harness/clone.ts';
-import { writeFixtureConfig, type ConfigEntry } from '../harness/config.ts';
+import { writeFixtureConfig, addAccountToml, type ConfigEntry } from '../harness/config.ts';
 import { indexClone } from '../harness/notmuch.ts';
 import { startServer, type ServerHandle } from '../harness/server.ts';
 import { startStalwart, type StalwartHandle } from '../harness/stalwart.ts';
@@ -52,29 +52,30 @@ test.describe('POST /api/sync', () => {
 			// Mailbrus config: existing corpus accounts (placeholder IMAP, never
 			// reached by this test) plus the stalwart-backed one we'll sync.
 			const baseConfig = await writeFixtureConfig(clone);
-			const stalwartMaildir = join(clone.maildir, 'alice@test.local-stalwart');
+			const stalwartMaildir = join(clone.maildir, 'alice@test.local');
 			await mkdir(stalwartMaildir, { recursive: true });
+			// Per-account format: filename stem = id = email address.
 			const stalwartEntry: ConfigEntry = {
-				id: 'stalwart-alice',
+				id: 'alice@test.local',
 				maildirRoot: stalwartMaildir
 			};
-			const existing = await readFile(baseConfig.path, 'utf8');
-			const augmented = [
-				existing,
-				`[accounts.${stalwartEntry.id}]`,
-				`protocol = "imap"`,
-				`email = "alice@test.local"`,
-				`imap_host = "127.0.0.1"`,
-				`imap_port = ${stalwart.imapPort}`,
-				`imap_tls = false`,
-				`credential_backend = "plain"`,
-				`credential_ref = "stalwart-secret"`,
-				`maildir_root = "${stalwartMaildir}"`,
-				''
-			].join('\n');
-			await writeFile(baseConfig.path, augmented);
+			await addAccountToml(baseConfig.accountsDir, {
+				...stalwartEntry,
+				toml: [
+					`protocol = "imap"`,
+					`email = "alice@test.local"`,
+					`imap_host = "127.0.0.1"`,
+					`imap_port = ${stalwart.imapPort}`,
+					`imap_tls = false`,
+					`credential_backend = "plain"`,
+					`credential_ref = "stalwart-secret"`,
+					`maildir_root = "${stalwartMaildir}"`,
+					''
+				].join('\n')
+			});
 			const config = {
 				path: baseConfig.path,
+				accountsDir: baseConfig.accountsDir,
 				entries: [...baseConfig.entries, stalwartEntry]
 			};
 

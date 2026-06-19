@@ -20,6 +20,9 @@ sync = [
     "dep:thiserror",
     "dep:async-trait",
     "dep:chrono",
+    "dep:tokio-rustls",
+    "dep:rustls-platform-verifier",
+    "dep:base64",
 ]
 
 [dependencies]
@@ -36,7 +39,10 @@ prs-lib = { version = "0.5.7", default-features = false, features = ["backend-gn
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 toml = { version = "0.8", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "fs", "net", "time", "io-util"], optional = true }
+tokio-rustls = { version = "0.26", optional = true }
+rustls-platform-verifier = { version = "0.6", optional = true }
+base64 = { version = "0.22", optional = true }
 tracing = { version = "0.1", optional = true }
 thiserror = { version = "2", optional = true }
 async-trait = { version = "0.1", optional = true }

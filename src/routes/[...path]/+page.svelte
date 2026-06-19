@@ -7,6 +7,8 @@
 	import Reader from '$lib/components/Reader.svelte';
 	import Compose from '$lib/components/Compose.svelte';
 	import About from '$lib/components/About.svelte';
+	import OnboardingWizard from '$lib/components/OnboardingWizard.svelte';
+import StatusBar from '$lib/components/StatusBar.svelte';
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import HintBar from '$lib/components/HintBar.svelte';
 	import HintOverlay from '$lib/components/HintOverlay.svelte';
@@ -22,7 +24,9 @@
 		fetchMessages,
 		searchMessages,
 		fetchMessage,
+		getAccounts,
 		type Account,
+		type AccountSummary,
 		type Folder,
 		type Message,
 		type RenderMode,
@@ -96,6 +100,12 @@
 
 	// ── API data ──────────────────────────────────────────────────────────────
 	let accounts = $state<Account[]>([]);
+
+	function syncBadge() {
+		const unread = accounts.reduce((n, a) => n + (a.unread ?? 0), 0);
+		if (unread > 0) setBadge(unread); else clearBadge();
+	}
+	let showWizard = $state(false);
 	let folderList = $state<Folder[]>([]);
 	let rankedFolderIds = $state<string[]>([]);
 	let outboxEntries = $state<OutboxEntry[]>([]);
@@ -331,16 +341,20 @@
 		window.addEventListener('mutations-conflict', onConflict);
 
 		// Badge: watch unread count (task 11.2-11.3)
-		const updateBadge = () => {
-			const unread = accounts.reduce((n, a) => n + (a.unread ?? 0), 0);
-			if (unread > 0) setBadge(unread); else clearBadge();
-		};
-		const badgeTimer = setInterval(updateBadge, 10_000);
+		const badgeTimer = setInterval(syncBadge, 10_000);
 
 		loading = true;
 		error = null;
-		fetchMaildirs()
-			.then((data) => { accounts = data; loading = false; updateBadge(); })
+		getAccounts()
+			.then((accs) => {
+				if (accs.length === 0) {
+					showWizard = true;
+					loading = false;
+				} else {
+					return fetchMaildirs()
+						.then((data) => { accounts = data; loading = false; syncBadge(); });
+				}
+			})
 			.catch((e: Error) => { error = e.message; loading = false; });
 
 		return () => {
@@ -731,8 +745,19 @@
 		else goBack();
 		focusSelectedRow();
 	}
+
+	function onAccountReady(_created: AccountSummary) {
+		showWizard = false;
+		loading = true;
+		fetchMaildirs()
+			.then((data) => { accounts = data; loading = false; syncBadge(); phase = 'account'; })
+			.catch((e: Error) => { error = e.message; loading = false; });
+	}
 </script>
 
+{#if showWizard}
+	<OnboardingWizard {onAccountReady} />
+{:else}
 <div class="mb-app" data-screen-label="Mailbrus">
 	{#if error}
 		<div class="mb-error" role="alert">{error}</div>
@@ -936,3 +961,5 @@
 		onAttachmentActionChange={(v) => { attachmentAction = v; writeSetting('attachment_action', v); }}
 	/>
 </div>
+<StatusBar />
+{/if}
