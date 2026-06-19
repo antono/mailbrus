@@ -138,6 +138,11 @@ export class MessagePage {
 		return this.page.getByTestId('headers-popover.container');
 	}
 
+	/** The transient "copied to clipboard" toast shown after a yank. */
+	yankToast(): Locator {
+		return this.page.getByTestId('reader.yank-toast');
+	}
+
 	/** `g f` — open the folder picker from the reader. */
 	async gotoFolderPicker(): Promise<void> {
 		await this.page.keyboard.press('g');

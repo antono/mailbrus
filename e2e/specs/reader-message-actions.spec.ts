@@ -33,7 +33,7 @@ async function openMessage(
 	return reader;
 }
 
-// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md: r opens compose addressed to sender, Re: subject, quoted body
+// openspec/specs/reader-message-actions/spec.md: r opens compose addressed to sender, Re: subject, quoted body
 test('r replies to sender with Re: subject and quoted body', async ({ page }) => {
 	const reader = await openMessage(page, multi.subject);
 	await reader.reply();
@@ -45,7 +45,7 @@ test('r replies to sender with Re: subject and quoted body', async ({ page }) =>
 	expect(await compose.bodyValue()).toContain(`> ${firstBodyLine}`);
 });
 
-// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md: R populates To/Cc from participants, excludes own address
+// openspec/specs/reader-message-actions/spec.md: R populates To/Cc from participants, excludes own address
 test('R replies to all, Cc from participants, excluding the active account', async ({ page }) => {
 	const reader = await openMessage(page, multi.subject);
 	await reader.replyAll();
@@ -60,7 +60,7 @@ test('R replies to all, Cc from participants, excluding the active account', asy
 	expect(cc).not.toContain(alice.address);
 });
 
-// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md: F forwards with empty To, Fwd: subject, headers + body
+// openspec/specs/reader-message-actions/spec.md: F forwards with empty To, Fwd: subject, headers + body
 test('F forwards with empty To, Fwd: subject, and forwarded headers + body', async ({ page }) => {
 	const reader = await openMessage(page, multi.subject);
 	await reader.forward();
@@ -75,7 +75,7 @@ test('F forwards with empty To, Fwd: subject, and forwarded headers + body', asy
 	expect(body).toContain(firstBodyLine);
 });
 
-// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md: f still activates hint mode (distinct from F)
+// openspec/specs/reader-message-actions/spec.md: f still activates hint mode (distinct from F)
 test('f still activates hint mode and does not forward', async ({ page }) => {
 	const reader = await openMessage(page, linky.subject);
 	await reader.activateHints();
@@ -84,16 +84,18 @@ test('f still activates hint mode and does not forward', async ({ page }) => {
 	await expect(page.getByTestId('compose.container')).toHaveCount(0);
 });
 
-// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md: y copies body only; Y copies headers + body
+// openspec/specs/reader-message-actions/spec.md: y copies body only; Y copies headers + body
 test('y copies the body only; Y copies headers and body', async ({ page }) => {
 	const reader = await openMessage(page, multi.subject);
 
 	await reader.yankBody();
+	await expect(reader.yankToast()).toHaveText('Message text copied to clipboard');
 	const bodyOnly = await page.evaluate(() => navigator.clipboard.readText());
 	expect(bodyOnly).toContain(firstBodyLine);
 	expect(bodyOnly).not.toContain('From:');
 
 	await reader.yankHeaders();
+	await expect(reader.yankToast()).toHaveText('Message text with headers copied to clipboard');
 	const withHeaders = await page.evaluate(() => navigator.clipboard.readText());
 	expect(withHeaders).toContain('From:');
 	expect(withHeaders).toContain('To:');
@@ -101,7 +103,15 @@ test('y copies the body only; Y copies headers and body', async ({ page }) => {
 	expect(withHeaders).toContain(firstBodyLine);
 });
 
-// openspec/changes/hotkeys-improvement/specs/reader-message-actions/spec.md: g h toggles the headers popover open/closed
+// openspec/specs/reader-message-actions/spec.md: yank toast auto-dismisses
+test('the yank toast appears then auto-dismisses', async ({ page }) => {
+	const reader = await openMessage(page, multi.subject);
+	await reader.yankBody();
+	await expect(reader.yankToast()).toBeVisible();
+	await expect(reader.yankToast()).toHaveCount(0, { timeout: 4000 });
+});
+
+// openspec/specs/reader-message-actions/spec.md: g h toggles the headers popover open/closed
 test('g h toggles the headers menu open and closed', async ({ page }) => {
 	const reader = await openMessage(page, multi.subject);
 
@@ -112,14 +122,14 @@ test('g h toggles the headers menu open and closed', async ({ page }) => {
 	await expect(reader.headersPopover()).toHaveCount(0);
 });
 
-// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md: g f opens the folder picker from the reader
+// openspec/specs/ui-hotkeys/spec.md: g f opens the folder picker from the reader
 test('g f opens the folder picker from the reader', async ({ page }) => {
 	const reader = await openMessage(page, multi.subject);
 	await reader.gotoFolderPicker();
 	await expect(page.getByText('Open a folder')).toBeVisible();
 });
 
-// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md: g a opens the account picker from the reader
+// openspec/specs/ui-hotkeys/spec.md: g a opens the account picker from the reader
 test('g a opens the account picker from the reader', async ({ page }) => {
 	const reader = await openMessage(page, multi.subject);
 	await reader.gotoAccountPicker();

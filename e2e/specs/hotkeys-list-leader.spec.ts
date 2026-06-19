@@ -20,7 +20,7 @@ async function openArchive(page: import('@playwright/test').Page): Promise<Mailb
 	return mailbox;
 }
 
-// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md: g f opens the folder picker
+// openspec/specs/ui-hotkeys/spec.md: g f opens the folder picker
 test('g f opens the folder picker', async ({ page }) => {
 	await openArchive(page);
 	await page.keyboard.press('g');
@@ -28,7 +28,7 @@ test('g f opens the folder picker', async ({ page }) => {
 	await expect(page.getByText('Open a folder')).toBeVisible();
 });
 
-// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md: g a opens the account picker
+// openspec/specs/ui-hotkeys/spec.md: g a opens the account picker
 test('g a opens the account picker', async ({ page }) => {
 	await openArchive(page);
 	await page.keyboard.press('g');
@@ -36,7 +36,7 @@ test('g a opens the account picker', async ({ page }) => {
 	await expect(page.getByText('Open a maildir')).toBeVisible();
 });
 
-// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md: g g jumps to top of list
+// openspec/specs/ui-hotkeys/spec.md: g g jumps to top of list
 test('g g jumps the selection to the top of the list', async ({ page }) => {
 	const mailbox = await openArchive(page);
 	// Move the selection to the bottom (keyboard), then g g returns it to 0.
@@ -46,7 +46,7 @@ test('g g jumps the selection to the top of the list', async ({ page }) => {
 	await expect.poll(() => mailbox.selectedIndex()).toBe(0);
 });
 
-// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md: G jumps to bottom of list
+// openspec/specs/ui-hotkeys/spec.md: G jumps to bottom of list
 test('G jumps the selection to the bottom of the page', async ({ page }) => {
 	const mailbox = await openArchive(page);
 	// Archive has more messages than a page; G selects the last rendered row.
@@ -55,7 +55,7 @@ test('G jumps the selection to the bottom of the page', async ({ page }) => {
 	await expect.poll(() => mailbox.selectedIndex()).toBe(onPage - 1);
 });
 
-// openspec/changes/hotkeys-improvement/specs/ui-hotkeys/spec.md: removed follow-ups no longer navigate
+// openspec/specs/ui-hotkeys/spec.md: removed follow-ups no longer navigate
 test('removed leaders g i / g s / g d are no-ops', async ({ page }) => {
 	await openArchive(page);
 	for (const key of ['i', 's', 'd']) {

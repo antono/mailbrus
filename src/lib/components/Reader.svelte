@@ -140,8 +140,19 @@
 		showHeaders = !showHeaders;
 	}
 
+	// Transient "copied" toast shown after a successful yank.
+	let yankNotice = $state<string | null>(null);
+	let yankNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+	async function yank(text: string, label: string) {
+		const ok = await copyText(text);
+		if (!ok) return;
+		yankNotice = label;
+		if (yankNoticeTimer) clearTimeout(yankNoticeTimer);
+		yankNoticeTimer = setTimeout(() => (yankNotice = null), 1800);
+	}
+
 	function yankBody() {
-		void copyText(body);
+		void yank(body, 'Message text copied to clipboard');
 	}
 
 	// `Y` copies the displayed common headers (From/To/Subject + Date/Cc when
@@ -158,7 +169,7 @@
 			const row = headers.find(([k]) => k === name);
 			if (row) lines.push(`${name}: ${row[1]}`);
 		}
-		void copyText(`${lines.join('\n')}\n\n${body}`);
+		void yank(`${lines.join('\n')}\n\n${body}`, 'Message text with headers copied to clipboard');
 	}
 
 	useScopedKeymap('reader', () =>
@@ -448,9 +459,30 @@
 			{/if}
 		</div>
 	</div>
+
+	{#if yankNotice}
+		<div class="mb-yank-toast" role="status" aria-live="polite" data-testid="reader.yank-toast">
+			{yankNotice}
+		</div>
+	{/if}
 </div>
 
 <style>
+	.mb-yank-toast {
+		position: fixed;
+		bottom: 24px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 20;
+		padding: 6px 14px;
+		font-size: 12px;
+		border-radius: 6px;
+		background: color-mix(in srgb, var(--mb-accent, #6366f1) 92%, #000);
+		color: #fff;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+		pointer-events: none;
+		white-space: nowrap;
+	}
 	.mb-reader-counter {
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
