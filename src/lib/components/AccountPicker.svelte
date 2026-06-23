@@ -18,7 +18,9 @@
 		accounts.map((a) => ({
 			key: a.id,
 			primary: a.address,
-			secondary: `${a.maildir}   ${a.host}`,
+			// `maildir` is empty until /api/maildirs resolves; `host` is not part of
+			// either account payload. Show whichever path we have, never "undefined".
+			secondary: a.maildir || undefined,
 			meta: a.unread > 0 ? `${a.unread} unread` : `${a.total}`,
 			raw: a
 		}))

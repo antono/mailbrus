@@ -308,11 +308,16 @@ import StatusBar from '$lib/components/StatusBar.svelte';
 			if (s.last_folder) { /* restored on folder navigation */ }
 		});
 
-		// Service Worker registration (task 2.2, 12.2)
+		// Service worker: the PWA worker (`src/sw.ts`) is not built/served at `/sw.js`
+		// by the static build, so registering it only 404s and spams the console.
+		// Worse, a worker installed by an earlier build lingers as a zombie that can
+		// serve stale assets (a cached app shell that points at deleted chunks) — the
+		// failure mode where the app boots but renders no data. Until the PWA layer is
+		// actually wired up, proactively unregister any existing worker to self-heal.
 		if ('serviceWorker' in navigator) {
-			const debug = typeof localStorage !== 'undefined' && localStorage.getItem('mailbrus:debug') === 'true';
 			navigator.serviceWorker
-				.register(`/sw.js${debug ? '?debug=1' : ''}`, { updateViaCache: 'none' })
+				.getRegistrations()
+				.then((regs) => regs.forEach((r) => r.unregister()))
 				.catch(() => {});
 		}
 
@@ -350,10 +355,38 @@ import StatusBar from '$lib/components/StatusBar.svelte';
 				if (accs.length === 0) {
 					showWizard = true;
 					loading = false;
-				} else {
-					return fetchMaildirs()
-						.then((data) => { accounts = data; loading = false; syncBadge(); });
+					return;
 				}
+				// Seed the picker directly from the config-backed /api/accounts list so a
+				// configured account is ALWAYS shown immediately. /api/maildirs is notmuch-
+				// backed (per-folder count queries) and can be slow or transiently empty
+				// during the first sync; gating the picker on it would leave an empty
+				// "Open a maildir" dialog even though the account plainly exists. The richer
+				// maildir data (unread/total counts) fills in below once it resolves.
+				accounts = accs.map((a) => ({
+					id: a.id,
+					address: a.email,
+					host: '',
+					maildir: '',
+					unread: 0,
+					total: 0
+				}));
+				loading = false;
+				// Enrich with maildir counts. Merge in place (by id) rather than reassigning
+				// `accounts`: the deep $state array is a reactive dep of the URL reconciler, so
+				// mutating element fields updates the picker without churning the array
+				// identity. A failure here keeps the seeded list on screen rather than blanking
+				// the picker (mirrors loadMessages' cache-vs-network race).
+				return fetchMaildirs()
+					.then((data) => {
+						for (const m of data) {
+							const seeded = accounts.find((a) => a.id === m.id);
+							if (seeded) Object.assign(seeded, m);
+							else accounts.push(m);
+						}
+						syncBadge();
+					})
+					.catch(() => {});
 			})
 			.catch((e: Error) => { error = e.message; loading = false; });
 
@@ -647,6 +680,15 @@ import StatusBar from '$lib/components/StatusBar.svelte';
 		// task 5.5: persist last folder; task 9.3: record frecency
 		setLastFolder(f.id).catch(() => {});
 		recordVisit('folders', f.id).catch(() => {});
+		// Reset the reconciler's idempotency guard before navigating. Re-entering the
+		// account → folder picker (`g a`) nulls `folder`/`currentMessages` but leaves
+		// `_lastFolderId` pointing at the folder we're already on. If the picked folder
+		// equals the current URL, `navigateToFolder` re-runs the reconciler with
+		// `folderChanged === false`, so it would skip restoring `folder`/messages and
+		// only flip `phase` to 'list' — leaving the list blank under the hint bar.
+		// Forcing the guard stale guarantees the reconcile reloads the folder.
+		_lastFolderId = null;
+		_lastMessageId = null;
 		navigateToFolder(f.id);
 	}
 
