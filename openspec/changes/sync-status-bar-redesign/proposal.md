@@ -40,5 +40,12 @@ The current sync status bar is visually bloated and confusing—it always shows 
 ## Non-goals
 
 - Changing how sync is triggered or the underlying sync protocol
-- Modifying the server-side sync logic or event emission
 - Adding configurable UI themes or density settings for this component
+
+> **Scope update (during apply):** the original non-goal "do not modify
+> server-side event emission" was lifted by decision. To surface
+> `checking_password` / `password_retrieved` / `connecting` / `connected` events
+> (which the client has no other signal for), the server now forwards existing
+> `SyncProgress` milestones over the SSE channel as a new `lifecycle` event.
+> No sync protocol or credential handling changes — only additional, sanitized
+> progress events on the existing broadcast channel.

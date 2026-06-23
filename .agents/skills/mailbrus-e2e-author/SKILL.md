@@ -11,6 +11,14 @@ harness is already built; your job is to write idiomatic specs that use it
 correctly and that stay in lockstep with the manifest and the OpenSpec
 behaviour they verify.
 
+**Sync tests need a real IMAP backend, not mocks.** When a spec exercises the
+sync pipeline (triggering a sync, asserting `/api/sync/stream` events, the status
+bar spinner / event log), it spins up an ephemeral **Stalwart** IMAP/JMAP sidecar
+via `e2e/harness/stalwart.ts` and points a per-test account at it — do **not**
+intercept `/api/sync` or fake the SSE stream with Playwright routes. See the
+dedicated section "Sync tests: the Stalwart IMAP sidecar" below for the full
+recipe and the current cleartext-auth limitation.
+
 Architecture, lifecycle, fixture manifest, the Node-vs-Deno split, and the
 known UI gaps are documented in [`docs/e2e-testing.md`](../../../docs/e2e-testing.md).
 Read it once if you haven't — the rest of this skill assumes that context.
@@ -201,6 +209,83 @@ exist yet:
    that's the contract working. Fix the manifest, regenerate, until green.
 4. Never hand-edit a generated `.eml` file; the next regen will clobber it.
 
+## Sync tests: the Stalwart IMAP sidecar
+
+The default `app` fixture has **no IMAP server** — its accounts point at
+placeholder hosts. So a triggered sync against the default fixture reaches the
+connection step and flips `running → error` almost immediately; it never fetches
+or indexes. Any test that needs a *real* sync (events flowing through
+`/api/sync/stream`, the spinner staying up, a completing run) must start a real
+backend with `e2e/harness/stalwart.ts`. **Never** mock `/api/sync` or synthesize
+the SSE stream with `page.route(...)` — this suite's contract is real-backend,
+and a faked stream tests the mock, not the product.
+
+`startStalwart({ users })` spins an ephemeral Stalwart on loopback ports, creates
+the `test.local` domain + each user, and can seed an INBOX via IMAP APPEND. It is
+**not** started by the default fixture (it costs ~3s), so these tests assemble
+their own server from the low-level harness building blocks instead of relying on
+the `app`/`page` fixtures' default server:
+
+```ts
+import { test, expect } from '../harness/fixtures.ts';
+import { cloneCorpus, removeClone, type Clone } from '../harness/clone.ts';
+import { writeFixtureConfig, addAccountToml, type ConfigEntry } from '../harness/config.ts';
+import { indexClone } from '../harness/notmuch.ts';
+import { startServer, type ServerHandle } from '../harness/server.ts';
+import { startStalwart, type StalwartHandle } from '../harness/stalwart.ts';
+
+// openspec/changes/<change>/specs/<capability>/spec.md: <what this asserts>
+test('drives a real sync through the SSE stream', async () => {
+  let clone: Clone | undefined; let stalwart: StalwartHandle | undefined; let server: ServerHandle | undefined;
+  try {
+    clone = await cloneCorpus();
+    const scope = await indexClone(clone);
+    stalwart = await startStalwart({
+      users: [{ email: 'alice@test.local', secret: 'stalwart-secret', inboxMessages: [/* raw .eml strings */] }]
+    });
+    const base = await writeFixtureConfig(clone);
+    const maildir = `${clone.maildir}/alice@test.local`;
+    await (await import('node:fs/promises')).mkdir(maildir, { recursive: true });
+    const entry: ConfigEntry = { id: 'alice@test.local', maildirRoot: maildir };
+    await addAccountToml(base.accountsDir, { ...entry, toml: [
+      'protocol = "imap"', 'email = "alice@test.local"', 'imap_host = "127.0.0.1"',
+      `imap_port = ${stalwart.imapPort}`, 'imap_tls = false', 'credential_backend = "plain"',
+      'credential_ref = "stalwart-secret"', `maildir_root = "${maildir}"`, ''
+    ].join('\n') });
+    server = await startServer({ scope, clone, config: { ...base, entries: [...base.entries, entry] } });
+    // ...trigger POST /api/sync/<entry.id>, read SSE, or drive the UI at server.baseURL...
+  } finally {
+    if (server) await server.stop();
+    if (stalwart) await stalwart.stop();
+    await removeClone(clone);
+  }
+});
+```
+
+`sync.spec.ts` is the canonical, fully-worked example (SSE assertions). For
+**UI** tests that need to point the browser at this custom server, navigate the
+page to `server.baseURL` (the default `page` fixture targets the default server,
+so you drive the custom one by URL).
+
+**Known limitation — cleartext auth fails (assert accordingly).** Stalwart
+0.15.5 refuses cleartext IMAP `LOGIN`/`AUTHENTICATE` even with
+`imap.auth.allow-plain-text = true`, so a real sync currently terminates at the
+auth step with `status: "error"` — it never reaches fetch/index/`sync_completed`.
+Consequences for assertions:
+
+- The lifecycle events that fire **before** auth *do* arrive:
+  `checking_password`, `password_retrieved`, `connecting`, then `sync_failed`.
+  Assert on those, not on `connected`/`fetched`/`indexed`.
+- Terminal-status assertions should accept `['done', 'error']` (see `sync.spec.ts`).
+- Tests that require a **completing** sync (history populated, spinner observed
+  mid-fetch, `sync_completed`) stay `test.fixme(...)` with a comment pointing at
+  this limitation — enable them once a TLS-capable Stalwart listener (or a
+  confirmed cleartext opt-in) lands. `status-bar.spec.ts` has the canonical
+  `test.fixme` slots.
+
+For a local **dev** backend (not the per-test sidecar), `deno task stalwart:dev`
+(`scripts/stalwart-dev.ts`) runs a standing Stalwart instance.
+
 ## Common pitfalls observed in this repo
 
 - **Forgetting the OpenSpec comment.** Reviewers will ask for it; CI doesn't
@@ -222,6 +307,11 @@ exist yet:
 - **Building selectors from scratch when a page object exists.** Add a method
   to `AccountsPage` / `MailboxPage` / `MessagePage` instead — that's where the
   next test will look for it too.
+- **Mocking the sync API / SSE stream.** Don't `page.route('**/api/sync*', …)`
+  or hand-feed `/api/sync/stream` frames. Sync tests use the real Stalwart
+  sidecar (see "Sync tests: the Stalwart IMAP sidecar"); assert on the pre-auth
+  lifecycle events + `error` terminal state, and `test.fixme` anything that needs
+  a completing sync.
 
 ## After writing the spec
 
