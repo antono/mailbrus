@@ -4,10 +4,23 @@
 // `"index"` (notmuch indexing progress). We fold both into one row per
 // account+mailbox so the status bar can render per-account progress.
 
-import { triggerSync } from './api';
+import { triggerSync } from './api.ts';
 import { saveRun } from './syncHistory.svelte.ts';
+import { addEvent, archiveCurrentRun } from './syncEventLog.svelte.ts';
 
 export type EventStatus = 'running' | 'done' | 'error';
+
+/**
+ * Fine-grained lifecycle milestone forwarded by the server (`type: "lifecycle"`):
+ * credential lookup, connection, and fetch phases. `detail` is sanitized.
+ */
+interface LifecycleEvent {
+	type: 'lifecycle';
+	account_id: string;
+	mailbox: string | null;
+	stage: string;
+	detail?: string;
+}
 
 interface SyncEvent {
 	type: 'sync';
@@ -33,7 +46,7 @@ interface SyncFinishedEvent {
 	accounts: string[];
 }
 
-type StreamEvent = SyncEvent | IndexEvent | SyncFinishedEvent;
+type StreamEvent = SyncEvent | IndexEvent | LifecycleEvent | SyncFinishedEvent;
 
 export interface SyncRow {
 	accountId: string;
@@ -77,6 +90,13 @@ function rowFor(accountId: string, mailbox: string | null): SyncRow {
 }
 
 function applyEvent(evt: StreamEvent): void {
+	// Capture a timestamped line in the event log for every lifecycle milestone.
+	if (evt.type === 'lifecycle') {
+		addEvent(evt.account_id, evt.stage, evt.detail);
+		if (syncState.started) syncState.started = false;
+		return;
+	}
+
 	if (evt.type === 'sync_finished') {
 		syncState.lastFinishedAccounts = evt.accounts;
 		syncState.runClosed = true;
@@ -86,6 +106,19 @@ function applyEvent(evt: StreamEvent): void {
 		for (const row of Object.values(syncState.rows)) {
 			if (evt.accounts.length === 0 || evt.accounts.includes(row.accountId)) {
 				row.runFinishedAt = now;
+			}
+		}
+		// Log a terminal event per finished account (task 2.3): failed if any of
+		// its rows carry an error, completed otherwise.
+		const finished = evt.accounts.length > 0 ? evt.accounts : Object.values(syncState.rows).map((r) => r.accountId);
+		for (const accountId of new Set(finished)) {
+			const rows = Object.values(syncState.rows).filter((r) => r.accountId === accountId);
+			const failed = rows.some((r) => r.error);
+			if (failed) {
+				addEvent(accountId, 'sync_failed', rows.find((r) => r.error)?.error);
+			} else {
+				const fetched = rows.reduce((n, r) => n + r.fetched, 0);
+				addEvent(accountId, 'sync_completed', `${fetched} fetched`);
 			}
 		}
 		// Snapshot history — only if there are rows to capture.
@@ -116,6 +149,10 @@ function applyEvent(evt: StreamEvent): void {
 	} else {
 		row.indexStatus = evt.status;
 		row.indexed = evt.indexed;
+		// Log an `indexed` line once indexing for this mailbox completes.
+		if (evt.status === 'done') {
+			addEvent(evt.account_id, 'indexed', `${evt.indexed} messages`);
+		}
 	}
 	// Last error wins; cleared when a later event for the row succeeds.
 	if (evt.status === 'error') {
@@ -143,6 +180,9 @@ export function isActive(): boolean {
  */
 export async function requestSync(accountId?: string): Promise<void> {
 	if (isActive()) return;
+	// A new run begins: archive the previous run's events so the log's "current
+	// run" starts fresh and the prior run moves into history (task 2.4).
+	archiveCurrentRun();
 	syncState.started = true;
 	syncState.runClosed = false;
 	syncState.runId++;
@@ -195,7 +235,13 @@ export function connectSyncStream(): () => void {
 	es.onmessage = (e: MessageEvent) => {
 		try {
 			const evt = JSON.parse(e.data) as StreamEvent;
-			if (evt && (evt.type === 'sync' || evt.type === 'index' || evt.type === 'sync_finished')) {
+			if (
+				evt &&
+				(evt.type === 'sync' ||
+					evt.type === 'index' ||
+					evt.type === 'lifecycle' ||
+					evt.type === 'sync_finished')
+			) {
 				applyEvent(evt);
 			}
 		} catch {
