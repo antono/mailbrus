@@ -59,6 +59,20 @@ pub struct SyncFinishedEvent {
     pub accounts: Vec<String>,
 }
 
+/// A timestamped lifecycle milestone (credential lookup, connection, fetch
+/// phase) forwarded from [`crate::sync::imap::SyncProgress`] so the UI event log
+/// can show fine-grained sync progress. `detail` is always sanitized — it never
+/// carries a password or token, only a backend name / host:port / count.
+#[derive(Debug, Clone, Serialize)]
+pub struct LifecycleEvent {
+    pub account_id: String,
+    pub mailbox: Option<String>,
+    /// Stage name, e.g. `checking_password`, `connecting`, `connected`, `fetching`.
+    pub stage: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
 /// Everything broadcast over the `/api/sync/stream` SSE channel.
 ///
 /// Internally tagged on `type`, so a [`SyncEvent`] serializes as
@@ -69,6 +83,7 @@ pub struct SyncFinishedEvent {
 pub enum BroadcastEvent {
     Sync(SyncEvent),
     Index(IndexEvent),
+    Lifecycle(LifecycleEvent),
     #[serde(rename = "sync_finished")]
     SyncFinished(SyncFinishedEvent),
 }
@@ -76,6 +91,12 @@ pub enum BroadcastEvent {
 impl From<SyncEvent> for BroadcastEvent {
     fn from(e: SyncEvent) -> Self {
         BroadcastEvent::Sync(e)
+    }
+}
+
+impl From<LifecycleEvent> for BroadcastEvent {
+    fn from(e: LifecycleEvent) -> Self {
+        BroadcastEvent::Lifecycle(e)
     }
 }
 

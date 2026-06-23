@@ -28,7 +28,7 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::config::{AccountConfig, CredentialBackend, ImapConfig, ProtocolConfig};
 use crate::credentials::{self, CredentialError};
-use crate::sync::engine::{BroadcastEvent, IndexEvent, SyncStatus};
+use crate::sync::engine::{BroadcastEvent, IndexEvent, LifecycleEvent, SyncStatus};
 use crate::sync::state::{ImapMailboxState, SyncStateDb, SyncStateError};
 
 const DEFAULT_MAILBOX: &str = "INBOX";
@@ -111,6 +111,31 @@ pub enum SyncProgress {
 /// A callback invoked synchronously for each [`SyncProgress`] milestone.
 pub type ProgressSink = Arc<dyn Fn(SyncProgress) + Send + Sync>;
 
+/// Map a [`SyncProgress`] milestone to a UI lifecycle `(stage, detail)`, or
+/// `None` for milestones not surfaced in the event log. `detail` is sanitized:
+/// it never contains a password — only the backend name, `host:port`, or a count.
+fn lifecycle_of(p: &SyncProgress) -> Option<(&'static str, Option<String>)> {
+    match p {
+        SyncProgress::ResolvingCredentials { backend, .. } => {
+            Some(("checking_password", Some((*backend).to_string())))
+        }
+        SyncProgress::CredentialsResolved { backend } => {
+            Some(("password_retrieved", Some((*backend).to_string())))
+        }
+        SyncProgress::Connecting { host, port } => {
+            Some(("connecting", Some(format!("{host}:{port}"))))
+        }
+        SyncProgress::Authenticated => Some(("connected", None)),
+        SyncProgress::FetchingBatch { count } => {
+            Some(("fetching", Some(format!("{count} messages"))))
+        }
+        SyncProgress::BatchFetched { count } => {
+            Some(("fetched", Some(format!("{count} messages"))))
+        }
+        _ => None,
+    }
+}
+
 pub struct ImapWorker {
     account_id: String,
     imap: ImapConfig,
@@ -166,6 +191,19 @@ impl ImapWorker {
     }
 
     fn progress(&self, p: SyncProgress) {
+        // Forward credential/connection/fetch milestones to the SSE channel as
+        // `lifecycle` events so the UI event log can show fine-grained progress.
+        // `detail` is sanitized (backend name / host:port / count) — never a secret.
+        if let Some(tx) = &self.events_tx {
+            if let Some((stage, detail)) = lifecycle_of(&p) {
+                let _ = tx.send(BroadcastEvent::Lifecycle(LifecycleEvent {
+                    account_id: self.account_id.clone(),
+                    mailbox: Some(self.mailbox.clone()),
+                    stage: stage.to_string(),
+                    detail,
+                }));
+            }
+        }
         if let Some(sink) = &self.progress {
             sink(p);
         }
