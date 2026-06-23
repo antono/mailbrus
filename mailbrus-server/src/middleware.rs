@@ -21,6 +21,29 @@ pub async fn no_store_middleware(req: Request<axum::body::Body>, next: Next) -> 
     res
 }
 
+/// Cache policy for the statically-served SPA.
+///
+/// Vite emits content-hashed assets under `/_app/immutable/` whose contents never
+/// change for a given URL — those can be cached forever. The SPA shell
+/// (`index.html`, served for `/` and as the SPA fallback) MUST NOT be cached: each
+/// rebuild produces new hashed chunk names, so a browser holding a stale shell
+/// would request deleted chunks (404) and fail to boot, or boot the old app — the
+/// classic "rebuilt the app but the browser is stuck on the old one" failure. The
+/// shell is marked `no-cache` (revalidate every load; ServeDir's ETag/Last-Modified
+/// keep that a cheap 304). `/api/*` is handled separately by `no_store_middleware`.
+pub async fn static_cache_middleware(req: Request<axum::body::Body>, next: Next) -> Response {
+    let immutable = req.uri().path().starts_with("/_app/immutable/");
+    let mut res = next.run(req).await;
+    let value = if immutable {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
+    res.headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static(value));
+    res
+}
+
 pub async fn log_middleware(
     State(state): State<AppState>,
     req: Request<axum::body::Body>,

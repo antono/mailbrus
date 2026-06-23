@@ -4,8 +4,15 @@
  *
  *   deno task server
  *
- * Builds the server binary (debug), starts it with --browser, and opens
- * the default web browser. Ctrl-C stops the server cleanly.
+ * Rebuilds BOTH the SPA (vite → `build/`) and the server binary (debug), then
+ * starts the server with --browser and opens the default web browser. Ctrl-C
+ * stops the server cleanly.
+ *
+ * The SPA rebuild is mandatory: the server serves the static `build/` dir, whose
+ * `index.html` references content-hashed chunks (e.g. `chunks/B6yxSejh.js`). If
+ * `build/` is stale relative to the source, the browser requests chunks that no
+ * longer exist and the app fails to boot ("error loading dynamically imported
+ * module"). Rebuilding every launch keeps the served SPA and server in lockstep.
  */
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -15,15 +22,27 @@ function log(msg: string) {
   console.log(`[server] ${msg}`);
 }
 
-async function build(): Promise<boolean> {
-  log("building mailbrus-server (debug)…");
-  const { success } = await new Deno.Command("cargo", {
-    args: ["build", "-p", "mailbrus-server"],
+/** Build one component; returns whether it succeeded. */
+async function run(label: string, cmd: string, args: string[]): Promise<boolean> {
+  log(`building ${label}…`);
+  const { success } = await new Deno.Command(cmd, {
+    args,
     cwd: ROOT,
     stdout: "inherit",
     stderr: "inherit",
   }).output();
   return success;
+}
+
+/** Rebuild the SPA and the server binary concurrently (they are independent). */
+async function build(): Promise<boolean> {
+  const [spa, server] = await Promise.all([
+    run("SPA (vite build → build/)", "deno", ["task", "build"]),
+    run("mailbrus-server (debug)", "cargo", ["build", "-p", "mailbrus-server"]),
+  ]);
+  if (!spa) log("SPA build failed");
+  if (!server) log("server build failed");
+  return spa && server;
 }
 
 function start(proc: Deno.ChildProcess) {
