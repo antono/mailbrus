@@ -167,25 +167,24 @@ impl SyncEngine {
 
     /// Trigger a background sync for every configured account.
     /// Returns immediately after spawning tasks.
-    /// A supervisor task waits for all spawned workers and emits `SyncFinished`
-    /// on the broadcast channel with the full account list.
+    /// A supervisor task awaits every worker's *actual* completion, then emits a
+    /// single aggregate `SyncFinished` with the full account list. Per-account
+    /// workers run with `emit_finished = false`, so the only run-closing signal
+    /// on the channel is this one event — the frontend can treat each
+    /// `SyncFinished` as exactly one closed run (no premature/duplicate flips).
     pub fn sync_all(self: &Arc<Self>) {
-        let ids = self.account_ids();
         let engine = self.clone();
-        let handles: Vec<_> = ids
-            .iter()
-            .map(|id| {
-                let engine = engine.clone();
-                let id = id.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = engine.sync_account(&id).await {
-                        error!(account = %id, err = ?e, "sync_account failed to start");
-                    }
-                })
-            })
-            .collect();
-
         tokio::spawn(async move {
+            let ids = engine.account_ids();
+            let mut handles = Vec::with_capacity(ids.len());
+            for id in &ids {
+                match engine.spawn_worker(id, false).await {
+                    Ok(handle) => handles.push(handle),
+                    Err(e) => error!(account = %id, err = ?e, "sync_account failed to start"),
+                }
+            }
+            // Await the workers themselves (not just their spawning) so the
+            // aggregate event fires after all fetch/index work is truly done.
             for h in handles {
                 let _ = h.await;
             }
@@ -197,8 +196,22 @@ impl SyncEngine {
 
     /// Trigger a sync for one account. Returns immediately after spawning
     /// the worker task. Returns an error synchronously if the account is
-    /// unknown or already syncing.
+    /// unknown or already syncing. The worker emits its own `SyncFinished`
+    /// (this is the standalone single-account run-closing signal).
     pub async fn sync_account(self: &Arc<Self>, id: &str) -> Result<(), SyncError> {
+        self.spawn_worker(id, true).await.map(|_| ())
+    }
+
+    /// Acquire the in-flight guard and spawn the worker task, returning its
+    /// `JoinHandle` so callers (e.g. `sync_all`'s supervisor) can await real
+    /// completion. `emit_finished` controls whether the worker emits its own
+    /// per-account `SyncFinished` — `sync_all` sets this `false` and lets the
+    /// supervisor emit one aggregate event instead.
+    async fn spawn_worker(
+        self: &Arc<Self>,
+        id: &str,
+        emit_finished: bool,
+    ) -> Result<tokio::task::JoinHandle<()>, SyncError> {
         let account = self
             .accounts
             .get(id)
@@ -215,14 +228,19 @@ impl SyncEngine {
 
         let engine = self.clone();
         let id_owned = id.to_string();
-        tokio::spawn(async move {
-            engine.run_account_worker(account, id_owned).await;
-        });
-
-        Ok(())
+        Ok(tokio::spawn(async move {
+            engine
+                .run_account_worker(account, id_owned, emit_finished)
+                .await;
+        }))
     }
 
-    async fn run_account_worker(self: Arc<Self>, account: AccountConfig, id: String) {
+    async fn run_account_worker(
+        self: Arc<Self>,
+        account: AccountConfig,
+        id: String,
+        emit_finished: bool,
+    ) {
         let _ = self.events_tx.send(BroadcastEvent::Sync(SyncEvent {
             account_id: id.clone(),
             mailbox: None,
@@ -276,13 +294,18 @@ impl SyncEngine {
             }
         };
         let _ = self.events_tx.send(BroadcastEvent::Sync(final_event));
-        // Single-account sync: emit SyncFinished so the frontend knows the run
-        // is complete for this account.
-        let _ = self
-            .events_tx
-            .send(BroadcastEvent::SyncFinished(SyncFinishedEvent {
-                accounts: vec![id.clone()],
-            }));
+        // A standalone single-account sync emits its own run-closing SyncFinished.
+        // Under `sync_all` (`emit_finished = false`) the supervisor emits one
+        // aggregate SyncFinished instead, so the worker stays silent — otherwise
+        // each account's spurious SyncFinished would prematurely close the run on
+        // the frontend and archive the still-live run's events.
+        if emit_finished {
+            let _ = self
+                .events_tx
+                .send(BroadcastEvent::SyncFinished(SyncFinishedEvent {
+                    accounts: vec![id.clone()],
+                }));
+        }
 
         let mut in_flight = self.in_flight.lock().await;
         in_flight.remove(&id);

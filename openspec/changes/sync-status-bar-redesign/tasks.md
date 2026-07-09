@@ -66,7 +66,7 @@
 - [x] 7.7 Write E2E test: verify event log displays timestamps, account, and event types correctly (real Stalwart sidecar)
 - [x] 7.8 Write E2E test: verify popup closes and spinner returns to idle after sync completes
 - [x] 7.9 Write E2E test: verify error dot appears on sync failure
-- [ ] 7.10 Write E2E test: verify "Clear history" button works with confirmation (placeholder `test.fixme` present; needs ≥2 runs to archive history — blocked by Stalwart cleartext-auth limitation, same as the completing-sync fixme)
+- [x] 7.10 Write E2E test: verify "Clear history" button works with confirmation (race-free: opens the popup during run #1, then a second sync archives run #1 into History live; auto-accepts the confirm dialog; passing)
 
 ## 8. E2E Test Validation and Fixes
 

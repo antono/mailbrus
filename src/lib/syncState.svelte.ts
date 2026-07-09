@@ -90,6 +90,19 @@ function rowFor(accountId: string, mailbox: string | null): SyncRow {
 }
 
 function applyEvent(evt: StreamEvent): void {
+	// A fresh `running` sync event is the server's "new run started" signal — the
+	// engine sends it first for every run. If `runClosed` is still set from the
+	// previous run, reopen it here so this run's `sync`/`index` events are not
+	// dropped by the straggler guard below. This matters for syncs NOT initiated
+	// via the UI (`requestSync`), e.g. the push-poller / auto-sync, which would
+	// otherwise leave `runClosed` true and lose the final `Sync(Done, fetched)` —
+	// surfacing as "sync_completed 0 fetched" despite a successful fetch. Also
+	// roll the prior run into history, mirroring what `requestSync` does.
+	if (evt.type === 'sync' && evt.status === 'running' && syncState.runClosed) {
+		syncState.runClosed = false;
+		archiveCurrentRun();
+	}
+
 	// Capture a timestamped line in the event log for every lifecycle milestone.
 	if (evt.type === 'lifecycle') {
 		addEvent(evt.account_id, evt.stage, evt.detail);

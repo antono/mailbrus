@@ -159,21 +159,40 @@ test('event log records timestamped lifecycle events for a real sync', async () 
 
 // openspec/changes/sync-status-bar-redesign/specs/sync-event-log/spec.md: clear-history removes archived runs (needs ≥2 runs)
 //
-// The "Clear history" button only appears once a prior run has been archived,
-// which requires a second sync to roll the first run into history. With the
-// cleartext-auth limitation both runs error, but archival still occurs on the
-// second requestSync — enable once the morph timing under back-to-back errored
-// runs is stable enough to drive deterministically in CI.
-test.fixme('clear-history button removes archived runs after confirmation', async ({ page }) => {
+// History only appears once a prior run is archived, which happens on the *next*
+// `requestSync()` — so two runs suffice even though both error under the
+// cleartext-auth limitation (no completing sync needed). To avoid racing the
+// second run's spinner before it errors away, the popup is opened during run #1
+// (it persists per the redesign) and run #2 makes the History section appear
+// live inside the already-open popup.
+test('clear-history button removes archived runs after confirmation', async ({ page }) => {
 	const dialogs: string[] = [];
 	page.on('dialog', (d) => {
 		dialogs.push(d.message());
-		d.accept();
+		void d.accept();
 	});
 	await page.goto('/');
-	// (sync twice so run #1 is archived, open popup, assert History visible, then
-	//  click status-bar.clear-history and assert the section disappears.)
+
+	// Run #1: morph to spinner, open the popup (stays open across the run), then
+	// wait for the run to finish (spinner → idle dot) so it carries a terminal event.
+	await page.getByTestId('status-bar.idle').click();
+	await page.getByTestId('status-bar.sync-btn').click();
+	await page.getByTestId('status-bar.spinner').click();
+	await expect(page.getByTestId('status-bar.popup')).toBeVisible();
+	await expect(page.getByTestId('status-bar.idle')).toBeVisible({ timeout: 30_000 });
+	// No history yet: run #1's events are still the (un-archived) current run.
 	await expect(page.getByTestId('status-bar.history')).toHaveCount(0);
+
+	// Run #2: starting another sync archives run #1 → History appears in the popup.
+	await page.getByTestId('status-bar.idle').click();
+	await page.getByTestId('status-bar.sync-btn').click();
+	const history = page.getByTestId('status-bar.history');
+	await expect(history).toBeVisible({ timeout: 30_000 });
+
+	// Clear it — the confirm() dialog is auto-accepted above.
+	await page.getByTestId('status-bar.clear-history').click();
+	await expect(history).toHaveCount(0);
+	expect(dialogs[0]).toContain('Clear all sync history?');
 });
 
 // openspec/changes/sync-status-bar-redesign/specs/sync-event-log/spec.md: completing sync populates fetched/indexed/sync_completed
