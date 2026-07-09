@@ -28,6 +28,12 @@ test('links have mb-link class for styling', async ({ page }) => {
 	const reader = new MessagePage(page);
 	const links = page.locator('a.mb-link');
 
+	// The message body loads asynchronously; `linkify` renders the anchors only
+	// once `parts.main` arrives. Await a web-first assertion (auto-retries) before
+	// the bare `.count()` snapshot — otherwise a busy server (parallel workers)
+	// makes the body land after the count read and the test flakes on 0.
+	await expect(links.first()).toBeVisible();
+
 	// At least one link with the mb-link class should exist
 	const count = await links.count();
 	expect(count).toBeGreaterThanOrEqual(1);
@@ -83,6 +89,9 @@ test('mailto links display email icon', async ({ page }) => {
 
 	const reader = new MessagePage(page);
 	const links = page.locator('.mb-link');
+
+	// Wait for the async body render before the non-retrying `.count()` read.
+	await expect(links.first()).toBeVisible();
 
 	// Get all links and check their text/icon
 	const linkCount = await links.count();
