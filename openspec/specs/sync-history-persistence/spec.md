@@ -1,7 +1,8 @@
 # sync-history-persistence Specification
 
+## Purpose
+TBD - created by archiving change ui-sync-status. Update Purpose after archive.
 ## Requirements
-
 ### Requirement: Sync run history in localStorage
 
 The frontend SHALL keep a history of the last 3 completed sync runs in `localStorage` under the key `mailbrus_sync_history`. Each run SHALL store a `finishedAt` ISO-8601 timestamp and per-account `accountId`, `syncStatus`, `indexStatus`, `fetched`, `indexed`, and optional `error`. Runs SHALL be evicted FIFO when the count exceeds 3.
@@ -33,3 +34,4 @@ The sync status popup SHALL include a "Clear history" control that removes all p
 #### Scenario: Clear history is hidden when history is empty
 - **WHEN** no sync runs exist (fresh install or history already cleared)
 - **THEN** no "Clear history" control is shown in the popup
+
