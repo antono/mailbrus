@@ -79,8 +79,10 @@ pkgs.mkShell {
     GDK_BACKEND = "x11";
 
     # Playwright E2E: use the Nix-provided browsers, never download at runtime.
+    # Host-requirement validation is left ON: the nixpkgs browsers resolve their
+    # libraries via RPATH and pass it silently, so skipping it only added a noisy
+    # "Skipping host requirements validation…" line to every run.
     PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
-    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
   };
 }
