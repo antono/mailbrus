@@ -229,7 +229,11 @@ export async function startStalwart(opts: { users: StalwartUser[] }): Promise<St
 
 	try {
 		await Promise.race([
-			waitForHttp(httpPort, Date.now() + 15_000, adminUser, adminSecret),
+			// 30s (not 15s): under a full parallel run two Stalwart sidecars boot
+			// alongside notmuch indexing + server spawns, and startup can exceed a
+			// tighter window. The poll returns the instant Stalwart binds, so a
+			// higher ceiling only costs wall-clock on the pathological slow path.
+			waitForHttp(httpPort, Date.now() + 30_000, adminUser, adminSecret),
 			spawnFailed
 		]);
 	} catch (e) {

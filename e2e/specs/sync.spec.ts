@@ -35,6 +35,9 @@ const FIXTURE_MESSAGE = [
 
 test.describe('POST /api/sync', () => {
 	test('returns 202 and drives a SyncEvent through SSE for a Stalwart-backed account', async () => {
+		// Spins up a real Stalwart sidecar (~3s+) then drives a full sync run;
+		// give it headroom over the default 45s per-test cap under parallel load.
+		test.slow();
 		let clone: Clone | undefined;
 		let stalwart: StalwartHandle | undefined;
 		let server: ServerHandle | undefined;

@@ -90,6 +90,9 @@ test('a failed sync surfaces the error-state dot', async ({ page }) => {
 
 // openspec/changes/sync-status-bar-redesign/specs/sync-event-log/spec.md: event log shows timestamped lifecycle events
 test('event log records timestamped lifecycle events for a real sync', async () => {
+	// Spins up a real Stalwart sidecar (~3s+) then drives a full sync run;
+	// give it headroom over the default 45s per-test cap under parallel load.
+	test.slow();
 	let clone: Clone | undefined;
 	let stalwart: StalwartHandle | undefined;
 	let server: ServerHandle | undefined;
