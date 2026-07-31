@@ -10,6 +10,47 @@ const ASSETS_CACHE = `assets-v${SW_VERSION}`;
 
 const APP_SHELL_URLS = ['/', '/manifest.webmanifest'];
 
+// ── Bearer token (origin validation / CWE-346) ──────────────────────────────
+// Mirrors the window-side token in src/lib/api.ts. The SW can be killed and
+// restarted at will, losing module state, so the token is hydrated lazily from
+// IndexedDB (the durable channel the window writes to) and refreshed live via
+// postMessage from the page. `undefined` = not yet hydrated; `null` = known-empty.
+let _swAuthToken: string | null | undefined = undefined;
+
+self.addEventListener('message', (e) => {
+	if (e.data?.type === 'auth-token') {
+		_swAuthToken = typeof e.data.token === 'string' && e.data.token ? e.data.token : null;
+		pwaLog('SW', 'auth token updated');
+	}
+});
+
+async function getSwAuthToken(): Promise<string | null> {
+	if (_swAuthToken !== undefined) return _swAuthToken;
+	try {
+		const { idbGet } = await import('./lib/idb');
+		const row = await idbGet<{ key: string; value: string }>('settings', 'auth_token');
+		_swAuthToken = row?.value ?? null;
+	} catch {
+		_swAuthToken = null;
+	}
+	return _swAuthToken;
+}
+
+/** Auth headers for SW-originated fetches (background send/sync). */
+async function swAuthHeaders(): Promise<Record<string, string>> {
+	const token = await getSwAuthToken();
+	return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** Clone a request with the bearer token attached, for pass-through /api fetches. */
+async function authorizeRequest(req: Request): Promise<Request> {
+	const token = await getSwAuthToken();
+	if (!token) return req;
+	const headers = new Headers(req.headers);
+	headers.set('Authorization', `Bearer ${token}`);
+	return new Request(req, { headers });
+}
+
 // ── Install ───────────────────────────────────────────────────────────────────
 
 self.addEventListener('install', (e) => {
@@ -79,7 +120,7 @@ self.addEventListener('fetch', (e) => {
 			pathname.startsWith('/api/messages/') ||
 			pathname.startsWith('/api/push/'))
 	) {
-		e.respondWith(networkOnlyOrFail(e.request));
+		e.respondWith(authorizeRequest(e.request).then(networkOnlyOrFail));
 		return;
 	}
 
@@ -102,13 +143,19 @@ self.addEventListener('fetch', (e) => {
 
 	// message list: network-first with 5s timeout, cache fallback
 	if (pathname.startsWith('/api/messages') && !pathname.match(/\/api\/messages\/.+/)) {
-		e.respondWith(networkFirstWithFallback(e.request, APP_SHELL_CACHE, 5000));
+		e.respondWith(
+			authorizeRequest(e.request).then((r) =>
+				networkFirstWithFallback(r, APP_SHELL_CACHE, 5000)
+			)
+		);
 		return;
 	}
 
 	// message body: cache-first, fetch+cache on miss
 	if (pathname.match(/^\/api\/messages\/.+/)) {
-		e.respondWith(cacheFirstFetch(e.request, MSG_BODIES_CACHE));
+		e.respondWith(
+			authorizeRequest(e.request).then((r) => cacheFirstFetch(r, MSG_BODIES_CACHE))
+		);
 		return;
 	}
 
@@ -193,7 +240,7 @@ async function flushOutbox() {
 		try {
 			const res = await fetch('/api/send', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json' },
+				headers: { 'content-type': 'application/json', ...(await swAuthHeaders()) },
 				body: JSON.stringify((entry as Record<string, unknown>).message)
 			});
 			if (res.ok) {
@@ -222,11 +269,14 @@ async function flushMutations() {
 		try {
 			let res: Response;
 			if (mut.op === 'delete' || mut.op === 'trash') {
-				res = await fetch(`/api/messages/${mut.message_id}`, { method: 'DELETE' });
+				res = await fetch(`/api/messages/${mut.message_id}`, {
+					method: 'DELETE',
+					headers: await swAuthHeaders()
+				});
 			} else {
 				res = await fetch(`/api/messages/${mut.message_id}`, {
 					method: 'PATCH',
-					headers: { 'content-type': 'application/json' },
+					headers: { 'content-type': 'application/json', ...(await swAuthHeaders()) },
 					body: JSON.stringify({ op: mut.op, ...(mut.args ?? {}) })
 				});
 			}
@@ -315,11 +365,13 @@ self.addEventListener('notificationclick', (e) => {
 	const { threadUrl, message_id, folder } = e.notification.data ?? {};
 	if (e.action === 'archive' && message_id && folder) {
 		e.waitUntil(
-			fetch(`/api/messages/${message_id}`, {
-				method: 'PATCH',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ op: 'move', target_folder: 'Archive' })
-			})
+			(async () => {
+				await fetch(`/api/messages/${message_id}`, {
+					method: 'PATCH',
+					headers: { 'content-type': 'application/json', ...(await swAuthHeaders()) },
+					body: JSON.stringify({ op: 'move', target_folder: 'Archive' })
+				});
+			})()
 		);
 		return;
 	}

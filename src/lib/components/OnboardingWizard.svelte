@@ -1,6 +1,6 @@
 <script lang="ts">
 	// openspec/changes/accounts-dialog/specs/onboarding-wizard/spec.md
-	import { createAccount, triggerSync } from '$lib/api.js';
+	import { createAccount, triggerSync, authHeaders } from '$lib/api.js';
 	import type { AccountSummary, CreateAccountPayload, CredentialBackend } from '$lib/api.js';
 
 	let { onAccountReady }: { onAccountReady: (account: AccountSummary) => void } = $props();
@@ -180,7 +180,7 @@
 		for (let i = 0; i < MAX_POLLS; i++) {
 			await new Promise((r) => setTimeout(r, 2000));
 			try {
-				const res = await fetch('/api/maildirs');
+				const res = await fetch('/api/maildirs', { headers: authHeaders() });
 				if (!res.ok) continue;
 				const maildirs = await res.json() as Array<{ id: string; total: number }>;
 				const acc = maildirs.find((m) => m.id === accountId);

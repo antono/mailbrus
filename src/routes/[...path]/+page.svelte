@@ -25,6 +25,7 @@ import StatusBar from '$lib/components/StatusBar.svelte';
 		searchMessages,
 		fetchMessage,
 		getAccounts,
+		authHeaders,
 		type Account,
 		type AccountSummary,
 		type Folder,
@@ -921,7 +922,7 @@ import StatusBar from '$lib/components/StatusBar.svelte';
 				try {
 					const res = await fetch('/api/send', {
 						method: 'POST',
-						headers: { 'content-type': 'application/json' },
+						headers: { 'content-type': 'application/json', ...authHeaders() },
 						body: JSON.stringify(draft)
 					});
 					if (!res.ok) throw new Error(`HTTP ${res.status}`);

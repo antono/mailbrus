@@ -26,12 +26,15 @@ function reserveFreePort(): Promise<number> {
 	});
 }
 
-async function waitForHealth(baseURL: string, timeoutMs = 20_000): Promise<void> {
+async function waitForHealth(baseURL: string, auth?: string, timeoutMs = 20_000): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	let lastErr: unknown;
+	// When the server enforces `--auth`, the health probe must present the token
+	// or it would 401 forever and the server would never look healthy.
+	const headers = auth ? { Authorization: `Bearer ${auth}` } : undefined;
 	while (Date.now() < deadline) {
 		try {
-			const res = await fetch(`${baseURL}/api/maildirs`);
+			const res = await fetch(`${baseURL}/api/maildirs`, { headers });
 			if (res.ok) return;
 			lastErr = new Error(`status ${res.status}`);
 		} catch (e) {
@@ -53,6 +56,8 @@ export interface ServerOptions {
 	clone: Clone;
 	/** Mailbrus config TOML; the server reads accounts from this file. */
 	config: ConfigHandle;
+	/** When set, start the server with `--auth <token>` (enforced on `/api/*`). */
+	auth?: string;
 }
 
 /** Start a server pointed at `clone`'s `XDG_DATA_HOME` and wait until it answers. */
@@ -68,6 +73,7 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
 		'--config',
 		opts.config.path
 	];
+	if (opts.auth) args.push('--auth', opts.auth);
 
 	// `XDG_DATA_HOME` points the server's self-owned notmuch DB at this clone
 	// (`$XDG_DATA_HOME/mailbrus/`). No `--notmuch-db` and no `NOTMUCH_CONFIG`: the
@@ -86,7 +92,7 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
 	);
 
 	try {
-		await Promise.race([waitForHealth(baseURL), spawnFailed]);
+		await Promise.race([waitForHealth(baseURL, opts.auth), spawnFailed]);
 	} catch (e) {
 		child.kill('SIGKILL');
 		throw new Error(`${(e as Error).message}${stderr ? `\nserver stderr:\n${stderr}` : ''}`);

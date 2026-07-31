@@ -53,3 +53,36 @@ Traces are kept only on failure (`trace: 'retain-on-failure'` in
    trace file manually.
 
 The trace viewer is a local PWA; it never uploads your trace.
+
+## Security posture (API origin validation)
+
+`mailbrus-server` is a local HTTP server; the browser is a hostile-adjacent
+context, so the API validates request origin server-side (guards live in
+`mailbrus-server/src/middleware.rs`):
+
+- **Host allowlist** (outermost layer): requests whose `Host` is not a known
+  loopback authority for the bound port are rejected `403`. This is the primary
+  DNS-rebinding (CWE-346) defense — it also guards the static SPA shell. An
+  unspecified bind (`0.0.0.0`/`[::]`) disables the check and relies on `--auth`.
+- **Cross-site guard**: unsafe methods (`POST`/`PATCH`/`DELETE`) on `/api/*` with
+  `Sec-Fetch-Site: cross-site`/`same-site` are rejected `403` (CSRF residual).
+- **`--auth <token>`**: when set, `/api/*` requires `Authorization: Bearer <token>`
+  (constant-time compare) or returns `401`. **This flag is now enforced** — it was
+  previously a no-op that only affected the startup warning, so setting it is a
+  behavior change for any prior caller. The default loopback run uses no token.
+
+The frontend attaches the token from `src/lib/api.ts` (`setAuthToken` /
+`authHeaders`); the service worker (`src/sw.ts`) hydrates it from IndexedDB and a
+`postMessage` so background send/sync stay authenticated under `--auth`.
+
+## Nix build maintenance
+
+Whenever `Cargo.lock` changes (new crate, version bump), update `cargoHash` in
+`nix/pkgs.nix` **in the same commit**. All three workspace packages (`mailbrus`,
+`mailbrus-server`, `mailbrus-desktop`) share one hash — update all three.
+
+The correct hash is printed by a failed `nix build` as `got: sha256-…`. Paste
+that value into the three `cargoHash` fields and re-run `nix build` to verify.
+
+Letting the hash drift is silent on a warm Nix store (cached derivation reused)
+but breaks any fresh build — including CI and new developer machines.

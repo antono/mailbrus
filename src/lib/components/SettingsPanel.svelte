@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Dialog, Label, Separator, Switch, Select, ToggleGroup } from 'bits-ui';
 	import type { UiPrefs } from '$lib/settings.js';
+	import { authHeaders } from '$lib/api.js';
 	// openspec/changes/isolate-hotkeys/specs/ui-hotkeys/spec.md
 	import { untrack } from 'svelte';
 	import { pushScope, popScope } from '$lib/hotkeys/scope.svelte.ts';
@@ -54,13 +55,13 @@
 				await sub.unsubscribe();
 				await fetch('/api/push/subscribe', {
 					method: 'DELETE',
-					headers: { 'content-type': 'application/json' },
+					headers: { 'content-type': 'application/json', ...authHeaders() },
 					body: JSON.stringify({ account: '' })
 				}).catch(() => {});
 			}
 			pushEnabled = false;
 		} else {
-			const vapidRes = await fetch('/api/push/vapid-key').catch(() => null);
+			const vapidRes = await fetch('/api/push/vapid-key', { headers: authHeaders() }).catch(() => null);
 			const vapid = vapidRes?.ok ? await vapidRes.json() : null;
 			const reg = await navigator.serviceWorker.ready;
 			try {
@@ -71,7 +72,7 @@
 				const subJson = sub.toJSON();
 				await fetch('/api/push/subscribe', {
 					method: 'POST',
-					headers: { 'content-type': 'application/json' },
+					headers: { 'content-type': 'application/json', ...authHeaders() },
 					body: JSON.stringify({ account: '', endpoint: sub.endpoint, keys: subJson.keys ?? {} })
 				}).catch(() => {});
 				pushEnabled = true;

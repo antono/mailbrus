@@ -1,5 +1,6 @@
 import { idbGet, idbPut, idbGetAll } from './idb';
 import { pwaLog } from './pwa-log';
+import { authHeaders } from './api';
 
 export interface OutboxEntry {
 	id: string;
@@ -36,7 +37,7 @@ export async function flushOutbox(): Promise<void> {
 		try {
 			const res = await fetch('/api/send', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json' },
+				headers: { 'content-type': 'application/json', ...authHeaders() },
 				body: JSON.stringify(entry.message)
 			});
 			if (res.ok) {

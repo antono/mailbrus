@@ -51,8 +51,81 @@ export interface MessageBody extends Message {
 	format_flowed: boolean;
 }
 
+// ── Bearer token (origin validation / CWE-346) ──────────────────────────────
+// The server enforces a bearer token on /api/* only when started with `--auth`
+// (see openspec/changes/harden-api-origin-validation). The loopback/Tauri
+// default runs without `--auth`, so the token stays null and no header is sent.
+const AUTH_TOKEN_LS_KEY = 'mailbrus.authToken';
+
+function readInitialToken(): string | null {
+	if (typeof window !== 'undefined') {
+		const injected = (window as unknown as { __MAILBRUS_AUTH_TOKEN__?: unknown })
+			.__MAILBRUS_AUTH_TOKEN__;
+		if (typeof injected === 'string' && injected.length > 0) return injected;
+	}
+	if (typeof localStorage !== 'undefined') {
+		return localStorage.getItem(AUTH_TOKEN_LS_KEY);
+	}
+	return null;
+}
+
+let _authToken: string | null = readInitialToken();
+
+/** The bearer token currently attached to API requests, or null. */
+export function getAuthToken(): string | null {
+	return _authToken;
+}
+
+/**
+ * Set (or clear with `null`) the bearer token sent on every `/api/*` request.
+ * Persists to localStorage (synchronous window reads) and IndexedDB (so the
+ * service worker's background send/sync can read it), and notifies the active
+ * service worker immediately.
+ */
+export function setAuthToken(token: string | null): void {
+	_authToken = token && token.length > 0 ? token : null;
+	if (typeof localStorage !== 'undefined') {
+		if (_authToken) localStorage.setItem(AUTH_TOKEN_LS_KEY, _authToken);
+		else localStorage.removeItem(AUTH_TOKEN_LS_KEY);
+	}
+	void persistTokenForWorker(_authToken);
+}
+
+async function persistTokenForWorker(token: string | null): Promise<void> {
+	try {
+		const { idbPut, idbDelete } = await import('./idb');
+		if (token) await idbPut('settings', { key: 'auth_token', value: token });
+		else await idbDelete('settings', 'auth_token');
+	} catch {
+		/* IDB unavailable (e.g. SSR) — window fetches still work via localStorage */
+	}
+	if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
+		navigator.serviceWorker.controller.postMessage({ type: 'auth-token', token });
+	}
+}
+
+/** Request headers carrying the bearer token when configured, else empty. */
+export function authHeaders(): Record<string, string> {
+	return _authToken ? { Authorization: `Bearer ${_authToken}` } : {};
+}
+
+/** Merge the Authorization header into a RequestInit when a token is set. */
+export function withAuth(init?: RequestInit): RequestInit {
+	if (!_authToken) return init ?? {};
+	return {
+		...init,
+		headers: { ...(init?.headers as Record<string, string> | undefined), ...authHeaders() }
+	};
+}
+
+// On boot in the browser, mirror any pre-existing token into IDB and the SW so
+// background send/sync are authenticated even before the user touches settings.
+if (typeof window !== 'undefined' && _authToken) {
+	void persistTokenForWorker(_authToken);
+}
+
 async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
-	const res = await fetch(path, init);
+	const res = await fetch(path, withAuth(init));
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({ error: res.statusText }));
 		throw new Error((err as { error?: string }).error ?? res.statusText);
@@ -76,11 +149,11 @@ export async function getAccounts(): Promise<AccountSummary[]> {
  * Throws an `AccountCreateError`-shaped object for 409/422 responses.
  */
 export async function createAccount(payload: CreateAccountPayload): Promise<AccountSummary> {
-	const res = await fetch('/api/accounts', {
+	const res = await fetch('/api/accounts', withAuth({
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
-	});
+	}));
 	if (res.status === 201) {
 		return res.json() as Promise<AccountSummary>;
 	}

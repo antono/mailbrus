@@ -25,7 +25,10 @@ use handlers::{
 use mailbrus_core::config::load_config;
 use mailbrus_core::notmuch_db;
 use mailbrus_core::sync::SyncEngine;
-use middleware::{log_middleware, no_store_middleware, static_cache_middleware};
+use middleware::{
+    auth_middleware, build_host_allowlist, cross_site_guard_middleware, host_guard_middleware,
+    log_middleware, no_store_middleware, static_cache_middleware, SecurityConfig,
+};
 use push_poller::spawn_push_poller;
 use state::AppState;
 use std::net::SocketAddr;
@@ -157,6 +160,22 @@ async fn main() {
         );
     }
 
+    // Bind before building the router: the Host allowlist is derived from the
+    // actually-bound port, which the E2E harness picks ephemerally (`:0`).
+    let listener = tokio::net::TcpListener::bind(bind_addr)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("error: cannot bind {bind_addr}: {e}");
+            std::process::exit(1);
+        });
+    let local_addr = listener.local_addr().unwrap_or(bind_addr);
+
+    // Origin-validation config (CWE-346): Host allowlist + optional bearer token.
+    let security = SecurityConfig {
+        allowed_hosts: build_host_allowlist(local_addr).map(Arc::new),
+        auth_token: cli.auth.clone().map(Arc::new),
+    };
+
     let api = Router::new()
         .route("/accounts", get(list_accounts))
         .route("/accounts", post(create_account))
@@ -182,6 +201,13 @@ async fn main() {
             log_middleware,
         ))
         .layer(axum::middleware::from_fn(no_store_middleware))
+        // Origin validation for the API: reject cross-site state-changing
+        // requests, then enforce the bearer token when `--auth` is set.
+        .layer(axum::middleware::from_fn(cross_site_guard_middleware))
+        .layer(axum::middleware::from_fn_with_state(
+            security.clone(),
+            auth_middleware,
+        ))
         .with_state(state);
 
     let index = cli.frontend_dist.join("index.html");
@@ -194,19 +220,21 @@ async fn main() {
         .fallback_service(serve_dir)
         .layer(axum::middleware::from_fn(static_cache_middleware));
 
-    let app = Router::new().nest("/api", api).fallback_service(static_service);
+    // Host-allowlist guard is the outermost layer: it wraps both `/api/*` and the
+    // static SPA shell so a DNS-rebinding origin (CWE-346) is rejected before any
+    // handler or static file is served.
+    let app = Router::new()
+        .nest("/api", api)
+        .fallback_service(static_service)
+        .layer(axum::middleware::from_fn_with_state(
+            security,
+            host_guard_middleware,
+        ));
 
-    let listener = tokio::net::TcpListener::bind(bind_addr)
-        .await
-        .unwrap_or_else(|e| {
-            eprintln!("error: cannot bind {bind_addr}: {e}");
-            std::process::exit(1);
-        });
-
-    info!("[startup] listening on http://{bind_addr}");
+    info!("[startup] listening on http://{local_addr}");
 
     if cli.browser {
-        let url = browser_url(listener.local_addr().unwrap_or(bind_addr));
+        let url = browser_url(local_addr);
         match open::that_detached(&url) {
             Ok(()) => info!("[startup] opened browser at {url}"),
             Err(e) => warn!("[startup] could not open browser at {url}: {e}"),

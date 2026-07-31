@@ -1,5 +1,6 @@
 import { idbGetAll, idbPut, idbDelete } from './idb';
 import { pwaLog } from './pwa-log';
+import { authHeaders } from './api';
 
 export type MutationOp = 'mark_read' | 'mark_unread' | 'delete' | 'trash' | 'move';
 
@@ -92,11 +93,14 @@ export async function flushMutations(): Promise<void> {
 		try {
 			let res: Response;
 			if (mut.op === 'delete' || mut.op === 'trash') {
-				res = await fetch(`/api/messages/${mut.message_id}`, { method: 'DELETE' });
+				res = await fetch(`/api/messages/${mut.message_id}`, {
+					method: 'DELETE',
+					headers: authHeaders()
+				});
 			} else {
 				res = await fetch(`/api/messages/${mut.message_id}`, {
 					method: 'PATCH',
-					headers: { 'content-type': 'application/json' },
+					headers: { 'content-type': 'application/json', ...authHeaders() },
 					body: JSON.stringify({ op: mut.op, ...(mut.args ?? {}) })
 				});
 			}
