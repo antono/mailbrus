@@ -130,7 +130,7 @@ async fn test_smtp_starttls(
     // Read greeting.
     read_smtp_response(&mut reader)
         .await
-        .map_err(|e| ConnectionTestError::SmtpConnect(e))?;
+        .map_err(ConnectionTestError::SmtpConnect)?;
 
     // EHLO — get server capabilities.
     writer
@@ -140,7 +140,7 @@ async fn test_smtp_starttls(
 
     let ehlo_response = read_smtp_response(&mut reader)
         .await
-        .map_err(|e| ConnectionTestError::SmtpConnect(e))?;
+        .map_err(ConnectionTestError::SmtpConnect)?;
 
     let (ehlo_code, _) = ehlo_response;
     if ehlo_code != 250 {
@@ -157,7 +157,7 @@ async fn test_smtp_starttls(
 
     let (starttls_code, starttls_msg) = read_smtp_response(&mut reader)
         .await
-        .map_err(|e| ConnectionTestError::SmtpConnect(e))?;
+        .map_err(ConnectionTestError::SmtpConnect)?;
 
     if starttls_code != 220 {
         return Err(ConnectionTestError::SmtpConnect(format!(
@@ -192,7 +192,7 @@ async fn test_smtp_starttls(
         .map_err(|e| ConnectionTestError::SmtpConnect(e.to_string()))?;
     let (code, msg) = read_smtp_response(&mut tls_buf_reader)
         .await
-        .map_err(|e| ConnectionTestError::SmtpConnect(e))?;
+        .map_err(ConnectionTestError::SmtpConnect)?;
     if code != 250 {
         return Err(ConnectionTestError::SmtpConnect(format!(
             "post-TLS EHLO: {code}: {msg}"
@@ -216,7 +216,7 @@ where
     // Greeting.
     read_smtp_response(reader)
         .await
-        .map_err(|e| ConnectionTestError::SmtpConnect(e))?;
+        .map_err(ConnectionTestError::SmtpConnect)?;
 
     // EHLO.
     writer
@@ -225,7 +225,7 @@ where
         .map_err(|e| ConnectionTestError::SmtpConnect(e.to_string()))?;
     let (code, msg) = read_smtp_response(reader)
         .await
-        .map_err(|e| ConnectionTestError::SmtpConnect(e))?;
+        .map_err(ConnectionTestError::SmtpConnect)?;
     if code != 250 {
         return Err(ConnectionTestError::SmtpConnect(format!(
             "EHLO: {code}: {msg}"
@@ -257,7 +257,7 @@ where
 
     let (code, msg) = read_smtp_response(reader)
         .await
-        .map_err(|e| ConnectionTestError::SmtpAuth(e))?;
+        .map_err(ConnectionTestError::SmtpAuth)?;
 
     if code == 235 {
         debug!(?user, "SMTP AUTH test passed");
