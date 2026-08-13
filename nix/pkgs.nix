@@ -4,7 +4,7 @@ let
     pname = "mailbrus";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-JZseuFfhQ1eYxdm4tHOg2/4TDyIUcS1j2+XBFJwZZiY=";
+    cargoHash = "sha256-1GKRISxY+C2GvCJ0pdUEr0g/l+xUsOWH8kVSWJkWcxw=";
     cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
@@ -31,7 +31,7 @@ let
     '';
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-vmn4zfzJfxQt3OcyTXkJJLk0H0rlHSMPR0uX1QqgQu4=";
+    outputHash = "sha256-3bB6go2t5SX/N2dxhxRq+33UJJfmTIYdd7y4+BHQB7k=";
   };
 
   mailbrus-desktop = pkgs.rustPlatform.buildRustPackage {
@@ -39,7 +39,7 @@ let
     version = "0.1.0";
     src = ../.;
     preferLocalBuild = true;
-    cargoHash = "sha256-JZseuFfhQ1eYxdm4tHOg2/4TDyIUcS1j2+XBFJwZZiY=";
+    cargoHash = "sha256-1GKRISxY+C2GvCJ0pdUEr0g/l+xUsOWH8kVSWJkWcxw=";
     cargoBuildFlags = [ "--package" "mailbrus-desktop" ];
     doCheck = false;
     nativeBuildInputs = [
@@ -84,7 +84,7 @@ let
     pname = "mailbrus-server";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-JZseuFfhQ1eYxdm4tHOg2/4TDyIUcS1j2+XBFJwZZiY=";
+    cargoHash = "sha256-1GKRISxY+C2GvCJ0pdUEr0g/l+xUsOWH8kVSWJkWcxw=";
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
