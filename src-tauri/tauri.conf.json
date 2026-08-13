@@ -10,14 +10,7 @@
     "frontendDist": "../build"
   },
   "app": {
-    "windows": [
-      {
-        "title": "mailbrus",
-        "width": 1200,
-        "height": 800,
-        "url": "http://127.0.0.1:1371"
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": "default-src 'self' http://127.0.0.1:1371 ipc: http://ipc.localhost; img-src 'self' http://127.0.0.1:1371 asset: http://asset.localhost blob: data:; style-src 'self' http://127.0.0.1:1371 'unsafe-inline'; script-src 'self' http://127.0.0.1:1371 'unsafe-inline'; frame-src 'self'; object-src 'none'; base-uri 'self';",
       "assetProtocol": {
