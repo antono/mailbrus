@@ -4,7 +4,7 @@ let
     pname = "mailbrus";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-1GKRISxY+C2GvCJ0pdUEr0g/l+xUsOWH8kVSWJkWcxw=";
+    cargoHash = "sha256-XbxwJax1SqdOZTAmEDBBgGGet/GrSK2prAS5nfuxOhY=";
     cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
@@ -39,8 +39,13 @@ let
     version = "0.1.0";
     src = ../.;
     preferLocalBuild = true;
-    cargoHash = "sha256-1GKRISxY+C2GvCJ0pdUEr0g/l+xUsOWH8kVSWJkWcxw=";
+    cargoHash = "sha256-XbxwJax1SqdOZTAmEDBBgGGet/GrSK2prAS5nfuxOhY=";
     cargoBuildFlags = [ "--package" "mailbrus-desktop" ];
+    # Tauri sets `dev = !custom-protocol`. Without this, buildRustPackage's plain
+    # `cargo build` leaves dev=true, stripping the `#[cfg(not(dev))]` block in
+    # src-tauri/src/lib.rs that spawns the server sidecar + injects the auth
+    # token — the app then can't reach 127.0.0.1:1371. See src-tauri/Cargo.toml.
+    buildFeatures = [ "custom-protocol" ];
     doCheck = false;
     nativeBuildInputs = [
       pkgs.pkg-config
@@ -84,7 +89,7 @@ let
     pname = "mailbrus-server";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-1GKRISxY+C2GvCJ0pdUEr0g/l+xUsOWH8kVSWJkWcxw=";
+    cargoHash = "sha256-XbxwJax1SqdOZTAmEDBBgGGet/GrSK2prAS5nfuxOhY=";
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];

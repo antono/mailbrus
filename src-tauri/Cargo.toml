@@ -20,3 +20,17 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 getrandom = "0.2"
 mailbrus-core = { path = "../mailbrus-core" }
+
+# Linux: PR_SET_PDEATHSIG so the spawned server sidecar is killed by the kernel
+# when the desktop process dies — even on SIGKILL/crash. See src/lib.rs.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[features]
+# Tauri sets the `dev` cfg to `!custom-protocol`. Production builds MUST enable
+# this feature, otherwise `dev` stays true and the `#[cfg(not(dev))]` block in
+# src/lib.rs (spawns the mailbrus-server sidecar + injects the auth token) is
+# compiled out, leaving the packaged app unable to reach 127.0.0.1:1371.
+# `cargo tauri build` enables it via the CLI; the Nix build enables it via
+# `buildFeatures` in nix/pkgs.nix. Do NOT remove.
+custom-protocol = ["tauri/custom-protocol"]

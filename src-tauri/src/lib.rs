@@ -9,55 +9,130 @@ fn generate_auth_token() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Reserve an ephemeral loopback port, then release it for the sidecar to bind.
+/// Using a fresh port per launch (instead of a hardcoded one) means a stale
+/// server left over from a previous run can never hijack the port and answer the
+/// webview with a mismatched token.
+#[cfg(not(dev))]
+fn reserve_free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map(|addr| addr.port())
+        .expect("failed to reserve a local port")
+}
+
+/// Resolve the bundled `mailbrus-server` sidecar path. We spawn it ourselves
+/// (rather than via tauri-plugin-shell) so we can attach a `pre_exec` hook, so
+/// this replicates the plugin's sidecar lookup across the bundle layouts we ship:
+/// the Nix package puts it under `<resource_dir>/binaries/`, a `cargo tauri`
+/// bundle next to the executable.
+#[cfg(not(dev))]
+fn sidecar_path(app: &tauri::App) -> std::path::PathBuf {
+    use tauri::Manager;
+    let named = format!("mailbrus-server-{}", env!("TAURI_ENV_TARGET_TRIPLE"));
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(res) = app.path().resource_dir() {
+        candidates.push(res.join("binaries").join(&named));
+        candidates.push(res.join(&named));
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join(&named));
+            candidates.push(dir.join("mailbrus-server"));
+        }
+    }
+    candidates
+        .into_iter()
+        .find(|p| p.exists())
+        .expect("mailbrus-server sidecar binary not found")
+}
+
+/// Holds the sidecar process so it can be killed when the app exits, preventing
+/// orphaned `mailbrus-server` processes from lingering on their port.
+#[cfg(not(dev))]
+struct SidecarChild(std::sync::Mutex<Option<std::process::Child>>);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-            // The webview loads the server over HTTP (not the asset protocol).
+            // Dev: the server is started by beforeDevCommand on the fixed dev port.
+            #[cfg(dev)]
             let server_url: tauri::Url =
                 "http://127.0.0.1:1371".parse().expect("valid server URL");
 
-            // In dev the server is started by beforeDevCommand, token-less. In a
-            // bundled build we own the sidecar: mint a per-launch token, hand it
-            // to the server via --auth, and inject it into the webview below.
+            // Production: own the sidecar on a fresh ephemeral port, mint a
+            // per-launch token, hand it to the server via --auth, and inject it
+            // into the webview below.
             #[cfg(not(dev))]
-            let token = {
+            let (server_url, token) = {
                 use tauri::Manager;
-                use tauri_plugin_shell::ShellExt;
 
+                let port = reserve_free_port();
+                let bind = format!("127.0.0.1:{port}");
                 let token = generate_auth_token();
                 let resource_dir = app.path().resource_dir().unwrap_or_else(|_| {
                     std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
                 });
                 let frontend_dist = resource_dir.join("build");
 
-                let (_rx, child) = app
-                    .shell()
-                    .sidecar("mailbrus-server")
-                    .expect("mailbrus-server sidecar not configured")
-                    .args([
-                        "--bind",
-                        "127.0.0.1:1371",
-                        "--frontend-dist",
-                        frontend_dist.to_str().unwrap_or("./build"),
-                        "--auth",
-                        &token,
-                    ])
+                let mut cmd = std::process::Command::new(sidecar_path(app));
+                cmd.args([
+                    "--bind",
+                    &bind,
+                    "--frontend-dist",
+                    frontend_dist.to_str().unwrap_or("./build"),
+                    "--auth",
+                    &token,
+                ]);
+
+                // Guarantee the sidecar dies with us — even on SIGKILL/crash of
+                // the desktop process, which the RunEvent::Exit handler below
+                // cannot catch. The kernel sends SIGKILL to the child when our
+                // (parent) thread dies. Spawned from Tauri's main thread, which
+                // lives for the whole app, so the signal fires at process exit.
+                #[cfg(target_os = "linux")]
+                unsafe {
+                    use std::os::unix::process::CommandExt;
+                    cmd.pre_exec(|| {
+                        if libc::prctl(
+                            libc::PR_SET_PDEATHSIG,
+                            libc::SIGKILL as libc::c_ulong,
+                            0,
+                            0,
+                            0,
+                        ) == -1
+                        {
+                            return Err(std::io::Error::last_os_error());
+                        }
+                        // Race guard: the parent may have died between spawn and
+                        // prctl; if so, don't exec — just exit.
+                        if libc::getppid() == 1 {
+                            libc::_exit(1);
+                        }
+                        Ok(())
+                    });
+                }
+
+                let child = cmd
                     .spawn()
                     .expect("failed to spawn mailbrus-server sidecar");
 
-                app.manage(child);
-                token
+                app.manage(SidecarChild(std::sync::Mutex::new(Some(child))));
+
+                let url: tauri::Url = format!("http://127.0.0.1:{port}")
+                    .parse()
+                    .expect("valid server URL");
+                (url, token)
             };
 
             // Build the main window in Rust (label "main", matching the Tauri
             // capabilities) so an initialization script can carry the token to
             // the SPA before any of its scripts run.
-            // `mut` is only used by the release-only injection block below.
             #[cfg_attr(dev, allow(unused_mut))]
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(server_url))
                 .title("mailbrus")
@@ -76,8 +151,23 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running mailbrus-desktop")
+        .build(tauri::generate_context!())
+        .expect("error while building mailbrus-desktop");
+
+    app.run(|_app_handle, _event| {
+        // Kill the sidecar when the app exits so it never lingers holding its port.
+        #[cfg(not(dev))]
+        if let tauri::RunEvent::Exit = _event {
+            use tauri::Manager;
+            if let Some(state) = _app_handle.try_state::<SidecarChild>() {
+                if let Ok(mut guard) = state.0.lock() {
+                    if let Some(mut child) = guard.take() {
+                        let _ = child.kill();
+                    }
+                }
+            }
+        }
+    });
 }
 
 #[cfg(test)]
