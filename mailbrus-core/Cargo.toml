@@ -9,6 +9,8 @@ license = "LGPL-3.0-or-later"
 default = []
 sync = [
     "dep:imap-client",
+    "dep:io-maildir",
+    "dep:sha2",
     "dep:keyring",
     "dep:prs-lib",
     "dep:rusqlite",
@@ -30,6 +32,13 @@ dirs = "5"
 
 # sync feature deps
 imap-client = { git = "https://github.com/pimalaya/imap-client", optional = true }
+# Maildir delivery protocol (tmp -> atomic rename) and flag renames. `client` is
+# the blocking std client; we drive it from spawn_blocking. Adds only
+# gethostname, log and thiserror to the tree.
+io-maildir = { version = "0.3", default-features = false, features = ["client"], optional = true }
+# Content revision hashing. Already compiled under `sync` via imap-client and
+# secret-service, so declaring it directly costs no new tree entry.
+sha2 = { version = "0.10", optional = true }
 # Direct dependency on `keyring` 3.x. The feature set reproduces what the former
 # `keyring-lib` wrapper selected on our behalf: native store per platform, the
 # tokio-flavoured zbus backend, and the pure-Rust crypto backend.

@@ -354,6 +354,16 @@ fn describe(p: &SyncProgress) -> String {
             None => format!("FAILED message: {reason}"),
         },
         SyncProgress::MessageDeleted { uid } => format!("deleted uid {uid}"),
+        SyncProgress::FlagsUpdated { uid, flags } => {
+            if flags.is_empty() {
+                format!("cleared flags on uid {uid}")
+            } else {
+                format!("flags on uid {uid} -> {flags}")
+            }
+        }
+        SyncProgress::RevisionDiverged { uid } => {
+            format!("uid {uid} was edited locally; applying flag change anyway")
+        }
         SyncProgress::IndexingStarted { count } => format!("indexing {count} message(s)…"),
         SyncProgress::IndexingProgress { indexed, total } => format!("indexed {indexed}/{total}"),
         SyncProgress::IndexingFinished { indexed } => format!("indexed {indexed} message(s)"),

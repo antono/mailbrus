@@ -142,6 +142,13 @@ async function createPrincipal(
  * Send `cmd` and resolve with the server output collected until `endTag` is seen
  * on a line of its own. Minimal IMAP wire helper — used only to drive APPEND
  * and LOGIN against the sidecar; production code uses imap-client.
+ *
+ * NOTE: resolves on *any* tagged response, including `NO` and `BAD` — it does
+ * not distinguish success from failure. Callers that need to know whether the
+ * command actually succeeded must inspect the returned text themselves (see
+ * `setServerFlags`). This is why `injectMail` cannot currently detect that
+ * Stalwart 0.15.5 rejects its cleartext `AUTHENTICATE PLAIN` and silently seeds
+ * nothing.
  */
 function imapTalk(sock: Socket, cmd: string, endTag: string, timeoutMs = 5_000): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -192,6 +199,54 @@ async function injectMail(imapPort: number, email: string, secret: string, messa
 	}
 	await imapTalk(sock, `a${n} LOGOUT\r\n`, `a${n}`);
 	sock.end();
+}
+
+/**
+ * Change a message's flags server-side via IMAP `UID STORE`.
+ *
+ * Lets a test simulate "the user read this on another client", which is the
+ * only way to exercise flag propagation: the flags must change on the server,
+ * out of band, between two syncs.
+ *
+ * `flags` are IMAP flag names including the backslash, e.g. `['\\Seen']`.
+ * `mode` selects `+FLAGS` (add), `-FLAGS` (remove) or `FLAGS` (replace).
+ */
+export async function setServerFlags(opts: {
+	imapPort: number;
+	email: string;
+	secret: string;
+	/** UIDs to act on. Defaults to `1:*` (every message in the mailbox). */
+	uids?: number[];
+	flags: string[];
+	mode?: 'add' | 'remove' | 'replace';
+	mailbox?: string;
+}): Promise<void> {
+	const mailbox = opts.mailbox ?? 'INBOX';
+	const seq = opts.uids && opts.uids.length > 0 ? opts.uids.join(',') : '1:*';
+	const item = opts.mode === 'remove' ? '-FLAGS' : opts.mode === 'replace' ? 'FLAGS' : '+FLAGS';
+
+	const sock = connect({ host: '127.0.0.1', port: opts.imapPort });
+	try {
+		await new Promise<void>((resolve, reject) => {
+			sock.once('data', () => resolve());
+			sock.once('error', reject);
+		});
+		const authToken = Buffer.from(`\0${opts.email}\0${opts.secret}`).toString('base64');
+		await imapTalk(sock, `s1 AUTHENTICATE PLAIN ${authToken}\r\n`, 's1');
+		// SELECT (not EXAMINE): STORE needs a read-write mailbox.
+		await imapTalk(sock, `s2 SELECT ${mailbox}\r\n`, 's2');
+		const res = await imapTalk(
+			sock,
+			`s3 UID STORE ${seq} ${item} (${opts.flags.join(' ')})\r\n`,
+			's3'
+		);
+		if (!/^s3 OK/m.test(res)) {
+			throw new Error(`UID STORE failed: ${res}`);
+		}
+		await imapTalk(sock, 's4 LOGOUT\r\n', 's4');
+	} finally {
+		sock.end();
+	}
 }
 
 export async function startStalwart(opts: { users: StalwartUser[] }): Promise<StalwartHandle> {

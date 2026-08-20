@@ -193,6 +193,48 @@ index are unaffected. Worth stating in the changelog.
 
 ## Open Questions
 
-- Whether to expose the revision-divergence warning as a distinct
-  `SyncProgress` variant or reuse the existing warning path. Cosmetic, affects
-  no requirement, and can be settled while wiring the progress channel.
+*(Resolved during implementation: the revision-divergence warning got its own
+`SyncProgress::RevisionDiverged` variant, alongside `FlagsUpdated`. Both are
+rendered by `mailbrus-cli`.)*
+
+## Implementation notes
+
+Three things the implementation settled differently from, or beyond, the plan.
+
+### Legacy unlink is deferred to the worker, not done in the migration
+
+D7 said the migration reads basenames, unlinks the files, then drops the column.
+`SyncStateDb` has no knowledge of account maildir roots, so it cannot resolve a
+basename to a path. The migration instead copies the basenames into a
+`legacy_maildir_files` table before dropping the column, and the sync worker —
+which does know the root — drains that table and unlinks before its first
+delivery. The ordering guarantee D7 cared about is preserved (basenames are
+captured before the column disappears), and this survives a crash between
+migration and unlink, which the original plan did not.
+
+### Async helpers must not borrow the state DB
+
+rusqlite's `Connection` is `Send` but not `Sync`, so holding a `&SyncStateDb`
+across an `.await` makes the enclosing future non-`Send` and it can no longer be
+`tokio::spawn`ed — which `SyncEngine::run_account_worker` requires. The
+flag-sync and legacy-purge helpers therefore take owned data and *return* what
+needs persisting; all DB writes stay in `sync_mailbox`, which owns the handle.
+
+### Flag comparison must normalise both sides
+
+`MaildirFlags`' `Display` renders letters in **enum-declaration order**
+(`P,R,S,T,D,F`), not ASCII order — so `Seen + Flagged` renders as `"SF"` while
+the normalised stored column holds `"FS"`. Comparing the raw rendering against
+the stored value would report a difference on every sync and rename every
+message forever, silently defeating D4's no-op short-circuit. Both sides now go
+through `normalize_flags`, and
+`stored_flag_comparison_uses_the_same_normalisation_on_both_sides` pins it.
+
+### E2E coverage is blocked on the harness, not the code
+
+The four specs in `e2e/specs/imap-flag-sync.spec.ts` are written and assert the
+real contract, but sit under `test.fixme`: Stalwart 0.15.5 rejects cleartext
+IMAP auth, so no sync in this harness ever completes. Verified directly rather
+than assumed — the harness's own cleartext `AUTHENTICATE PLAIN` is rejected too,
+which also means `injectMail` currently seeds nothing (its `imapTalk` treats a
+tagged `NO` as success). The behaviour is covered meanwhile by unit tests.

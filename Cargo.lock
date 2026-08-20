@@ -2625,6 +2625,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "io-maildir"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b02306d32aa78f1f493d70b751f539379c8ca4f7873e765e878d101eba6c060d"
+dependencies = [
+ "gethostname",
+ "log",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3011,12 +3022,14 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "imap-client",
+ "io-maildir",
  "keyring",
  "notmuch",
  "prs-lib",
  "rusqlite",
  "rustls-platform-verifier",
  "serde",
+ "sha2",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
