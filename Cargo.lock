@@ -2811,18 +2811,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "keyring-lib"
-version = "1.0.3"
-source = "git+https://github.com/pimalaya/core#b3a9640a2b2e882f07655e711197b3dbd72ea176"
-dependencies = [
- "keyring",
- "once_cell",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3023,7 +3011,7 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "imap-client",
- "keyring-lib",
+ "keyring",
  "notmuch",
  "prs-lib",
  "rusqlite",

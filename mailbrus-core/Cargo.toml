@@ -30,7 +30,16 @@ dirs = "5"
 
 # sync feature deps
 imap-client = { git = "https://github.com/pimalaya/imap-client", optional = true }
-keyring = { git = "https://github.com/pimalaya/core", package = "keyring-lib", default-features = false, features = ["tokio", "rustls"], optional = true }
+# Direct dependency on `keyring` 3.x. The feature set reproduces what the former
+# `keyring-lib` wrapper selected on our behalf: native store per platform, the
+# tokio-flavoured zbus backend, and the pure-Rust crypto backend.
+keyring = { version = "3", default-features = false, features = [
+    "linux-native-async-persistent",
+    "apple-native",
+    "windows-native",
+    "tokio",
+    "crypto-rust",
+], optional = true }
 prs-lib = { version = "0.5.7", default-features = false, features = ["backend-gnupg-bin"], optional = true }
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 toml = { version = "0.8", optional = true }

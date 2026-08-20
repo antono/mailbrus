@@ -4,7 +4,7 @@ let
     pname = "mailbrus";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-VDKcvL1IlWzBqvSi4FRUYdlksBb8We8i3vqwMDb+3AQ=";
+    cargoHash = "sha256-O37ag0uJ4gi+MDtX9kkt/Vx87xReo+97mnOdHZINht8=";
     cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
@@ -39,7 +39,7 @@ let
     version = "0.1.0";
     src = ../.;
     preferLocalBuild = true;
-    cargoHash = "sha256-VDKcvL1IlWzBqvSi4FRUYdlksBb8We8i3vqwMDb+3AQ=";
+    cargoHash = "sha256-O37ag0uJ4gi+MDtX9kkt/Vx87xReo+97mnOdHZINht8=";
     cargoBuildFlags = [ "--package" "mailbrus-desktop" ];
     doCheck = false;
     nativeBuildInputs = [
@@ -84,7 +84,7 @@ let
     pname = "mailbrus-server";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-VDKcvL1IlWzBqvSi4FRUYdlksBb8We8i3vqwMDb+3AQ=";
+    cargoHash = "sha256-O37ag0uJ4gi+MDtX9kkt/Vx87xReo+97mnOdHZINht8=";
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
