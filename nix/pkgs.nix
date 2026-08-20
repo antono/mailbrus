@@ -1,10 +1,10 @@
-{ pkgs, tauri-deps, io-email, io-maildir, system }:
+{ pkgs, tauri-deps, system }:
 let
   mailbrus = pkgs.rustPlatform.buildRustPackage {
     pname = "mailbrus";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-JZseuFfhQ1eYxdm4tHOg2/4TDyIUcS1j2+XBFJwZZiY=";
+    cargoHash = "sha256-VDKcvL1IlWzBqvSi4FRUYdlksBb8We8i3vqwMDb+3AQ=";
     cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
@@ -39,7 +39,7 @@ let
     version = "0.1.0";
     src = ../.;
     preferLocalBuild = true;
-    cargoHash = "sha256-JZseuFfhQ1eYxdm4tHOg2/4TDyIUcS1j2+XBFJwZZiY=";
+    cargoHash = "sha256-VDKcvL1IlWzBqvSi4FRUYdlksBb8We8i3vqwMDb+3AQ=";
     cargoBuildFlags = [ "--package" "mailbrus-desktop" ];
     doCheck = false;
     nativeBuildInputs = [
@@ -84,7 +84,7 @@ let
     pname = "mailbrus-server";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-JZseuFfhQ1eYxdm4tHOg2/4TDyIUcS1j2+XBFJwZZiY=";
+    cargoHash = "sha256-VDKcvL1IlWzBqvSi4FRUYdlksBb8We8i3vqwMDb+3AQ=";
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
