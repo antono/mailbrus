@@ -31,7 +31,11 @@ let
     '';
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-vmn4zfzJfxQt3OcyTXkJJLk0H0rlHSMPR0uX1QqgQu4=";
+    # Only satisfiable because the SPA build is reproducible: SvelteKit's
+    # `version.name` is pinned in svelte.config.js instead of defaulting to
+    # `Date.now()`, which used to change every content-hashed chunk name and made
+    # this hash impossible to keep correct.
+    outputHash = "sha256-CiwxuQ5HWJys1uVlNS5PekOqtXuoXd1sOvWBkaPDEdA=";
   };
 
   mailbrus-desktop = pkgs.rustPlatform.buildRustPackage {
