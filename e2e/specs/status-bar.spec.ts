@@ -200,10 +200,88 @@ test('clear-history button removes archived runs after confirmation', async ({ p
 
 // openspec/changes/sync-status-bar-redesign/specs/sync-event-log/spec.md: completing sync populates fetched/indexed/sync_completed
 //
-// Needs a sync that authenticates and fetches. Stalwart 0.15.5 refuses cleartext
-// IMAP auth, so the run errors before the fetch/index phase. Enable once a
-// TLS-capable Stalwart listener (or confirmed cleartext opt-in) lands.
-test.fixme('event log shows fetched/indexed/sync_completed for a completing sync', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.getByTestId('status-bar.popup')).toHaveCount(0);
+// Previously fixme'd on the belief that Stalwart refuses cleartext IMAP auth. It
+// does not — the sidecar's principals were misconfigured (see the notes in
+// `e2e/harness/stalwart.ts`). With that fixed a sync completes, so this asserts
+// the post-fetch half of the event log that no other test could reach.
+test('event log shows fetched/indexed/sync_completed for a completing sync', async () => {
+	test.slow();
+	let clone: Clone | undefined;
+	let stalwart: StalwartHandle | undefined;
+	let server: ServerHandle | undefined;
+	try {
+		clone = await cloneCorpus();
+		const scope = await indexClone(clone);
+		stalwart = await startStalwart({
+			users: [
+				{
+					email: 'alice@test.local',
+					secret: 'stalwart-secret',
+					inboxMessages: [
+						[
+							'From: tester@test.local',
+							'To: alice@test.local',
+							'Subject: completing sync fixture',
+							'Message-ID: <completing-sync-137@test.local>',
+							'',
+							'Body.'
+						].join('\r\n')
+					]
+				}
+			]
+		});
+
+		const base = await writeFixtureConfig(clone);
+		const maildir = join(clone.maildir, 'alice@test.local');
+		await mkdir(maildir, { recursive: true });
+		const entry: ConfigEntry = { id: 'alice@test.local', maildirRoot: maildir };
+		await addAccountToml(base.accountsDir, {
+			...entry,
+			toml: [
+				'protocol = "imap"',
+				'email = "alice@test.local"',
+				'imap_host = "127.0.0.1"',
+				`imap_port = ${stalwart.imapPort}`,
+				'imap_tls = false',
+				'credential_backend = "plain"',
+				'credential_ref = "stalwart-secret"',
+				`maildir_root = "${maildir}"`,
+				''
+			].join('\n')
+		});
+		server = await startServer({
+			scope,
+			clone,
+			config: { path: base.path, accountsDir: base.accountsDir, entries: [...base.entries, entry] }
+		});
+
+		const { chromium } = await import('@playwright/test');
+		const browser = await chromium.launch();
+		const page = await browser.newPage();
+		try {
+			await page.goto(`${server.baseURL}/`);
+			await page.getByTestId('status-bar.idle').click();
+			await page.getByTestId('status-bar.sync-btn').click();
+			await page.getByTestId('status-bar.spinner').click();
+			await expect(page.getByTestId('status-bar.popup')).toBeVisible();
+
+			// `Sync now` triggers every configured account, so scope to ours.
+			const rows = page
+				.getByTestId('status-bar.event-row')
+				.filter({ hasText: 'alice@test.local' });
+
+			// The stages only a completing run reaches.
+			await expect(rows.filter({ hasText: 'fetched' }).first()).toBeVisible({ timeout: 30_000 });
+			await expect(rows.filter({ hasText: 'sync_completed' }).first()).toBeVisible({
+				timeout: 30_000
+			});
+			await expect(rows.first()).toContainText(/\d\d:\d\d:\d\d/);
+		} finally {
+			await browser.close();
+		}
+	} finally {
+		if (server) await server.stop();
+		if (stalwart) await stalwart.stop();
+		await removeClone(clone);
+	}
 });

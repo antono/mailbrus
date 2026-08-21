@@ -230,11 +230,44 @@ message forever, silently defeating D4's no-op short-circuit. Both sides now go
 through `normalize_flags`, and
 `stored_flag_comparison_uses_the_same_normalisation_on_both_sides` pins it.
 
-### E2E coverage is blocked on the harness, not the code
+### `index_file` does not apply maildir flag -> tag sync
 
-The four specs in `e2e/specs/imap-flag-sync.spec.ts` are written and assert the
-real contract, but sit under `test.fixme`: Stalwart 0.15.5 rejects cleartext
-IMAP auth, so no sync in this harness ever completes. Verified directly rather
-than assumed — the harness's own cleartext `AUTHENTICATE PLAIN` is rejected too,
-which also means `injectMail` currently seeds nothing (its `imapTalk` treats a
-tagged `NO` as success). The behaviour is covered meanwhile by unit tests.
+D5 assumed re-indexing was enough for notmuch to reflect a flag change. It is
+not: `notmuch_database_index_file` does **not** run the maildir flag -> tag
+mapping — only `notmuch new` does. Since the API derives `seen` as
+`!tags.contains("unread")` (`maildir_reader.rs`), a synced message never gained
+the `unread` tag and every message read as already-read, making flag
+propagation invisible to the app regardless of the rename.
+
+This is a pre-existing defect (the old code had it too), but the change cannot
+deliver its stated value without fixing it, so `index_in_notmuch` now calls
+`msg.maildir_flags_to_tags()` after every `index_file`. That also keeps
+replied/flagged/draft in step with the filename.
+
+### E2E coverage: unblocked, and the harness was the problem
+
+Originally recorded here as blocked by "Stalwart 0.15.5 refuses cleartext IMAP
+auth". That explanation was wrong. Cleartext auth is fine — `AUTH=PLAIN` is
+advertised with no `LOGINDISABLED`; the sidecar's *principals* were
+misconfigured, in two independent ways:
+
+- Stalwart's internal directory authenticates by principal `name`, not by any
+  address in `emails`. With `name = "alice"`, `LOGIN alice@test.local` fails.
+- Without a `roles` entry the account authenticates and is then denied
+  ("Unauthorized access"), closing the socket — which surfaces as an EOF rather
+  than an auth error.
+
+With `name = <email>` and `roles = ["user"]`, syncs complete and the session
+advertises CONDSTORE + QRESYNC. No TLS listener was needed. All four specs in
+`e2e/specs/imap-flag-sync.spec.ts` now run and pass, and two unrelated tests
+blocked by the same misdiagnosis (`status-bar.spec.ts`'s completing-sync event
+log, `index-events.spec.ts`'s `index:done` frame) are enabled too.
+
+Two further test-integrity fixes came out of this, both of which had been
+masking the gap:
+
+- `e2e/harness/global-setup.ts` rebuilt `mailbrus-server` only when the binary
+  was **missing**, so the suite silently tested a three-week-old release build.
+  It now always rebuilds (warm no-op ~0.2s).
+- `injectMail` treated a tagged `NO` as success, so seeding silently did
+  nothing. Commands now go through `imapExpectOk`.

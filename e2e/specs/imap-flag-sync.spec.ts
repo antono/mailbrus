@@ -161,14 +161,25 @@ async function syncAndWait(h: Harness, timeoutMs = 30_000): Promise<TerminalEven
 	throw new Error(`sync did not reach a terminal event; saw: ${JSON.stringify(seen)}`);
 }
 
-/** Folder ids the server reports for our account. */
+/**
+ * Folder ids the server reports for our account.
+ *
+ * The endpoint returns a bare array; the tolerant unwrap is here so a future
+ * `{ folders: [...] }` envelope would not silently reduce this to an empty list
+ * (which reads as "message not found" rather than "helper broke").
+ */
 async function folderIds(h: Harness): Promise<string[]> {
 	const r = await fetch(
 		`${h.server.baseURL}/api/maildirs/${encodeURIComponent(h.entry.id)}/folders`
 	);
 	if (!r.ok) return [];
-	const body = (await r.json()) as { folders?: { id?: string; name?: string }[] };
-	return (body.folders ?? []).map((f) => f.id ?? f.name ?? '').filter(Boolean);
+	const body = (await r.json()) as
+		| { id?: string; name?: string }[]
+		| { folders?: { id?: string; name?: string }[] };
+	const list = Array.isArray(body) ? body : (body.folders ?? []);
+	const ids = list.map((f) => f.id ?? f.name ?? '').filter(Boolean);
+	if (ids.length === 0) throw new Error('no folders reported for the synced account');
+	return ids;
 }
 
 /**
@@ -203,7 +214,7 @@ async function curFilenames(h: Harness): Promise<string[]> {
 
 test.describe('IMAP flag propagation', () => {
 	// openspec/changes/imap-flag-sync-atomic-delivery/specs/imap-sync/spec.md: a message marked read on another client becomes read locally
-	test.fixme('a \\Seen set server-side propagates to the local maildir', async () => {
+	test('a \\Seen set server-side propagates to the local maildir', async () => {
 		test.slow();
 		let h: Harness | undefined;
 		try {
@@ -246,7 +257,7 @@ test.describe('IMAP flag propagation', () => {
 	});
 
 	// openspec/changes/imap-flag-sync-atomic-delivery/specs/imap-sync/spec.md: a flag cleared on another client is removed locally
-	test.fixme('clearing \\Seen server-side removes it locally', async () => {
+	test('clearing \\Seen server-side removes it locally', async () => {
 		test.slow();
 		let h: Harness | undefined;
 		try {
@@ -280,7 +291,7 @@ test.describe('IMAP flag propagation', () => {
 	});
 
 	// openspec/changes/imap-flag-sync-atomic-delivery/specs/imap-sync/spec.md: an unchanged flag set causes no rename
-	test.fixme('a sync with no flag change leaves the filename untouched', async () => {
+	test('a sync with no flag change leaves the filename untouched', async () => {
 		test.slow();
 		let h: Harness | undefined;
 		try {
@@ -300,7 +311,7 @@ test.describe('IMAP flag propagation', () => {
 	});
 
 	// openspec/changes/imap-flag-sync-atomic-delivery/specs/imap-sync/spec.md: delivery is atomic — tmp/ holds nothing once a sync settles
-	test.fixme('delivery leaves nothing behind in tmp/', async () => {
+	test('delivery leaves nothing behind in tmp/', async () => {
 		test.slow();
 		let h: Harness | undefined;
 		try {

@@ -49,8 +49,8 @@
 
 - [x] 7.1 Add an IMAP `STORE` helper to `e2e/harness/stalwart.ts` (it currently only drives `APPEND`) so a test can set `\Seen` server-side
 - [x] 7.2 Add `e2e/specs/imap-flag-sync.spec.ts` with the mandatory `// openspec/specs/imap-sync/spec.md` reference comment, following the per-test isolated-server harness and page-object conventions (use the `mailbrus-e2e-author` skill)
-- [x] 7.3 Test: sync a Stalwart-backed INBOX, set `\Seen` on the server, sync again, assert the message is no longer reported unread through the API — written, but `test.fixme`: Stalwart 0.15.5 rejects cleartext auth so no sync completes (verified; see spec header)
-- [x] 7.4 Test: clear a flag server-side and assert it is removed locally — written, `test.fixme` for the same reason
+- [x] 7.3 Test: sync a Stalwart-backed INBOX, set `\Seen` on the server, sync again, assert the message is no longer reported unread through the API
+- [x] 7.4 Test: clear a flag server-side and assert it is removed locally
 - [x] 7.5 Run `deno task test:e2e` and fix failures; iterate until the suite is green
 - [x] 7.6 Confirm no pre-existing sync e2e specs regressed (`sync.spec.ts`, `sync-trigger.spec.ts`, `index-events.spec.ts`, `status-bar.spec.ts`)
 

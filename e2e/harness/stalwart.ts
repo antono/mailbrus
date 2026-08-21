@@ -143,12 +143,10 @@ async function createPrincipal(
  * on a line of its own. Minimal IMAP wire helper — used only to drive APPEND
  * and LOGIN against the sidecar; production code uses imap-client.
  *
- * NOTE: resolves on *any* tagged response, including `NO` and `BAD` — it does
- * not distinguish success from failure. Callers that need to know whether the
- * command actually succeeded must inspect the returned text themselves (see
- * `setServerFlags`). This is why `injectMail` cannot currently detect that
- * Stalwart 0.15.5 rejects its cleartext `AUTHENTICATE PLAIN` and silently seeds
- * nothing.
+ * NOTE: resolves on *any* tagged response, including `NO` and `BAD`. Use
+ * [`imapExpectOk`] unless you specifically want to inspect a failure yourself.
+ * Treating a tagged `NO` as success is how seeding silently did nothing for as
+ * long as the sidecar's principals were misconfigured.
  */
 function imapTalk(sock: Socket, cmd: string, endTag: string, timeoutMs = 5_000): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -175,30 +173,54 @@ function imapTalk(sock: Socket, cmd: string, endTag: string, timeoutMs = 5_000):
 	});
 }
 
+/**
+ * Like [`imapTalk`], but throws unless the tagged response is `OK`.
+ *
+ * Every command whose failure would leave the sidecar in an unexpected state
+ * must go through this. A silent `NO` here means a test runs against a mailbox
+ * that does not contain what the test thinks it does.
+ */
+async function imapExpectOk(
+	sock: Socket,
+	cmd: string,
+	endTag: string,
+	what: string
+): Promise<string> {
+	const res = await imapTalk(sock, cmd, endTag);
+	const tagged = res.split('\n').find((l) => l.startsWith(`${endTag} `))?.trim() ?? '';
+	if (!tagged.startsWith(`${endTag} OK`)) {
+		throw new Error(`stalwart ${what} failed: ${tagged || res.trim()}`);
+	}
+	return res;
+}
+
 async function injectMail(imapPort: number, email: string, secret: string, messages: string[]): Promise<void> {
 	if (messages.length === 0) return;
 	const sock = connect({ host: '127.0.0.1', port: imapPort });
-	await new Promise<void>((resolve, reject) => {
-		sock.once('data', () => resolve());
-		sock.once('error', reject);
-	});
-	// AUTH PLAIN base64( \0 user \0 pass )
-	const authToken = Buffer.from(`\0${email}\0${secret}`).toString('base64');
-	await imapTalk(sock, `a1 AUTHENTICATE PLAIN ${authToken}\r\n`, 'a1');
-	let n = 2;
-	for (const raw of messages) {
-		const tag = `a${n++}`;
-		const bytes = Buffer.byteLength(raw, 'utf8');
-		const appendCmd = `${tag} APPEND INBOX {${bytes}}\r\n`;
-		await imapTalk(sock, appendCmd, '+'); // continuation
+	try {
 		await new Promise<void>((resolve, reject) => {
-			sock.write(raw + '\r\n', (e) => (e ? reject(e) : resolve()));
+			sock.once('data', () => resolve());
+			sock.once('error', reject);
 		});
-		// wait for the OK
-		await imapTalk(sock, '', tag);
+		// AUTH PLAIN base64( \0 user \0 pass )
+		const authToken = Buffer.from(`\0${email}\0${secret}`).toString('base64');
+		await imapExpectOk(sock, `a1 AUTHENTICATE PLAIN ${authToken}\r\n`, 'a1', `authenticate as ${email}`);
+		let n = 2;
+		for (const raw of messages) {
+			const tag = `a${n++}`;
+			const bytes = Buffer.byteLength(raw, 'utf8');
+			// The continuation request is untagged (`+ ...`), so it cannot be
+			// checked for OK — the tagged result of the APPEND is checked below.
+			await imapTalk(sock, `${tag} APPEND INBOX {${bytes}}\r\n`, '+');
+			await new Promise<void>((resolve, reject) => {
+				sock.write(raw + '\r\n', (e) => (e ? reject(e) : resolve()));
+			});
+			await imapExpectOk(sock, '', tag, `APPEND to ${email} INBOX`);
+		}
+		await imapExpectOk(sock, `a${n} LOGOUT\r\n`, `a${n}`, 'logout');
+	} finally {
+		sock.end();
 	}
-	await imapTalk(sock, `a${n} LOGOUT\r\n`, `a${n}`);
-	sock.end();
 }
 
 /**
@@ -305,12 +327,26 @@ export async function startStalwart(opts: { users: StalwartUser[] }): Promise<St
 		description: 'mailbrus e2e test domain'
 	});
 	for (const u of opts.users) {
-		const local = u.email.split('@')[0];
+		// Two non-obvious requirements, each fixing a distinct failure — this is
+		// why cleartext IMAP auth was long believed impossible against Stalwart:
+		//
+		//   `name` must be the full email. Stalwart's internal directory
+		//   authenticates by principal *name*, not by any address in `emails`.
+		//   With `name = "alice"`, `LOGIN alice@test.local` returns
+		//   AUTHENTICATIONFAILED while `LOGIN alice` succeeds.
+		//
+		//   `roles` must be set. Without a role, auth *succeeds* and the session
+		//   is then denied ("Unauthorized access") and the socket closed, which
+		//   surfaces to the client as an EOF rather than an auth error.
+		//
+		// With both, cleartext LOGIN/AUTHENTICATE PLAIN work and the session
+		// advertises CONDSTORE + QRESYNC. No TLS listener is needed.
 		await createPrincipal(httpPort, adminUser, adminSecret, {
 			type: 'individual',
-			name: local,
+			name: u.email,
 			emails: [u.email],
 			secrets: [u.secret],
+			roles: ['user'],
 			description: 'mailbrus e2e test user'
 		});
 		if (u.inboxMessages && u.inboxMessages.length > 0) {

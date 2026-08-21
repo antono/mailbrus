@@ -1034,7 +1034,16 @@ impl ImapWorker {
             )
             .map_err(|e| ImapSyncError::Notmuch(format!("open ReadWrite: {e}")))?;
 
-            let tag_owner = |msg: &notmuch::Message| -> Result<(), ImapSyncError> {
+            // `index_file` does NOT apply the maildir flag -> tag mapping; only
+            // `notmuch new` does. Without this call a synced message never gains
+            // the `unread` tag, so every message the API reports reads as
+            // already-read (`seen` is derived as `!tags.contains("unread")`) and
+            // a flag change is invisible to the app. Applying it explicitly is
+            // what makes flag propagation observable, and it keeps
+            // replied/flagged/draft in step with the filename too.
+            let sync_tags = |msg: &notmuch::Message| -> Result<(), ImapSyncError> {
+                msg.maildir_flags_to_tags()
+                    .map_err(|e| ImapSyncError::Notmuch(format!("maildir flags to tags: {e}")))?;
                 msg.add_tag(&format!("account:{account_id}"))
                     .map_err(|e| ImapSyncError::Notmuch(format!("tag account: {e}")))?;
                 msg.add_tag(&format!("mailbox:{mailbox}"))
@@ -1046,7 +1055,7 @@ impl ImapWorker {
                 let msg = db
                     .index_file(path, None)
                     .map_err(|e| ImapSyncError::Notmuch(format!("index {}: {e}", path.display())))?;
-                tag_owner(&msg)?;
+                sync_tags(&msg)?;
             }
 
             for (old_path, new_path) in &reflagged {
@@ -1058,7 +1067,7 @@ impl ImapWorker {
                 let msg = db.index_file(new_path, None).map_err(|e| {
                     ImapSyncError::Notmuch(format!("reindex {}: {e}", new_path.display()))
                 })?;
-                tag_owner(&msg)?;
+                sync_tags(&msg)?;
             }
 
             for path in &deleted_paths {
