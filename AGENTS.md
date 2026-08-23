@@ -86,3 +86,28 @@ that value into the three `cargoHash` fields and re-run `nix build` to verify.
 
 Letting the hash drift is silent on a warm Nix store (cached derivation reused)
 but breaks any fresh build — including CI and new developer machines.
+
+`mailbrus-frontend` has a second, separate hash: `outputHash`, because it is a
+fixed-output derivation wrapping the SPA build. That only works while the build
+is **reproducible**, which is why `kit.version.name` is pinned in
+`svelte.config.js` — SvelteKit otherwise defaults it to `Date.now()`, which
+changes every content-hashed filename under `_app/immutable/` and makes the hash
+unsatisfiable rather than merely stale. If you change the frontend build, update
+`outputHash` the same way (`got: sha256-…`), and if two consecutive
+`deno task build` runs are not byte-identical, fix that first — no hash value
+can be correct otherwise.
+
+## Before tagging a release
+
+Run `nix flake check --no-build --all-systems`. `flakehub-push` evaluates every
+output for every system the flake advertises, so an output that cannot even
+evaluate fails the publish. **`nix flake show` is not a substitute** — it reports
+names and types without forcing derivation inputs, so it passes while the
+publish fails.
+
+The flake deliberately advertises Linux only (`eachSystem [x86_64-linux
+aarch64-linux]`). Every output pulls `tauri-deps`, a Linux GTK stack whose
+`webkitgtk_4_1` carries `broken = hostPlatform.isDarwin`; the darwin outputs
+`eachDefaultSystem` used to advertise could not be evaluated at all, which is
+what broke every FlakeHub publish. Re-adding darwin means making `tauri-deps`
+platform-aware and verifying on a darwin machine.
