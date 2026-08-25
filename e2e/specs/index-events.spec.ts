@@ -3,7 +3,14 @@
  * notmuch-database change: every frame carries a `type` discriminator
  * (`"sync"` | `"index"` | `"sync_finished"`).
  */
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { test, expect } from '../harness/fixtures.ts';
+import { cloneCorpus, removeClone, type Clone } from '../harness/clone.ts';
+import { writeFixtureConfig, addAccountToml, type ConfigEntry } from '../harness/config.ts';
+import { indexClone } from '../harness/notmuch.ts';
+import { startServer, type ServerHandle } from '../harness/server.ts';
+import { startStalwart, type StalwartHandle } from '../harness/stalwart.ts';
 
 interface StreamFrame {
 	type?: string;
@@ -105,23 +112,75 @@ test('sync stream emits SyncFinished after terminal sync frame', async ({ app })
 // openspec/specs/notmuch-database/spec.md: Indexing emits done event
 //
 // Reaching an `{"type":"index","status":"done"}` frame requires a *successful*
-// IMAP sync that fetches new messages and indexes them. The per-test harness
-// has no live IMAP backend that authenticates (the Stalwart sidecar in
-// sync.spec.ts terminates at `error` — it refuses cleartext auth), so the
-// indexing path is never entered with fetched messages. Enable this once a
-// TLS-capable Stalwart (or equivalent) lets a sync complete `done`.
-test.fixme('indexing emits an index event with status:done', async ({ app }) => {
-	const account = app.config.entries[0].id;
-	const sse = await fetch(`${app.baseURL}/api/sync/stream`, {
-		headers: { Accept: 'text/event-stream' }
-	});
-	await fetch(`${app.baseURL}/api/sync/${encodeURIComponent(account)}`, { method: 'POST' });
-	const frames = await readSseUntil(
-		sse.body!,
-		(f) => f.type === 'index' && f.status === 'done',
-		20_000
-	);
-	const done = frames.find((f) => f.type === 'index' && f.status === 'done');
-	expect(done).toBeDefined();
-	expect(done!.indexed).toBeGreaterThan(0);
+// IMAP sync that fetches and indexes. The default `app` fixture's accounts point
+// at placeholder IMAP hosts, so this drives its own Stalwart-backed server. (It
+// was previously fixme'd on the belief that Stalwart refuses cleartext auth; it
+// does not — see the principal notes in `e2e/harness/stalwart.ts`.)
+test('indexing emits an index event with status:done', async () => {
+	test.slow();
+	let clone: Clone | undefined;
+	let stalwart: StalwartHandle | undefined;
+	let server: ServerHandle | undefined;
+	try {
+		clone = await cloneCorpus();
+		const scope = await indexClone(clone);
+		stalwart = await startStalwart({
+			users: [
+				{
+					email: 'alice@test.local',
+					secret: 'stalwart-secret',
+					inboxMessages: [
+						[
+							'From: tester@test.local',
+							'To: alice@test.local',
+							'Subject: index event fixture',
+							'Message-ID: <index-event-137@test.local>',
+							'',
+							'Body.'
+						].join('\r\n')
+					]
+				}
+			]
+		});
+		const base = await writeFixtureConfig(clone);
+		const maildir = join(clone.maildir, 'alice@test.local');
+		await mkdir(maildir, { recursive: true });
+		const entry: ConfigEntry = { id: 'alice@test.local', maildirRoot: maildir };
+		await addAccountToml(base.accountsDir, {
+			...entry,
+			toml: [
+				'protocol = "imap"',
+				'email = "alice@test.local"',
+				'imap_host = "127.0.0.1"',
+				`imap_port = ${stalwart.imapPort}`,
+				'imap_tls = false',
+				'credential_backend = "plain"',
+				'credential_ref = "stalwart-secret"',
+				`maildir_root = "${maildir}"`,
+				''
+			].join('\n')
+		});
+		server = await startServer({
+			scope,
+			clone,
+			config: { path: base.path, accountsDir: base.accountsDir, entries: [...base.entries, entry] }
+		});
+
+		const sse = await fetch(`${server.baseURL}/api/sync/stream`, {
+			headers: { Accept: 'text/event-stream' }
+		});
+		await fetch(`${server.baseURL}/api/sync/${encodeURIComponent(entry.id)}`, { method: 'POST' });
+		const frames = await readSseUntil(
+			sse.body!,
+			(f) => f.type === 'index' && f.status === 'done',
+			30_000
+		);
+		const done = frames.find((f) => f.type === 'index' && f.status === 'done');
+		expect(done, `no index:done frame; got ${JSON.stringify(frames)}`).toBeDefined();
+		expect(done!.indexed).toBeGreaterThan(0);
+	} finally {
+		if (server) await server.stop();
+		if (stalwart) await stalwart.stop();
+		await removeClone(clone);
+	}
 });

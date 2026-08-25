@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use thiserror::Error;
 use tracing::debug;
 
@@ -15,6 +13,10 @@ pub enum CredentialError {
         #[source]
         source: keyring::Error,
     },
+    /// The blocking keyring task panicked or was cancelled. Distinct from
+    /// `Keyring`, which carries a real error from the platform credential store.
+    #[error("keyring task for account `{account}` did not complete: {message}")]
+    KeyringTask { account: String, message: String },
     #[error("pass store error for account `{account}`: {message}")]
     Pass { account: String, message: String },
     #[error("account `{account}` has no IMAP protocol config")]
@@ -25,14 +27,38 @@ pub enum CredentialError {
     PassReadOnly,
 }
 
-const DEFAULT_SERVICE_NAME: &str = "mailbrus";
+/// Service name under which every mailbrus secret is filed in the OS keyring.
+/// Formerly set process-globally via `keyring-lib`; now passed explicitly to
+/// each `keyring::Entry`, which is the same lookup key on every platform.
+const SERVICE_NAME: &str = "mailbrus";
 
-static SERVICE_INIT: OnceLock<()> = OnceLock::new();
+fn keyring_entry(account: &str, key: &str) -> Result<keyring::Entry, CredentialError> {
+    keyring::Entry::new(SERVICE_NAME, key).map_err(|source| CredentialError::Keyring {
+        account: account.to_string(),
+        source,
+    })
+}
 
-fn ensure_global_service_name() {
-    SERVICE_INIT.get_or_init(|| {
-        keyring::set_global_service_name(DEFAULT_SERVICE_NAME);
-    });
+/// Run a blocking keyring operation off the async runtime.
+///
+/// The `keyring` public API is synchronous and the secret-service backend does
+/// real IPC, so calling it directly on a runtime worker would stall the
+/// executor. `keyring-lib` wrapped every call this way; we keep that.
+async fn keyring_blocking<T, F>(account: &str, f: F) -> Result<T, CredentialError>
+where
+    F: FnOnce() -> Result<T, keyring::Error> + Send + 'static,
+    T: Send + 'static,
+{
+    match tokio::task::spawn_blocking(f).await {
+        Ok(result) => result.map_err(|source| CredentialError::Keyring {
+            account: account.to_string(),
+            source,
+        }),
+        Err(join) => Err(CredentialError::KeyringTask {
+            account: account.to_string(),
+            message: join.to_string(),
+        }),
+    }
 }
 
 /// Store the secret for a new account and return the `credential_ref` to persist in the config.
@@ -47,17 +73,11 @@ pub async fn write(
     backend: CredentialBackend,
     secret: &str,
 ) -> Result<String, CredentialError> {
-    ensure_global_service_name();
     match backend {
         CredentialBackend::Keyring => {
-            let entry =
-                keyring::KeyringEntry::try_new(account_id).map_err(|source| {
-                    CredentialError::Keyring { account: account_id.to_string(), source }
-                })?;
-            entry.set_secret(secret).await.map_err(|source| CredentialError::Keyring {
-                account: account_id.to_string(),
-                source,
-            })?;
+            let entry = keyring_entry(account_id, account_id)?;
+            let secret = secret.to_string();
+            keyring_blocking(account_id, move || entry.set_password(&secret)).await?;
             debug!(account = account_id, "stored keyring credential");
             Ok(account_id.to_string())
         }
@@ -83,22 +103,23 @@ pub async fn resolve(config: &AccountConfig) -> Result<String, CredentialError> 
 }
 
 async fn resolve_keyring(account: &str, imap: &ImapConfig) -> Result<String, CredentialError> {
-    ensure_global_service_name();
+    let entry = keyring_entry(account, &imap.credential_ref)?;
 
-    let entry = keyring::KeyringEntry::try_new(&imap.credential_ref).map_err(|e| {
-        CredentialError::Keyring { account: account.to_string(), source: e }
-    })?;
-
-    match entry.find_secret().await {
-        Ok(Some(secret)) => {
+    // `get_password` reports a missing entry as `Error::NoEntry`; map that to
+    // `NotFound` so a not-yet-configured account is distinguishable from a
+    // locked or broken credential store.
+    match keyring_blocking(account, move || entry.get_password()).await {
+        Ok(secret) => {
             debug!(account, key = %imap.credential_ref, "resolved keyring credential");
             Ok(secret)
         }
-        Ok(None) => Err(CredentialError::NotFound {
-            account: account.to_string(),
-            backend: "keyring",
-        }),
-        Err(e) => Err(CredentialError::Keyring { account: account.to_string(), source: e }),
+        Err(CredentialError::Keyring { source: keyring::Error::NoEntry, .. }) => {
+            Err(CredentialError::NotFound {
+                account: account.to_string(),
+                backend: "keyring",
+            })
+        }
+        Err(e) => Err(e),
     }
 }
 
@@ -242,9 +263,8 @@ mod tests {
                 assert_eq!(resolved, "hunter2");
 
                 // Clean up — best-effort; a leaked test entry is not critical.
-                let entry = keyring::KeyringEntry::try_new(&cred_ref).ok();
-                if let Some(e) = entry {
-                    let _ = e.delete_secret().await;
+                if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, &cred_ref) {
+                    let _ = tokio::task::spawn_blocking(move || entry.delete_credential()).await;
                 }
             }
         }

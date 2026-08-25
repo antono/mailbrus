@@ -1,10 +1,10 @@
-{ pkgs, tauri-deps, io-email, io-maildir, system }:
+{ pkgs, tauri-deps, system }:
 let
   mailbrus = pkgs.rustPlatform.buildRustPackage {
     pname = "mailbrus";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-XbxwJax1SqdOZTAmEDBBgGGet/GrSK2prAS5nfuxOhY=";
+    cargoHash = "sha256-a3dV7vSmDV7WQ5WPEvZNS6+SKJhSBvUF812Q69IUWyw=";
     cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
@@ -39,7 +39,7 @@ let
     version = "0.1.0";
     src = ../.;
     preferLocalBuild = true;
-    cargoHash = "sha256-XbxwJax1SqdOZTAmEDBBgGGet/GrSK2prAS5nfuxOhY=";
+    cargoHash = "sha256-a3dV7vSmDV7WQ5WPEvZNS6+SKJhSBvUF812Q69IUWyw=";
     cargoBuildFlags = [ "--package" "mailbrus-desktop" ];
     # Tauri sets `dev = !custom-protocol`. Without this, buildRustPackage's plain
     # `cargo build` leaves dev=true, stripping the `#[cfg(not(dev))]` block in
@@ -89,7 +89,7 @@ let
     pname = "mailbrus-server";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-XbxwJax1SqdOZTAmEDBBgGGet/GrSK2prAS5nfuxOhY=";
+    cargoHash = "sha256-a3dV7vSmDV7WQ5WPEvZNS6+SKJhSBvUF812Q69IUWyw=";
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];

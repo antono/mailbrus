@@ -3,13 +3,14 @@
  *
  * 8.1 spins up a real Stalwart sidecar (see e2e/harness/stalwart.ts) and
  * drives the full pipeline: HTTP trigger → spawn worker → connect to Stalwart →
- * SyncEvent broadcast → SSE delivery. The assertion accepts either `done` or
- * `error` as the terminal status — Stalwart 0.15.5 refuses cleartext IMAP
- * authentication regardless of the documented `imap.auth.allow-plain-text`
- * flag, so the worker currently terminates with `error`. The shape of the
- * pipeline is still exercised end-to-end; tightening the assertion to `done`
- * is a follow-up that needs either a TLS-enabled Stalwart listener or a
- * confirmed cleartext-auth opt-in path.
+ * authenticate → fetch → index → SyncEvent broadcast → SSE delivery, asserting
+ * a terminal `done` with a non-zero fetch count.
+ *
+ * This assertion used to accept `done` OR `error`, because cleartext IMAP auth
+ * was believed impossible against Stalwart 0.15.5. It is not: the sidecar's
+ * principals were misconfigured (the internal directory authenticates by
+ * principal `name`, and an account without a role is denied after a successful
+ * auth). See the notes in `e2e/harness/stalwart.ts`.
  *
  * 8.2 / 8.3 reuse the default fixture and do not need a real IMAP server.
  */
@@ -100,13 +101,27 @@ test.describe('POST /api/sync', () => {
 			const last = events.at(-1);
 			expect(last, `expected a terminal event, got: ${JSON.stringify(events)}`).toBeDefined();
 			expect(last!.account_id).toBe(stalwartEntry.id);
-			expect(['done', 'error'], `last event: ${JSON.stringify(last)}`).toContain(last!.status);
-			// Verify the worker really reached Stalwart: error messages always
-			// reference the IMAP host or the auth/connect step, never the early
-			// credential lookup.
-			if (last!.status === 'error') {
-				expect(last!.error).toMatch(/authenticate|connect|imap/i);
-			}
+			// Tightened from `['done','error']`: the sidecar's principals are now
+			// configured so cleartext auth succeeds, so a sync must actually
+			// complete. The old tolerance could not distinguish "pipeline works"
+			// from "pipeline dies at auth" — and would have stayed green if the
+			// fetch or index phase broke.
+			expect(last!.status, `last event: ${JSON.stringify(last)}`).toBe('done');
+			// The terminal frame for an account does not itself carry a fetch
+			// count, so look for the per-mailbox frame that does. Asserting a
+			// non-zero fetch is the part that proves the run got past auth and
+			// actually pulled the seeded message.
+			const fetchedFrame = allFrames.find(
+				(f) =>
+					'account_id' in f &&
+					f.account_id === stalwartEntry.id &&
+					typeof (f as { fetched?: number }).fetched === 'number' &&
+					(f as { fetched: number }).fetched > 0
+			);
+			expect(
+				fetchedFrame,
+				`expected a frame reporting fetched > 0, got: ${JSON.stringify(allFrames)}`
+			).toBeDefined();
 
 			// Verify SyncFinished was emitted for this account.
 			const finished = allFrames.find((f) => f.type === 'sync_finished');
