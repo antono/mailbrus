@@ -31,7 +31,7 @@ let
     '';
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-3bB6go2t5SX/N2dxhxRq+33UJJfmTIYdd7y4+BHQB7k=";
+    outputHash = "sha256-wXZ4MuRChnvjvMQsskkkm6HOAiyr+mMA9bB3JLnPEQY=";
   };
 
   mailbrus-desktop = pkgs.rustPlatform.buildRustPackage {
