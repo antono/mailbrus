@@ -4,7 +4,7 @@ let
     pname = "mailbrus";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-+U6FYemR14u5/C81zsPRUwfQCvRVIwulf6IoGQw5o3s=";
+    cargoHash = "sha256-a3dV7vSmDV7WQ5WPEvZNS6+SKJhSBvUF812Q69IUWyw=";
     cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
     buildInputs = tauri-deps;
@@ -35,7 +35,7 @@ let
     # `version.name` is pinned in svelte.config.js instead of defaulting to
     # `Date.now()`, which used to change every content-hashed chunk name and made
     # this hash impossible to keep correct.
-    outputHash = "sha256-CiwxuQ5HWJys1uVlNS5PekOqtXuoXd1sOvWBkaPDEdA=";
+    outputHash = "sha256-zGFA0eTpGQRuWiI0lrOOGC88D3EzsBCzUvjg17yilvA=";
   };
 
   mailbrus-desktop = pkgs.rustPlatform.buildRustPackage {
@@ -43,8 +43,13 @@ let
     version = "0.1.0";
     src = ../.;
     preferLocalBuild = true;
-    cargoHash = "sha256-+U6FYemR14u5/C81zsPRUwfQCvRVIwulf6IoGQw5o3s=";
+    cargoHash = "sha256-a3dV7vSmDV7WQ5WPEvZNS6+SKJhSBvUF812Q69IUWyw=";
     cargoBuildFlags = [ "--package" "mailbrus-desktop" ];
+    # Tauri sets `dev = !custom-protocol`. Without this, buildRustPackage's plain
+    # `cargo build` leaves dev=true, stripping the `#[cfg(not(dev))]` block in
+    # src-tauri/src/lib.rs that spawns the server sidecar + injects the auth
+    # token — the app then can't reach 127.0.0.1:1371. See src-tauri/Cargo.toml.
+    buildFeatures = [ "custom-protocol" ];
     doCheck = false;
     nativeBuildInputs = [
       pkgs.pkg-config
@@ -88,7 +93,7 @@ let
     pname = "mailbrus-server";
     version = "0.1.0";
     src = ../.;
-    cargoHash = "sha256-+U6FYemR14u5/C81zsPRUwfQCvRVIwulf6IoGQw5o3s=";
+    cargoHash = "sha256-a3dV7vSmDV7WQ5WPEvZNS6+SKJhSBvUF812Q69IUWyw=";
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];

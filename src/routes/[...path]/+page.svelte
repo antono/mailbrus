@@ -25,7 +25,7 @@ import StatusBar from '$lib/components/StatusBar.svelte';
 		searchMessages,
 		fetchMessage,
 		getAccounts,
-		authHeaders,
+		authedFetch,
 		type Account,
 		type AccountSummary,
 		type Folder,
@@ -920,9 +920,9 @@ import StatusBar from '$lib/components/StatusBar.svelte';
 			onSent={async (draft) => {
 				// task 7.2: try network, fall back to outbox on failure
 				try {
-					const res = await fetch('/api/send', {
+					const res = await authedFetch('/api/send', {
 						method: 'POST',
-						headers: { 'content-type': 'application/json', ...authHeaders() },
+						headers: { 'content-type': 'application/json' },
 						body: JSON.stringify(draft)
 					});
 					if (!res.ok) throw new Error(`HTTP ${res.status}`);

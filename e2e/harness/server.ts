@@ -14,7 +14,7 @@ export interface ServerHandle {
 }
 
 /** Reserve an ephemeral loopback port, then release it for the server to bind. */
-function reserveFreePort(): Promise<number> {
+export function reserveFreePort(): Promise<number> {
 	return new Promise((resolve, reject) => {
 		const srv = createServer();
 		srv.on('error', reject);
@@ -58,11 +58,17 @@ export interface ServerOptions {
 	config: ConfigHandle;
 	/** When set, start the server with `--auth <token>` (enforced on `/api/*`). */
 	auth?: string;
+	/**
+	 * Bind a specific port instead of reserving a fresh one. Lets a test restart
+	 * the server on the same authority (e.g. to simulate a token rotation). The
+	 * server sets `SO_REUSEADDR`, so rebinding across a restart is safe.
+	 */
+	port?: number;
 }
 
 /** Start a server pointed at `clone`'s `XDG_DATA_HOME` and wait until it answers. */
 export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
-	const port = await reserveFreePort();
+	const port = opts.port ?? (await reserveFreePort());
 	const baseURL = `http://127.0.0.1:${port}`;
 
 	const args = [

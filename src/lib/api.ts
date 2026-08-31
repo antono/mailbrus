@@ -124,8 +124,30 @@ if (typeof window !== 'undefined' && _authToken) {
 	void persistTokenForWorker(_authToken);
 }
 
+// ── Stale-token recovery (origin validation / CWE-346) ──────────────────────
+// The auth gate registers a handler here; it fires when an /api/* request that
+// carried a token still gets 401 (e.g. the server restarted with a new token).
+// Registered indirectly to avoid an import cycle with the gate store.
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Register the callback fired on a 401 to an already-authenticated request. */
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+	unauthorizedHandler = fn;
+}
+
+/**
+ * `fetch()` for `/api/*` that attaches the bearer token and triggers stale-token
+ * recovery on a 401 when a token was actually sent. Every `/api/*` caller should
+ * go through this (or `apiFetch`, which wraps it) so recovery stays centralized.
+ */
+export async function authedFetch(input: string, init?: RequestInit): Promise<Response> {
+	const res = await fetch(input, withAuth(init));
+	if (res.status === 401 && _authToken) unauthorizedHandler?.();
+	return res;
+}
+
 async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
-	const res = await fetch(path, withAuth(init));
+	const res = await authedFetch(path, init);
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({ error: res.statusText }));
 		throw new Error((err as { error?: string }).error ?? res.statusText);

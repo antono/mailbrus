@@ -1,6 +1,6 @@
 import { idbGet, idbPut, idbGetAll } from './idb';
 import { pwaLog } from './pwa-log';
-import { authHeaders } from './api';
+import { authedFetch } from './api';
 
 export interface OutboxEntry {
 	id: string;
@@ -35,9 +35,9 @@ export async function flushOutbox(): Promise<void> {
 	for (const entry of queued) {
 		await idbPut('outbox', { ...entry, status: 'sending' });
 		try {
-			const res = await fetch('/api/send', {
+			const res = await authedFetch('/api/send', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', ...authHeaders() },
+				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(entry.message)
 			});
 			if (res.ok) {
