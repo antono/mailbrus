@@ -1,5 +1,8 @@
 { pkgs, tauri-deps, system }:
 let
+  # nixpkgs' cargo setup hook makes -sys crates link system libraries instead
+  # of bundled copies (RUSTONIG_SYSTEM_LIBONIG, LIBSQLITE3_SYS_USE_PKG_CONFIG).
+  sys-libs = [ pkgs.oniguruma pkgs.sqlite ];
   mailbrus = pkgs.rustPlatform.buildRustPackage {
     pname = "mailbrus";
     version = "0.1.0";
@@ -7,7 +10,7 @@ let
     cargoHash = "sha256-a3dV7vSmDV7WQ5WPEvZNS6+SKJhSBvUF812Q69IUWyw=";
     cargoBuildFlags = [ "--package" "mailbrus-cli" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
-    buildInputs = tauri-deps;
+    buildInputs = tauri-deps ++ sys-libs;
     doCheck = false;
   };
 
@@ -58,7 +61,7 @@ let
       pkgs.jq
       mailbrus-server
     ];
-    buildInputs = tauri-deps ++ [ pkgs.gtk3 pkgs.gsettings-desktop-schemas pkgs.adwaita-icon-theme ];
+    buildInputs = tauri-deps ++ [ pkgs.gtk3 pkgs.gsettings-desktop-schemas pkgs.adwaita-icon-theme ] ++ sys-libs;
 
     postPatch = ''
       jq '.build.devUrl = null | .build.frontendDist = "${mailbrus-frontend}"' src-tauri/tauri.conf.json > src-tauri/tauri.conf.json.tmp
@@ -97,7 +100,7 @@ let
     cargoBuildFlags = [ "--package" "mailbrus-server" ];
     cargoTestFlags = [ "--package" "mailbrus-server" ];
     nativeBuildInputs = [ pkgs.pkg-config ];
-    buildInputs = tauri-deps;
+    buildInputs = tauri-deps ++ sys-libs;
     doCheck = false;
   };
 in
